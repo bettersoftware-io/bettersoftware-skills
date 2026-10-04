@@ -27,7 +27,8 @@ For each, give the evidence as `file:line`, then FINDING or OK.
 1. **Who owns each port?** Find every interface an adapter implements: a data
    source, storage, a clock, a transport.
    - FINDING: it is declared in an adapter's file, in a client, or in the
-     wire-protocol package; or one adapter imports a type from another.
+     wire-protocol package; or an adapter takes a port's types from another
+     adapter instead of from the domain.
    - OK: it is declared in the domain package's ports folder.
 2. **Is the port in domain words or wire words?**
    - FINDING: the port's type is, or contains, a wire message; it carries

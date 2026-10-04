@@ -17,7 +17,36 @@ describe("the price server", () => {
     expect(await message).toEqual(encodePrice({ symbol: "EURUSD", mid: 1.1 }));
   });
 
-  it("stops listening to the price source when the client leaves", async () => {
+  it("gives every connected client the same prices, from one feed", async () => {
+    const prices$ = new Subject<Price>();
+    let feeds = 0;
+    const server = await startServer({
+      port: 0,
+      prices: {
+        prices: () => {
+          feeds += 1;
+
+          return prices$;
+        },
+      },
+    });
+
+    onTestFinished(() => server.close());
+
+    const first = await connectClient(server.port);
+    const second = await connectClient(server.port);
+    const received = Promise.all([first.nextMessage(), second.nextMessage()]);
+
+    prices$.next({ symbol: "EURUSD", mid: 1.1 });
+
+    expect(await received).toEqual([
+      encodePrice({ symbol: "EURUSD", mid: 1.1 }),
+      encodePrice({ symbol: "EURUSD", mid: 1.1 }),
+    ]);
+    expect(feeds).toBe(1);
+  });
+
+  it("stops listening to the price source when the last client leaves", async () => {
     const prices$ = new Subject<Price>();
     const server = await startTestServer(prices$);
     const client = await connectClient(server.port);

@@ -21,6 +21,8 @@ Early. No plugin is installable yet. What exists:
 - [`skills/reviewing-architecture`](skills/reviewing-architecture/SKILL.md): the
   review of what no gate can check, as seven judgement questions.
   [How it was tested](docs/review-skill-test-2026-10-04.md).
+- [`docs/starter-test-2026-10-04.md`](docs/starter-test-2026-10-04.md): two
+  features built by an agent in a project created from the starter.
 - [`docs/inventory.md`](docs/inventory.md): what is being extracted, and how it
   is sorted.
 - [`docs/baseline-2026-10-04.md`](docs/baseline-2026-10-04.md): what an agent

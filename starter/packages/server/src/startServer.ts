@@ -1,5 +1,6 @@
 import type { PricePort } from "@app/domain";
 import { encodePrice, WS_PATH } from "@app/shared";
+import { share } from "rxjs";
 import { WebSocketServer } from "ws";
 
 export interface ServerOptions {
@@ -14,17 +15,19 @@ export interface RunningServer {
 }
 
 /**
- * Streams prices to every client that connects. Each connection gets its own
- * subscription to the price port, released when the connection ends.
+ * Streams prices to every client that connects. All connections share one
+ * feed, so every client sees the same prices; the feed opens with the first
+ * client and closes when the last one leaves.
  *
  * The server takes its price source as a port, like the client does, so a test
  * drives it by hand and production runs it on the simulator.
  */
 export function startServer({ port, prices }: ServerOptions): Promise<RunningServer> {
   const server = new WebSocketServer({ port, path: WS_PATH });
+  const prices$ = prices.prices().pipe(share());
 
   server.on("connection", (socket) => {
-    const subscription = prices.prices().subscribe((price) => {
+    const subscription = prices$.subscribe((price) => {
       socket.send(JSON.stringify(encodePrice(price)));
     });
 
