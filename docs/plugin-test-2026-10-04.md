@@ -58,10 +58,32 @@ One change came out of run 1: its report listed the commands but could not say
 what `pnpm dev:fs` does, because the skill had not told it. The skill now
 states what each command does, and run 2 reported them correctly.
 
+## The skill that extends a project
+
+`extending-a-project` was added later the same day, with the add-ons. One
+headless run, the plugin loaded from the checkout, in a project created from
+the starter:
+
+> I want coverage gates and visual golden tests in this project. Set them up.
+
+- The skill loaded unprompted.
+- It listed the units, added `coverage`, installed, ran `pnpm coverage`, then
+  did the same for `visual` and ran `pnpm visual`, and finished with
+  `pnpm gate:full`. All passed.
+- Its report said what a person needs to know next: the Linux goldens do not
+  exist yet, so the visual workflow will fail in CI until they are drawn.
+- It added the second unit on top of the first one's uncommitted changes, and
+  said so.
+
+78 seconds, $0.74. The refusal paths (edited files, a project without the kit)
+are covered by the script's tests, not by an agent run.
+
 ## Not checked
 
-- **An agent session in Codex.** Installing was checked; whether Codex loads
-  the skills at the right moment, and finds the script two folders above the
-  skill, was not. It needs a Codex login.
+- **The plugin's skills in a Codex session.** Installing was checked, and the
+  project's instruction file and hooks were later run in Codex
+  ([the Codex run](codex-test-2026-10-04.md)). Whether Codex loads a skill from
+  the plugin at the right moment, and finds the script two folders above it,
+  was not.
 - **The other skip case**, a request for a stack the starter does not fit.
 - **Other models.** All three runs used one model.

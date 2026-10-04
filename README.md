@@ -30,6 +30,7 @@ codex plugin add bettersoftware-skills@bettersoftware
 | Skill | Use it |
 |---|---|
 | `bettersoftware-skills:creating-a-project` | To start a new project from the starter. It runs the script, installs, and proves `gate:full` passes before anything is changed |
+| `bettersoftware-skills:extending-a-project` | To add an add-on to a project, bring its copy of the kit up to date, or give an existing project the gates for the first time |
 | `bettersoftware-skills:reviewing-architecture` | To review a change for what no gate can check, as seven judgement questions |
 
 The plugin installs no hooks. The gates and the hooks that run them are files
@@ -41,6 +42,29 @@ The Claude Code manifest carries no `version` on purpose: a version pins
 users until it changes, and while the plugin is this young every commit should
 reach them.
 
+## Add-ons
+
+A project takes the optional checks it wants. Like the kit, an add-on is files
+in the project, so it works for everyone on the project, in any harness and in
+CI.
+
+```bash
+node scripts/add-to-project.mts <project> coverage
+```
+
+| Add-on | The project gains |
+|---|---|
+| [`coverage`](addons/coverage/README.md) | A per-file coverage gate for every package, a ranked list of gaps, a check that proves a test can fail, and a published report that states the commit it was built from |
+| [`visual`](addons/visual/README.md) | Screenshot tests of the UI in seeded states against committed golden images, kept per platform, with the tolerance measured and set in one place |
+| [`performance`](addons/performance/README.md) | A static check of animations and transitions, a runtime audit of what Chromium actually composites, and a guide to the traps and their fixes |
+| `kit` | The same command brings a project's copy of the gates up to date, or sets them up in a project that did not start here |
+
+The script records a hash of each file it installs. On a later run an untouched
+file is replaced by the newer version; a file edited in the project is never
+overwritten unless `--force` is given, and files the project is meant to own
+(its scenarios, its goldens, its exclusions) are written once and then left
+alone. [The contract an add-on follows](addons/README.md).
+
 ## What is in this repository
 
 - [`starter/`](starter/README.md): a working project to start from, with one
@@ -48,26 +72,26 @@ reach them.
   plugin, create a project from it with
   `node scripts/create-project.mts <target> --scope @acme`.
 - [`kit/`](kit/README.md): the deterministic checks (architecture gates, lint
-  rules) and the agent hooks that run them. Tested, and proven against a
-  baseline run.
-- [`skills/`](skills): the two skills above.
-  [How the review was tested](docs/review-skill-test-2026-10-04.md);
-  [how the plugin was tested](docs/plugin-test-2026-10-04.md).
-- [`docs/starter-test-2026-10-04.md`](docs/starter-test-2026-10-04.md): two
-  features built by an agent in a project created from the starter.
-- [`docs/inventory.md`](docs/inventory.md): what is being extracted, and how it
-  is sorted.
-- [`docs/baseline-2026-10-04.md`](docs/baseline-2026-10-04.md): what an agent
-  built with no guidance, and what the kit says about it.
+  rules), the agent hooks that run them, and the review questions. Copied into
+  a project as `tools/arch`.
+- [`addons/`](addons/README.md): the three add-ons above.
+- [`skills/`](skills): the three skills above.
+- [`docs/STATUS.md`](docs/STATUS.md): what is not done yet.
 
-## Planned plugins
+How each part was tested:
 
-| Plugin | Contents |
+| Record | What it shows |
 |---|---|
-| `bettersoftware-skills` (exists) | The starter and its creation skill, the gate kit, the review. Skills for placing logic, adding a port, streaming state and testing are written only when a task fails in a way the gates do not catch; none has yet |
-| Coverage and reports | Coverage gates, per-file gap ranking, published coverage and failure reports |
-| Visual goldens (optional) | Scenario matrix, golden sets, update runbook, tolerance audit, diff report |
-| Rendering performance (optional) | Compositor-only animation rules and the motion audit |
+| [`docs/baseline-2026-10-04.md`](docs/baseline-2026-10-04.md) | What an agent built with no guidance, and what the kit says about it |
+| [`docs/review-skill-test-2026-10-04.md`](docs/review-skill-test-2026-10-04.md) | The review, with and without the skill |
+| [`docs/starter-test-2026-10-04.md`](docs/starter-test-2026-10-04.md) | Three features built by an agent in a created project, one of them with nothing in the starter to copy |
+| [`docs/plugin-test-2026-10-04.md`](docs/plugin-test-2026-10-04.md) | Installing the plugin on both hosts, and the creation skill |
+| [`docs/codex-test-2026-10-04.md`](docs/codex-test-2026-10-04.md) | The project in Codex: a feature from `AGENTS.md` alone, and both hooks firing |
+| [`docs/inventory.md`](docs/inventory.md) | What was extracted, and how it was sorted |
+
+No skill exists yet for placing logic, adding a port, streaming state or
+testing. One is written only when a task fails in a way the gates do not
+catch, and across four feature runs none has.
 
 ## Principles
 

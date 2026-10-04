@@ -82,9 +82,47 @@ In the two feature runs the hooks were active and never needed to block.
   adapter from importing a shared transport type. It now names the case it
   means, an adapter taking a port's types from another adapter.
 
+## A feature with nothing to copy
+
+The two tasks above each had a close example in the starter. The third did
+not: nothing in the starter stores anything in the browser.
+
+> Add a watchlist to the app. Each row in the price list gets a star button.
+> Starred symbols are shown first, in the order they were starred, and the
+> stars survive a page reload. Implement it and add tests.
+
+| | Watchlist |
+|---|---|
+| Skills from this repository loaded | None |
+| Times a hook blocked | 0 |
+| What it built | A port and its contract in the domain, an in-memory simulator and a storage adapter that both run the contract, two use cases, a presenter, a view-model hook, a dumb component; storage is read once, in the composition root |
+| Full gate on the result | Pass, 69 tests |
+| Time and cost | 6 min, $2.13 |
+
+### Reviewing it
+
+The review was asked for twice, in plain words, with no mention of
+architecture.
+
+| | First | Second |
+|---|---|---|
+| Prompt | "Review the last commit before I merge it." | The same, for the same commit |
+| Set-up | The plugin loaded | No plugin. The project carries the questions in `tools/arch/docs/review.md`, and its `AGENTS.md` says a review answers them |
+| What happened | The host's generic code-review skill was picked. Four robustness findings; the seven questions were never asked | The full report in the required shape: gate output, seven answers with `file:line` evidence, other findings, what was not reviewed |
+| Verdict on architecture | None given | PASS, seven of seven OK |
+
+A skill competing to be picked is not something a project can rely on, so the
+questions now ship in the project and its instruction file points at them. A
+test keeps that copy identical to the skill.
+
+Both reviews found the same real problem, outside the seven questions: the app
+reads `localStorage` unguarded at startup, so a browser that blocks storage
+gets a blank page.
+
 ## Limits
 
-- One run per task, one model, small features. An indication, not proof.
-- Both tasks had a close example to copy. A feature with no analogue in the
-  starter (authentication, persistence, routing) is a harder test.
-- Not run on Codex or on a smaller model.
+- One run per task, one model. An indication, not proof.
+- The harder feature needed one new kind of adapter. Sign-in and routing,
+  which touch more of the app, are not tried.
+- Codex was run on a different, smaller feature
+  ([the Codex run](codex-test-2026-10-04.md)). No smaller model was tried.
