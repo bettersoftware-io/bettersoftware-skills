@@ -18,13 +18,12 @@ the test records in this folder and the git log say what was done.
 Everything below was written and checked locally. None of it has run where it
 is meant to run.
 
-- **This repository's own CI** (`.github/workflows/ci.yml`). Its first run is
-  the first push that carries it.
 - **The workflows the add-ons put in a project:** `coverage.yml` (including the
   publish to GitHub Pages, which also needs a repository setting),
-  `visual.yml`, `update-visual-goldens.yml`, `perf.yml`. The starter's own
-  `ci.yml` runs one command, `pnpm gate:full`, which this repository's CI now
-  runs on a created project.
+  `visual.yml`, `update-visual-goldens.yml`, `perf.yml`. This repository's own
+  CI does run: it creates a project and holds it to `pnpm gate:full`, as
+  created and with each add-on in, which is also the one command the starter's
+  `ci.yml` runs.
 - **The `linux-x64` golden set does not exist.** Only `darwin-arm64` is
   shipped. A new project's first `visual.yml` run fails, with a message that
   says to run the update workflow. CI's own noise floor is unmeasured, so the
