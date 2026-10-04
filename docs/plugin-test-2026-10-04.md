@@ -11,7 +11,8 @@ agent runs were not, which is why run 2's prompt shows the old one.
 ## Installing
 
 Each host was given its own empty configuration folder, so nothing here
-touched a real setup. The marketplace was added from the local checkout.
+touched a real setup. The marketplace was added from the local checkout first,
+and again from GitHub (`bettersoftware-io/skills`) once it was pushed.
 
 | Check | Result |
 |---|---|
@@ -19,6 +20,8 @@ touched a real setup. The marketplace was added from the local checkout.
 | Claude Code: add the marketplace, install `bettersoftware-skills@bettersoftware` | Installed and enabled. Two skills, no hooks, about 156 tokens added to every session |
 | Codex 0.160.0: add the marketplace, add `bettersoftware-skills@bettersoftware` | Installed and enabled. Both skills are in its cache |
 | Create a project with the script inside Codex's cache, install from the lockfile, run `gate:full` | Pass: five gates, 37 tests, build |
+| Both hosts again, from GitHub | Installed and enabled on both |
+| Create a project with the script inside Claude Code's cache of the GitHub install, install from the lockfile, run `gate:full` | Pass: five gates, 37 tests, build |
 | The four manifests agree (`scripts/plugin-manifests.test.mts`) | 10 tests |
 
 Two things were learned on the way:
@@ -60,6 +63,5 @@ states what each command does, and run 2 reported them correctly.
 - **An agent session in Codex.** Installing was checked; whether Codex loads
   the skills at the right moment, and finds the script two folders above the
   skill, was not. It needs a Codex login.
-- **Installing from GitHub.** Both hosts were given the local checkout.
 - **The other skip case**, a request for a stack the starter does not fit.
 - **Other models.** All three runs used one model.
