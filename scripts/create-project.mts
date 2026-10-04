@@ -11,6 +11,8 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { isMainModule } from "../kit/gates/lib/files.mts";
+import { addToProject, KIT } from "./add-to-project.mts";
+import { listFiles } from "./lib/install.mts";
 
 const REPOSITORY = dirname(dirname(fileURLToPath(import.meta.url)));
 const STARTER_SCOPE = "@app";
@@ -18,9 +20,6 @@ const STARTER_NAME = "starter";
 
 /** Never copied from the starter: installed or generated files, and the kit link. */
 const SKIPPED_IN_STARTER = new Set(["node_modules", "dist", "coverage", ".turbo", "tools"]);
-
-/** Never copied from the kit: its own tests and the broken projects they run against. */
-const SKIPPED_IN_KIT = /(\.test\.mts$|\/gates\/fixtures(\/|$)|\/architecture\.config\.example\.mts$)/;
 
 const TEXT_FILE = /\.(ts|tsx|mts|json|md|yaml|yml|html|css)$|^\.gitignore$/;
 
@@ -57,10 +56,10 @@ export function createProject({ target, scope = STARTER_SCOPE, name }: ProjectOp
     filter: (source) => !SKIPPED_IN_STARTER.has(basename(source)),
   });
 
-  cpSync(join(REPOSITORY, "kit"), join(destination, "tools", "arch"), {
-    recursive: true,
-    filter: (source) => !SKIPPED_IN_KIT.test(source),
-  });
+  // The kit goes in the way a later update does, so the project starts with a
+  // record of what was installed and `add-to-project.mts <project> kit` can
+  // tell an untouched file from an edited one.
+  addToProject({ project: destination, unit: KIT });
 
   for (const file of listFiles(destination)) {
     if (!TEXT_FILE.test(basename(file)) || file.startsWith(join(destination, "tools"))) {
@@ -80,14 +79,6 @@ export function createProject({ target, scope = STARTER_SCOPE, name }: ProjectOp
   writeFileSync(manifest, readFileSync(manifest, "utf8").replace(`"name": "${STARTER_NAME}"`, `"name": "${projectName}"`));
 
   return destination;
-}
-
-function listFiles(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(directory, entry.name);
-
-    return entry.isDirectory() ? listFiles(path) : [path];
-  });
 }
 
 function parseArguments(argv: string[]): ProjectOptions {

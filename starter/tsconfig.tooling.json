@@ -15,6 +15,6 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["tools/arch/**/*.mts", "eslint.config.mts", "architecture.config.mts"],
-  "exclude": ["tools/arch/**/*.test.mts", "tools/arch/gates/fixtures", "tools/arch/architecture.config.example.mts"]
+  "include": ["tools/**/*.mts", "eslint.config.mts", "architecture.config.mts"],
+  "exclude": ["tools/**/*.test.mts", "tools/arch/gates/fixtures", "tools/arch/architecture.config.example.mts"]
 }

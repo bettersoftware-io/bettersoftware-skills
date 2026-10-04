@@ -54,5 +54,25 @@ export function describePricePortContract(label: string, createHarness: () => Pr
         teardown();
       }
     });
+
+    it("starts a new subscriber from now, with no replay of earlier prices", async () => {
+      const { port, produce, teardown } = createHarness();
+      const received: Price[] = [];
+      const first = port.prices().subscribe();
+
+      try {
+        await produce({ symbol: "EURUSD", mid: 1.1 });
+        first.unsubscribe();
+
+        const second = port.prices().subscribe((price) => received.push(price));
+
+        await produce({ symbol: "EURUSD", mid: 1.2 });
+        second.unsubscribe();
+
+        expect(received).toEqual([{ symbol: "EURUSD", mid: 1.2 }]);
+      } finally {
+        teardown();
+      }
+    });
   });
 }
