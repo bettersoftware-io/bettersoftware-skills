@@ -10,15 +10,22 @@
 // reported as "no verdict" instead of being swallowed.
 
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 
-import { ConfigError } from "../gates/lib/config.mjs";
-import { formatFindings, runGates } from "../gates/run.mjs";
+import { ConfigError } from "../gates/lib/config.mts";
+import { isMainModule } from "../gates/lib/files.mts";
+import { formatFindings, runGates } from "../gates/run.mts";
 
 const PATCH_FILE = /^\*\*\* (?:Add|Update) File: (.+)$/gm;
 
+/** The fields both hosts send that this hook reads. */
+export interface EditPayload {
+  cwd?: string;
+  tool_name?: string;
+  tool_input?: { file_path?: unknown; command?: unknown };
+}
+
 /** The files a tool call wrote, from either host's payload. */
-export function editedFilesOf(payload) {
+export function editedFilesOf(payload: EditPayload): string[] {
   const input = payload.tool_input ?? {};
 
   if (typeof input.file_path === "string") {
@@ -26,13 +33,13 @@ export function editedFilesOf(payload) {
   }
 
   if (typeof input.command === "string") {
-    return [...input.command.matchAll(PATCH_FILE)].map((match) => match[1].trim());
+    return [...input.command.matchAll(PATCH_FILE)].map((match) => (match[1] ?? "").trim());
   }
 
   return [];
 }
 
-export async function judgeEdit(payload) {
+export async function judgeEdit(payload: EditPayload): Promise<string | undefined> {
   const files = editedFilesOf(payload);
 
   if (files.length === 0) {
@@ -50,12 +57,12 @@ export async function judgeEdit(payload) {
   } catch (error) {
     return error instanceof ConfigError
       ? undefined // a project without declared layers has no rules to break
-      : `The architecture gates crashed, so this edit has no verdict: ${error.message}`;
+      : `The architecture gates crashed, so this edit has no verdict: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const reason = await judgeEdit(JSON.parse(readFileSync(0, "utf8") || "{}"));
+if (isMainModule(import.meta.url)) {
+  const reason = await judgeEdit(JSON.parse(readFileSync(0, "utf8") || "{}") as EditPayload);
 
   if (reason) {
     console.log(JSON.stringify({ decision: "block", reason }));

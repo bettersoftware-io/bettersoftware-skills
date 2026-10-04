@@ -1,12 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { editedFilesOf, judgeEdit } from "./after-edit.mjs";
-import { judgeStop } from "./before-stop.mjs";
+import { editedFilesOf, judgeEdit } from "./after-edit.mts";
+import { judgeStop } from "./before-stop.mts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const broken = join(here, "..", "gates", "fixtures", "broken");
@@ -52,8 +52,22 @@ describe("after an edit", () => {
     expect(await judgeEdit({ cwd: tmpdir(), tool_input: { file_path: join(tmpdir(), "a.tsx") } })).toBeUndefined();
   });
 
+  it("still judges when the script is reached through a symlink", () => {
+    const link = join(mkdtempSync(join(tmpdir(), "arch-link-")), "after-edit.mts");
+
+    symlinkSync(join(here, "after-edit.mts"), link);
+
+    const run = spawnSync(process.execPath, [link], {
+      input: JSON.stringify({ cwd: broken, tool_input: { file_path: UI } }),
+      encoding: "utf8",
+      env: { ...process.env, CLAUDE_PROJECT_DIR: "" },
+    });
+
+    expect(JSON.parse(run.stdout).decision).toBe("block");
+  });
+
   it("replies in the shape both hosts read, when run as a command", () => {
-    const run = spawnSync(process.execPath, [join(here, "after-edit.mjs")], {
+    const run = spawnSync(process.execPath, [join(here, "after-edit.mts")], {
       input: JSON.stringify({ cwd: broken, tool_input: { file_path: UI } }),
       encoding: "utf8",
       env: { ...process.env, CLAUDE_PROJECT_DIR: "" },
@@ -85,6 +99,17 @@ describe("before the agent stops", () => {
     expect(judgeStop({ cwd: createProject({ "gate:fast": "false" }), stop_hook_active: true }, red)).toBeUndefined();
   });
 
+  it("runs the project's own script and reads its exit code", () => {
+    expect(judgeStop({ cwd: createProject({ "gate:fast": "node -e \"process.exit(0)\"" }) })).toBeUndefined();
+
+    const reason = judgeStop({
+      cwd: createProject({ "gate:fast": "node -e \"console.log('FAIL dumb-ui (1)'); process.exit(1)\"" }),
+    });
+
+    expect(reason).toContain("`gate:fast` is red");
+    expect(reason).toContain("FAIL dumb-ui (1)");
+  });
+
   it("stays out of a project that has no fast gate", () => {
     let ran = false;
     const reason = judgeStop({ cwd: createProject({ test: "vitest" }) }, () => {
@@ -98,7 +123,7 @@ describe("before the agent stops", () => {
   });
 });
 
-function createPatch() {
+function createPatch(): string {
   return [
     "*** Begin Patch",
     "*** Add File: src/ui/New.tsx",
@@ -112,7 +137,7 @@ function createPatch() {
   ].join("\n");
 }
 
-function createProject(scripts) {
+function createProject(scripts: Record<string, string>): string {
   const root = mkdtempSync(join(tmpdir(), "arch-hooks-"));
 
   writeFileSync(join(root, "package.json"), JSON.stringify({ name: "p", scripts }));

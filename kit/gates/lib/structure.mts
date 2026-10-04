@@ -5,12 +5,13 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
-import { packagesWithRole } from "./config.mjs";
-import { isInside, isTestFile, listSourceFiles, matchesName } from "./files.mjs";
+import type { ClientPackage, Finding, Project, ResolvedConfig, WorkspacePackage } from "./config.mts";
+import { packagesWithRole } from "./config.mts";
+import { isInside, isTestFile, listSourceFiles, matchesName } from "./files.mts";
 
 const GATE = "structure";
 
-export function checkStructure({ root, config, workspace }) {
+export function checkStructure({ root, config, workspace }: Project): Finding[] {
   return [
     ...checkEveryPackageIsDeclared(config, workspace),
     ...checkDeclaredPackagesExist(root, config),
@@ -22,33 +23,33 @@ export function checkStructure({ root, config, workspace }) {
 }
 
 /** Layout findings for some files only — the after-edit path. */
-export function checkStructureOfFiles({ root, config }, files) {
+export function checkStructureOfFiles({ root, config }: Project, files: string[]): Finding[] {
   return packagesWithRole(config, "client").flatMap((client) =>
     checkClientLayout(root, client, files.filter((file) => isInside(file, client.path))),
   );
 }
 
-function checkEveryPackageIsDeclared(config, workspace) {
+function checkEveryPackageIsDeclared(config: ResolvedConfig, workspace: WorkspacePackage[]): Finding[] {
   return workspace
     .filter(({ path }) => !config.packages[path])
     .map(({ path, name }) => ({
       gate: GATE,
       file: path,
-      message: `${name} has no declared role. A new package is forbidden by default: add "${path}" to architecture.config.mjs with the role it plays.`,
+      message: `${name} has no declared role. A new package is forbidden by default: add "${path}" to architecture.config.mts with the role it plays.`,
     }));
 }
 
-function checkDeclaredPackagesExist(root, config) {
+function checkDeclaredPackagesExist(root: string, config: ResolvedConfig): Finding[] {
   return Object.keys(config.packages)
     .filter((path) => !existsSync(join(root, path, "package.json")))
     .map((path) => ({
       gate: GATE,
       file: path,
-      message: `architecture.config.mjs declares "${path}" but no package lives there.`,
+      message: `architecture.config.mts declares "${path}" but no package lives there.`,
     }));
 }
 
-function checkRequiredRoles(config) {
+function checkRequiredRoles(config: ResolvedConfig): Finding[] {
   return config.requiredRoles
     .filter((role) => packagesWithRole(config, role).length === 0)
     .map((role) => ({
@@ -62,7 +63,7 @@ function checkRequiredRoles(config) {
     }));
 }
 
-function checkPortsFolder(root, config) {
+function checkPortsFolder(root: string, config: ResolvedConfig): Finding[] {
   return packagesWithRole(config, "domain")
     .filter((domain) => existsSync(join(root, domain.path)))
     .filter((domain) => !existsSync(join(root, domain.path, domain.ports)))
@@ -73,9 +74,9 @@ function checkPortsFolder(root, config) {
     }));
 }
 
-function checkNpmAllowlists(root, config, workspace) {
+function checkNpmAllowlists(root: string, config: ResolvedConfig, workspace: WorkspacePackage[]): Finding[] {
   const workspaceNames = new Set(workspace.map(({ name }) => name));
-  const findings = [];
+  const findings: Finding[] = [];
 
   for (const [path, declaration] of Object.entries(config.packages)) {
     const manifest = join(root, path, "package.json");
@@ -84,14 +85,17 @@ function checkNpmAllowlists(root, config, workspace) {
       continue;
     }
 
-    const dependencies = Object.keys(JSON.parse(readFileSync(manifest, "utf8")).dependencies ?? {});
+    const { dependencies: declaredDependencies } = JSON.parse(readFileSync(manifest, "utf8")) as {
+      dependencies?: Record<string, string>;
+    };
+    const dependencies = Object.keys(declaredDependencies ?? {});
 
     for (const dependency of dependencies) {
       if (!workspaceNames.has(dependency) && !declaration.npm.includes(dependency)) {
         findings.push({
           gate: GATE,
           file: `${path}/package.json`,
-          message: `"${dependency}" is a runtime dependency, but this package may depend only on [${declaration.npm.join(", ")}]. Move the code that needs it outward, or extend the "npm" list in architecture.config.mjs deliberately.`,
+          message: `"${dependency}" is a runtime dependency, but this package may depend only on [${declaration.npm.join(", ")}]. Move the code that needs it outward, or extend the "npm" list in architecture.config.mts deliberately.`,
         });
       }
     }
@@ -100,17 +104,19 @@ function checkNpmAllowlists(root, config, workspace) {
   return findings;
 }
 
-function checkClientLayout(root, client, onlyFiles) {
+function checkClientLayout(root: string, client: ClientPackage, onlyFiles?: string[]): Finding[] {
   const source = `${client.path}/src`;
   const app = `${client.path}/${client.app}`;
   const ui = `${client.path}/${client.ui}`;
-  const findings = [];
+  const findings: Finding[] = [];
 
   if (!onlyFiles) {
-    for (const [folder, purpose] of [
+    const folders: [string, string][] = [
       [app, "the composition root: the one place that reads configuration and picks adapters"],
       [ui, "the dumb UI: components that render what the view model gives them"],
-    ]) {
+    ];
+
+    for (const [folder, purpose] of folders) {
       if (existsSync(join(root, client.path)) && !existsSync(join(root, folder))) {
         findings.push({ gate: GATE, file: folder, message: `Missing folder. A client has ${purpose}.` });
       }

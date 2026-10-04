@@ -11,18 +11,45 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { packagesWithRole, ROLE_MAY_IMPORT } from "./config.mjs";
+import type { Finding, Project, ResolvedConfig, WorkspacePackage } from "./config.mts";
+import { declaredPackages, packagesWithRole, ROLE_MAY_IMPORT } from "./config.mts";
 
 const GATE = "dependencies";
 
-const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const anyOf = (paths) => `^(${paths.map(escape).join("|")})/`;
-const slug = (path) => path.replace(/^.*\//, "");
+interface RulePath {
+  path?: string;
+  pathNot?: string;
+  circular?: boolean;
+  dependencyTypes?: string[];
+}
 
-export function buildRules(config, workspace) {
-  const declared = Object.entries(config.packages).map(([path, declaration]) => ({ path, ...declaration }));
+export interface Rule {
+  name: string;
+  severity: "error";
+  comment: string;
+  from: RulePath;
+  to: RulePath;
+}
+
+interface CruisedDependency {
+  module: string;
+  resolved: string;
+  couldNotResolve: boolean;
+}
+
+interface CruiseReport {
+  summary?: { violations?: { from: string; to: string; rule: { name: string } }[] };
+  modules?: { source: string; dependencies?: CruisedDependency[] }[];
+}
+
+const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const anyOf = (paths: string[]): string => `^(${paths.map(escape).join("|")})/`;
+const slug = (path: string): string => path.replace(/^.*\//, "");
+
+export function buildRules(config: ResolvedConfig, workspace: WorkspacePackage[]): Rule[] {
+  const declared = declaredPackages(config);
   const everyPackage = [...new Set([...declared.map(({ path }) => path), ...workspace.map(({ path }) => path)])];
-  const rules = [
+  const rules: Rule[] = [
     {
       name: "no-circular",
       severity: "error",
@@ -70,13 +97,13 @@ export function buildRules(config, workspace) {
 
   for (const client of packagesWithRole(config, "client")) {
     const ui = `^${escape(`${client.path}/${client.ui}`)}/`;
-    const production = "(\\.(test|spec)\\.[cm]?tsx?$|/__tests__/)";
+    const tests = "(\\.(test|spec)\\.[cm]?tsx?$|/__tests__/)";
 
     rules.push({
       name: `${slug(client.path)}-ui-never-imports-app`,
       severity: "error",
       comment: "The UI imports the composition root. Wiring flows one way: the root builds the view model and hands it to the UI.",
-      from: { path: ui, pathNot: production },
+      from: { path: ui, pathNot: tests },
       to: { path: `^${escape(`${client.path}/${client.app}`)}/` },
     });
 
@@ -85,7 +112,7 @@ export function buildRules(config, workspace) {
         name: `${slug(client.path)}-ui-never-imports-adapters`,
         severity: "error",
         comment: "The UI imports an adapter. Only the composition root picks adapters; the UI reaches data through the view model.",
-        from: { path: ui, pathNot: production },
+        from: { path: ui, pathNot: tests },
         to: { path: anyOf(config.adapters) },
       });
     }
@@ -95,15 +122,18 @@ export function buildRules(config, workspace) {
 }
 
 /** The project's own dependency-cruiser if it has one, else the one beside these gates. */
-function locateDependencyCruiser(root) {
+function locateDependencyCruiser(root: string): string | undefined {
   for (const start of [root, dirname(fileURLToPath(import.meta.url))]) {
     for (let directory = start; ; directory = dirname(directory)) {
       const manifest = join(directory, "node_modules", "dependency-cruiser", "package.json");
 
       if (existsSync(manifest)) {
-        const bin = JSON.parse(readFileSync(manifest, "utf8")).bin;
+        const { bin } = JSON.parse(readFileSync(manifest, "utf8")) as { bin: string | Record<string, string> };
+        const script = typeof bin === "string" ? bin : (bin.depcruise ?? Object.values(bin)[0]);
 
-        return join(dirname(manifest), typeof bin === "string" ? bin : (bin.depcruise ?? Object.values(bin)[0]));
+        if (script) {
+          return join(dirname(manifest), script);
+        }
       }
 
       if (directory === dirname(directory)) {
@@ -115,7 +145,7 @@ function locateDependencyCruiser(root) {
   return undefined;
 }
 
-export function checkDependencies({ root, config, workspace }) {
+export function checkDependencies({ root, config, workspace }: Project): Finding[] {
   const cruiser = locateDependencyCruiser(root);
 
   if (!cruiser) {
@@ -131,26 +161,27 @@ export function checkDependencies({ root, config, workspace }) {
   const scratch = mkdtempSync(join(tmpdir(), "arch-gates-"));
 
   try {
-    const paths = {};
+    const paths: Record<string, string[]> = {};
 
     for (const { path, name } of workspace) {
       paths[name] = [`${path}/src/index.ts`];
       paths[`${name}/*`] = [`${path}/src/*`];
     }
 
-    const tsconfig = join(scratch, "tsconfig.json");
     // Read for module resolution only. TypeScript still wants one input file.
+    const tsconfig = join(scratch, "tsconfig.json");
     writeFileSync(join(scratch, "empty.ts"), "export {};\n");
     writeFileSync(
       tsconfig,
       JSON.stringify({ compilerOptions: { baseUrl: root, paths, ignoreDeprecations: "6.0" }, files: ["empty.ts"] }),
     );
 
+    const rules = buildRules(config, workspace);
     const configFile = join(scratch, ".dependency-cruiser.json");
     writeFileSync(
       configFile,
       JSON.stringify({
-        forbidden: buildRules(config, workspace),
+        forbidden: rules,
         options: {
           tsPreCompilationDeps: false,
           tsConfig: { fileName: tsconfig },
@@ -167,38 +198,40 @@ export function checkDependencies({ root, config, workspace }) {
       maxBuffer: 256 * 1024 * 1024,
     });
 
-    let report;
+    let report: CruiseReport;
 
     try {
-      report = JSON.parse(run.stdout);
+      report = JSON.parse(run.stdout) as CruiseReport;
     } catch {
       return [{ gate: GATE, message: `dependency-cruiser did not produce a report, so there is no verdict.\n${(run.stderr || run.stdout).trim().slice(0, 600)}` }];
     }
 
-    return [...findDormantRules(report, workspace), ...toFindings(report)];
+    return [...findDormantRules(report, workspace), ...toFindings(report, rules)];
   } finally {
     rmSync(scratch, { recursive: true, force: true });
   }
 }
 
-function toFindings(report) {
+function toFindings(report: CruiseReport, rules: Rule[]): Finding[] {
+  const commentOf = new Map(rules.map((rule) => [rule.name, rule.comment]));
+
   return (report.summary?.violations ?? []).map((violation) => ({
     gate: GATE,
     file: violation.from,
-    message: `${violation.rule.name}: imports ${violation.to}. ${report.summary.ruleSetUsed?.forbidden?.find((rule) => rule.name === violation.rule.name)?.comment ?? ""}`.trim(),
+    message: `${violation.rule.name}: imports ${violation.to}. ${commentOf.get(violation.rule.name) ?? ""}`.trim(),
   }));
 }
 
 /** A workspace import that does not land in that package's source makes every path rule blind to it. */
-function findDormantRules(report, workspace) {
+function findDormantRules(report: CruiseReport, workspace: WorkspacePackage[]): Finding[] {
   const modules = report.modules ?? [];
 
   if (modules.length === 0) {
     return [{ gate: GATE, message: "dependency-cruiser read no files, so the rules checked nothing." }];
   }
 
-  const findings = [];
-  const seen = new Set();
+  const findings: Finding[] = [];
+  const seen = new Set<string>();
 
   for (const module of modules) {
     for (const dependency of module.dependencies ?? []) {

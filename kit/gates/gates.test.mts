@@ -1,9 +1,13 @@
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { ConfigError } from "./lib/config.mjs";
-import { formatFindings, runGates } from "./run.mjs";
+import type { Finding } from "./lib/config.mts";
+import { ConfigError } from "./lib/config.mts";
+import { formatFindings, runGates } from "./run.mts";
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 const clean = join(fixtures, "clean");
@@ -16,7 +20,7 @@ describe("a project that follows the rules", () => {
     const result = await runGates({ root: clean });
 
     expect(result.findings).toEqual([]);
-    expect(result.gates).toEqual(["structure", "dumb-ui", "port-contracts", "dependencies"]);
+    expect(result.gates).toEqual(["structure", "typescript-only", "dumb-ui", "port-contracts", "dependencies"]);
     expect(result.skipped).toEqual({});
     expect(formatFindings(result)).toContain("all gates passed.");
   });
@@ -29,11 +33,14 @@ describe("a project that follows the rules", () => {
 });
 
 describe("a project that breaks the rules", () => {
-  let findings;
+  let findings: Finding[] = [];
 
-  const of = (gate, file) =>
+  const of = (gate: string, file?: string): Finding[] =>
     findings.filter((finding) => finding.gate === gate && (file === undefined || finding.file === file));
-  const messages = (gate, file) => of(gate, file).map((finding) => finding.message).join("\n");
+  const messages = (gate: string, file?: string): string =>
+    of(gate, file)
+      .map((finding) => finding.message)
+      .join("\n");
 
   it("is judged", async () => {
     findings = (await runGates({ root: broken })).findings;
@@ -58,6 +65,12 @@ describe("a project that breaks the rules", () => {
 
   it("does not report a test for sitting beside a misplaced subject", () => {
     expect(of("structure", "packages/client-react/src/feed.test.ts")).toEqual([]);
+  });
+
+  it("names a JavaScript file, and leaves alone one a tool can only load as JavaScript", () => {
+    expect(messages("typescript-only", "scripts/build.mjs")).toContain("A JavaScript file in a TypeScript project");
+    expect(of("typescript-only", "stylelint.config.mjs")).toEqual([]);
+    expect(of("typescript-only").map((finding) => finding.file)).toEqual(["scripts/build.mjs"]);
   });
 
   it("names every dumb-UI violation with its line", () => {
@@ -104,7 +117,7 @@ describe("the per-file path the editor hook uses", () => {
   it("judges only the files it is given", async () => {
     const result = await runGates({ root: broken, files: [UI, "packages/client-react/src/feed.ts"] });
 
-    expect(result.gates).toEqual(["structure", "dumb-ui"]);
+    expect(result.gates).toEqual(["structure", "typescript-only", "dumb-ui"]);
     expect(new Set(result.findings.map((finding) => finding.file))).toEqual(
       new Set([UI, "packages/client-react/src/feed.ts"]),
     );
@@ -126,6 +139,37 @@ describe("dependency rules that would be blind", () => {
     expect(blind[0].file).toBe("packages/client-core/src/index.ts");
     expect(blind[0].message).toContain('"@fx/domain"');
     expect(blind[0].message).toContain("cannot see this edge");
+  });
+});
+
+describe("a project that declares JavaScript", () => {
+  it("skips the language gate and says why", async () => {
+    const result = await runGates({ root: join(fixtures, "javascript") });
+
+    expect(result.findings.filter((finding) => finding.gate === "typescript-only")).toEqual([]);
+    expect(formatFindings(result)).toContain('SKIP typescript-only — the project declares language "javascript"');
+  });
+});
+
+describe("the command itself", () => {
+  it("judges when run through a symlink, instead of exiting clean having done nothing", () => {
+    const link = join(mkdtempSync(join(tmpdir(), "arch-link-")), "run.mts");
+
+    symlinkSync(join(dirname(fileURLToPath(import.meta.url)), "run.mts"), link);
+
+    const run = spawnSync(process.execPath, [link, "--root", broken], { encoding: "utf8" });
+
+    expect(run.status).toBe(1);
+    expect(run.stdout).toContain("FAIL structure");
+  });
+
+  it("exits 2 when it cannot run", () => {
+    const run = spawnSync(process.execPath, [join(dirname(fileURLToPath(import.meta.url)), "run.mts"), "--root", fixtures], {
+      encoding: "utf8",
+    });
+
+    expect(run.status).toBe(2);
+    expect(run.stderr).toContain("gates could not run");
   });
 });
 

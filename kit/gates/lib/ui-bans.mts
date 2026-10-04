@@ -1,8 +1,9 @@
 // Dumb-UI gate: a UI file renders what the view model gives it. It never
 // touches the stream library, storage, the network, configuration or a timer.
 
-import { packagesWithRole } from "./config.mjs";
-import { isInside, isTestFile, listSourceFiles, matchesName, readCodeLines } from "./files.mjs";
+import type { ClientPackage, Finding, Project } from "./config.mts";
+import { packagesWithRole } from "./config.mts";
+import { isInside, isTestFile, listSourceFiles, matchesName, readCodeLines } from "./files.mts";
 import { basename } from "node:path";
 
 const GATE = "dumb-ui";
@@ -22,7 +23,7 @@ const BANS = [
   },
 ];
 
-function streamImportPattern(streamLibraries) {
+function streamImportPattern(streamLibraries: string[]): RegExp {
   const alternatives = streamLibraries.map((library) => {
     const escaped = library.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -33,7 +34,7 @@ function streamImportPattern(streamLibraries) {
 }
 
 /** Which files count as UI: the UI folder, plus any stray component. */
-function uiFilesOf(root, client, onlyFiles) {
+function uiFilesOf(root: string, client: ClientPackage, onlyFiles?: string[]): string[] {
   const source = `${client.path}/src`;
   const app = `${client.path}/${client.app}`;
   const ui = `${client.path}/${client.ui}`;
@@ -58,15 +59,15 @@ function uiFilesOf(root, client, onlyFiles) {
 }
 
 /** Why this gate judged nothing, if it did. */
-export function dumbUiSkipReason({ root, config }, onlyFiles) {
+export function dumbUiSkipReason({ root, config }: Project, onlyFiles?: string[]): string | undefined {
   const files = packagesWithRole(config, "client").flatMap((client) => uiFilesOf(root, client, onlyFiles));
 
   return files.length === 0 ? "no UI files were found, so there was nothing to check" : undefined;
 }
 
-export function checkDumbUi({ root, config }, onlyFiles) {
+export function checkDumbUi({ root, config }: Project, onlyFiles?: string[]): Finding[] {
   const streamImport = streamImportPattern(config.streamLibraries);
-  const findings = [];
+  const findings: Finding[] = [];
 
   for (const client of packagesWithRole(config, "client")) {
     for (const file of uiFilesOf(root, client, onlyFiles)) {

@@ -1,4 +1,4 @@
-// Copy to the repo root as `architecture.config.mjs` and edit.
+// Copy to the repo root as `architecture.config.mts` and edit.
 //
 // Every workspace package must appear here with the role it plays. A package
 // that is not listed fails the structure gate: new packages are forbidden by
@@ -13,7 +13,9 @@
 // client           bindings, core, domain, leaf
 // server           domain, shared, leaf
 
-export default {
+import type { ArchitectureConfig } from "./tools/arch/gates/lib/config.mts";
+
+const config: ArchitectureConfig = {
   packages: {
     // Entities, use cases, port interfaces, simulators. `npm` is the closed
     // list of runtime dependencies; anything else in package.json fails.
@@ -42,4 +44,11 @@ export default {
 
   // A port that deliberately has no contract test, and why.
   contractExempt: {},
+
+  // "typescript" (the default) fails on any JavaScript source file. List here
+  // the files a tool can only load as JavaScript, each with the reason.
+  language: "typescript",
+  javascriptAllowed: {},
 };
+
+export default config;

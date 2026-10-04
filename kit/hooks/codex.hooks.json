@@ -5,14 +5,14 @@
       {
         "matcher": "apply_patch|Edit|Write",
         "hooks": [
-          { "type": "command", "command": "node tools/arch/hooks/after-edit.mjs", "statusMessage": "Checking architecture rules", "timeout": 20 }
+          { "type": "command", "command": "node tools/arch/hooks/after-edit.mts", "statusMessage": "Checking architecture rules", "timeout": 20 }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "node tools/arch/hooks/before-stop.mjs", "statusMessage": "Running the fast gate", "timeout": 300 }
+          { "type": "command", "command": "node tools/arch/hooks/before-stop.mts", "statusMessage": "Running the fast gate", "timeout": 300 }
         ]
       }
     ]

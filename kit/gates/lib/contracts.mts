@@ -5,33 +5,34 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
-import { packagesWithRole } from "./config.mjs";
-import { isTestFile, listSourceFiles } from "./files.mjs";
+import type { DomainPackage, Finding, Project } from "./config.mts";
+import { packagesWithRole } from "./config.mts";
+import { isTestFile, listSourceFiles } from "./files.mts";
 
 const GATE = "port-contracts";
 const PORT_FILE = /Port\.ts$/;
 
-function portNameOf(file) {
+function portNameOf(file: string): string {
   const stem = basename(file).replace(/\.ts$/, "");
 
-  return stem[0].toUpperCase() + stem.slice(1);
+  return stem.charAt(0).toUpperCase() + stem.slice(1);
 }
 
-function portFilesOf(root, domain) {
+function portFilesOf(root: string, domain: DomainPackage): string[] {
   return listSourceFiles(root, `${domain.path}/${domain.ports}`).filter(
     (file) => PORT_FILE.test(file) && !isTestFile(file) && !file.includes("/__contracts__/"),
   );
 }
 
 /** Why this gate judged nothing, if it did. A gate with nothing to judge has not passed. */
-export function portContractsSkipReason({ root, config }) {
+export function portContractsSkipReason({ root, config }: Project): string | undefined {
   const ports = packagesWithRole(config, "domain").flatMap((domain) => portFilesOf(root, domain));
 
   return ports.length === 0 ? "no port interfaces were found, so there was nothing to check" : undefined;
 }
 
-export function checkPortContracts({ root, config }) {
-  const findings = [];
+export function checkPortContracts({ root, config }: Project): Finding[] {
+  const findings: Finding[] = [];
 
   for (const domain of packagesWithRole(config, "domain")) {
     const portsFolder = `${domain.path}/${domain.ports}`;
@@ -51,7 +52,7 @@ export function checkPortContracts({ root, config }) {
         findings.push({
           gate: GATE,
           file: portFile,
-          message: `${port} has no contract test. Add ${contractFile} exporting ${describer}(label, createHarness), or list ${port} under contractExempt in architecture.config.mjs with the reason.`,
+          message: `${port} has no contract test. Add ${contractFile} exporting ${describer}(label, createHarness), or list ${port} under contractExempt in architecture.config.mts with the reason.`,
         });
         continue;
       }

@@ -48,7 +48,7 @@ For any TypeScript pnpm monorepo.
 | Page objects with `TESTIDS` / `STRINGS` constants; the driver confined to one layer | gates 1–11, `page-objects-own-their-component`, `no-framework-calls-in-specs` |
 | UI contract tier | test strategy §9.8 |
 | Fake timers for timer-driven outcomes | test strategy "Waiting on time"; gate 18 |
-| Prove a test can fail | `scripts/mutation-check.mjs` |
+| Prove a test can fail | `scripts/mutation-check.mts` |
 | Fixture rules | `json-fixtures-in-factories`, `name-fixture-factories`, `no-minified-json-literal` |
 | Composition root built in exactly one test helper | gate 17 |
 
@@ -57,10 +57,10 @@ For any TypeScript pnpm monorepo.
 | What | RTC source |
 |---|---|
 | Coverage gates in CI (≥95% lines, ≥85% branches where set) | `ci.yml` coverage steps |
-| Per-file gap ranking from a fresh local run | `scripts/coverage-gaps.mjs`, `/rtc:backfill-test-coverage` |
-| Published multi-tier coverage report, plus a job-summary rendering | `coverage-report.yml`, `scripts/pages/publish-to-pages.mjs` |
+| Per-file gap ranking from a fresh local run | `scripts/coverage-gaps.mts`, `/rtc:backfill-test-coverage` |
+| Published multi-tier coverage report, plus a job-summary rendering | `coverage-report.yml`, `scripts/pages/publish-to-pages.mts` |
 | "Visual reach" coverage: which UI no golden scenario ever renders | the vitest-browser coverage-only tier |
-| Visual diff report, published and uploaded as an artifact on failure | `visual.yml` report job, `scripts/pages/build-visual-report.mjs` |
+| Visual diff report, published and uploaded as an artifact on failure | `visual.yml` report job, `scripts/pages/build-visual-report.mts` |
 | e2e report uploaded as an artifact on failure | `ci.yml` e2e job |
 | Tolerance audit: measure real cross-run noise before setting a pixel budget | `visual:jitter`, `/rtc:visual-tolerance-audit` |
 | Lessons: dispatch-only reports are stale by default; an aggregate gate hides one weak file; never filter a Playwright summary through `tail` | RTC `CLAUDE.md` |

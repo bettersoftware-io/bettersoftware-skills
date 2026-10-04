@@ -13,12 +13,24 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+
+import { isMainModule } from "../gates/lib/files.mts";
 
 const SCRIPT = "gate:fast";
 const TAIL_CHARACTERS = 4000;
 
-export function judgeStop(payload, run = runGate) {
+/** The fields both hosts send that this hook reads. */
+export interface StopPayload {
+  cwd?: string;
+  stop_hook_active?: boolean;
+}
+
+export interface GateRun {
+  status: number;
+  output: string;
+}
+
+export function judgeStop(payload: StopPayload, run: (root: string) => GateRun = runGate): string | undefined {
   if (payload.stop_hook_active) {
     return undefined;
   }
@@ -26,7 +38,13 @@ export function judgeStop(payload, run = runGate) {
   const root = process.env.CLAUDE_PROJECT_DIR || payload.cwd || process.cwd();
   const manifest = join(root, "package.json");
 
-  if (!existsSync(manifest) || !JSON.parse(readFileSync(manifest, "utf8")).scripts?.[SCRIPT]) {
+  if (!existsSync(manifest)) {
+    return undefined;
+  }
+
+  const { scripts } = JSON.parse(readFileSync(manifest, "utf8")) as { scripts?: Record<string, string> };
+
+  if (!scripts?.[SCRIPT]) {
     return undefined;
   }
 
@@ -44,7 +62,7 @@ export function judgeStop(payload, run = runGate) {
   ].join("\n");
 }
 
-function runGate(root) {
+function runGate(root: string): GateRun {
   const result = spawnSync("pnpm", ["--silent", "run", SCRIPT], { cwd: root, encoding: "utf8" });
 
   return {
@@ -53,8 +71,8 @@ function runGate(root) {
   };
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const reason = judgeStop(JSON.parse(readFileSync(0, "utf8") || "{}"));
+if (isMainModule(import.meta.url)) {
+  const reason = judgeStop(JSON.parse(readFileSync(0, "utf8") || "{}") as StopPayload);
 
   if (reason) {
     console.log(JSON.stringify({ decision: "block", reason }));

@@ -6,42 +6,66 @@ it also runs from here against any folder, which is how it is tested.
 
 The checks do not depend on which model, or which person, wrote the code.
 
+Everything here is TypeScript. The scripts are `.mts` files that Node runs
+directly by stripping the types, which needs Node 22.18 or later, and
+`pnpm typecheck` is what checks them.
+
 ## What is in it
 
 | Part | What it checks | Needs |
 |---|---|---|
-| `gates/run.mjs` | Structure, dumb UI, port contracts, dependency direction | Node; `dependency-cruiser` for the last gate |
+| `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction | Node; `dependency-cruiser` for the last gate |
 | `eslint.config.mts` + `eslint-rules/` | Twelve AST lint rules: naming, reading order, fixtures, page objects, no real sleeps in tests | `eslint`, `typescript-eslint` |
-| `hooks/after-edit.mjs` | Runs the per-file gates on the file an agent just wrote | Claude Code or Codex |
-| `hooks/before-stop.mjs` | Refuses to let an agent finish while `gate:fast` is red | Claude Code or Codex |
+| `hooks/after-edit.mts` | Runs the per-file gates on the file an agent just wrote | Claude Code or Codex |
+| `hooks/before-stop.mts` | Refuses to let an agent finish while `gate:fast` is red | Claude Code or Codex |
 
 ## The gates
 
-A project declares its layers once, in `architecture.config.mjs`
-([example](architecture.config.example.mjs)). Every gate reads that file.
+A project declares its layers once, in `architecture.config.mts`
+([example](architecture.config.example.mts)). Every gate reads that file.
 
 | Gate | Fails when |
 |---|---|
 | `structure` | A workspace package has no declared role; a required role is missing; the domain has no ports folder; a package has a runtime dependency outside its closed list; a client holds source outside its composition root and its UI folder |
+| `typescript-only` | The project holds a `.js`, `.jsx`, `.mjs` or `.cjs` source file that is not listed as an exception |
 | `dumb-ui` | A UI file imports the stream library, touches storage, reads configuration, opens a connection, or sets a timer |
 | `port-contracts` | A port has no contract test, or an adapter folder that implements a port does not run that port's contract |
 | `dependencies` | An import points outward; the domain uses a Node built-in; the core imports a UI framework; the UI imports the composition root or an adapter; there is a cycle |
 
 ```bash
-node tools/arch/gates/run.mjs                 # every gate
-node tools/arch/gates/run.mjs --file src/ui/A.tsx   # per-file gates only
-node tools/arch/gates/run.mjs --json          # machine-readable
+node tools/arch/gates/run.mts                 # every gate
+node tools/arch/gates/run.mts --file src/ui/A.tsx   # per-file gates only
+node tools/arch/gates/run.mts --json          # machine-readable
 ```
 
 Exit `0` is no findings, `1` is findings, `2` is "could not run".
 
+### TypeScript only, unless the project says otherwise
+
+TypeScript is the default. With it, any JavaScript source file fails the
+`typescript-only` gate, in the editor hook as well as in the full run. A file
+whose loader cannot read TypeScript is listed with the reason:
+
+```ts
+javascriptAllowed: {
+  "stylelint.config.mjs": "stylelint's config loader cannot read .mts",
+},
+```
+
+A project on a runtime too old to run `.mts` declares `language: "javascript"`
+(in an `architecture.config.mjs`). The gate then reports `SKIP` with that
+reason; it does not quietly pass.
+
 ### A gate that judged nothing has not passed
 
-Three cases are reported instead of being read as clean:
+Four cases are reported instead of being read as clean:
 
-- **No layers declared.** Without `architecture.config.mjs` the runner exits 2.
+- **No layers declared.** Without `architecture.config.mts` the runner exits 2.
 - **Nothing to judge.** A gate that found no files to check prints `SKIP` with
   the reason, never `PASS`.
+- **A script reached through a symlink.** The entry-point check compares real
+  paths, so a linked copy of a gate or hook runs instead of exiting clean
+  having done nothing.
 - **Blind dependency rules.** A workspace import that resolves to built output,
   or does not resolve, never matches a source-path rule. The dependency gate
   checks where every workspace import landed and fails if one missed its
@@ -85,7 +109,7 @@ The stop hook runs the project's `gate:fast` script, so "green" has one
 definition for the agent, a person and CI:
 
 ```json
-"gate:fast": "node tools/arch/gates/run.mjs && eslint . && pnpm typecheck"
+"gate:fast": "node tools/arch/gates/run.mts && eslint . && pnpm typecheck"
 ```
 
 It blocks once. If the gate is still red when the agent tries to stop a second
