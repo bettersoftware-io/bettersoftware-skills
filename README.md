@@ -10,27 +10,27 @@ where each one exists because something went wrong without it.
 
 ## Install
 
-One plugin exists so far. It is called `inward`, after the rule everything
-else follows from: dependencies point inward.
+One plugin exists so far, `bettersoftware-skills`, in a marketplace called
+`bettersoftware`.
 
 Claude Code:
 
 ```
 /plugin marketplace add bettersoftware-io/bettersoftware-skills
-/plugin install inward@bettersoftware
+/plugin install bettersoftware-skills@bettersoftware
 ```
 
 Codex:
 
 ```bash
 codex plugin marketplace add bettersoftware-io/bettersoftware-skills
-codex plugin add inward@bettersoftware
+codex plugin add bettersoftware-skills@bettersoftware
 ```
 
 | Skill | Use it |
 |---|---|
-| `inward:creating-a-project` | To start a new project from the starter. It runs the script, installs, and proves `gate:full` passes before anything is changed |
-| `inward:reviewing-architecture` | To review a change for what no gate can check, as seven judgement questions |
+| `bettersoftware-skills:creating-a-project` | To start a new project from the starter. It runs the script, installs, and proves `gate:full` passes before anything is changed |
+| `bettersoftware-skills:reviewing-architecture` | To review a change for what no gate can check, as seven judgement questions |
 
 The plugin installs no hooks. The gates and the hooks that run them are files
 in each project (`tools/arch`, `.claude/settings.json`, `.codex/hooks.json`),
@@ -64,7 +64,7 @@ reach them.
 
 | Plugin | Contents |
 |---|---|
-| `inward` (exists) | The starter and its creation skill, the gate kit, the review. Skills for placing logic, adding a port, streaming state and testing are written only when a task fails in a way the gates do not catch; none has yet |
+| `bettersoftware-skills` (exists) | The starter and its creation skill, the gate kit, the review. Skills for placing logic, adding a port, streaming state and testing are written only when a task fails in a way the gates do not catch; none has yet |
 | Coverage and reports | Coverage gates, per-file gap ranking, published coverage and failure reports |
 | Visual goldens (optional) | Scenario matrix, golden sets, update runbook, tolerance audit, diff report |
 | Rendering performance (optional) | Compositor-only animation rules and the motion audit |

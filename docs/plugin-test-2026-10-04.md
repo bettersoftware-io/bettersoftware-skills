@@ -1,8 +1,12 @@
 # Packaging the plugin, 2026-10-04
 
-The repository became an installable plugin, `inward`, for Claude Code and
-Codex, and gained a second skill, `creating-a-project`. This is what was
-checked, and what was not.
+The repository became an installable plugin, `bettersoftware-skills`, for
+Claude Code and Codex, and gained a second skill, `creating-a-project`. This is
+what was checked, and what was not.
+
+The plugin was called `inward` while these checks ran and was renamed
+afterwards. The install checks were repeated under the new name; the three
+agent runs were not, which is why run 2's prompt shows the old one.
 
 ## Installing
 
@@ -12,8 +16,8 @@ touched a real setup. The marketplace was added from the local checkout.
 | Check | Result |
 |---|---|
 | `claude plugin validate .` (Claude Code 2.1.289) | Passes, with one warning: no `version`. That is deliberate, see below |
-| Claude Code: add the marketplace, install `inward@bettersoftware` | Installed and enabled. Two skills, no hooks, about 156 tokens added to every session |
-| Codex 0.160.0: add the marketplace, add `inward@bettersoftware` | Installed and enabled. Both skills are in its cache |
+| Claude Code: add the marketplace, install `bettersoftware-skills@bettersoftware` | Installed and enabled. Two skills, no hooks, about 156 tokens added to every session |
+| Codex 0.160.0: add the marketplace, add `bettersoftware-skills@bettersoftware` | Installed and enabled. Both skills are in its cache |
 | Create a project with the script inside Codex's cache, install from the lockfile, run `gate:full` | Pass: five gates, 37 tests, build |
 | The four manifests agree (`scripts/plugin-manifests.test.mts`) | 10 tests |
 

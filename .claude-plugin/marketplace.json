@@ -7,7 +7,7 @@
   },
   "plugins": [
     {
-      "name": "inward",
+      "name": "bettersoftware-skills",
       "source": "./",
       "description": "Clean architecture with a streaming UI for TypeScript monorepos: a tested starter project, deterministic architecture gates, and a review of what no gate can check."
     }
