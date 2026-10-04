@@ -239,6 +239,35 @@ describe("adding an add-on", () => {
     );
   });
 
+  it("writes a starting file once, then leaves it to the project", () => {
+    const { repository, project } = createWorldWithKit();
+    withStartingFiles(repository);
+    addToProject({ project, unit: "demo", repository });
+    expect(read(project, "packages/web/tests/scenarios.ts")).toBe("// scenarios, as shipped\n");
+
+    write(project, "packages/web/tests/scenarios.ts", "// the project's own scenarios\n");
+    write(project, "packages/web/tests/goldens/a.png", "the project's own image");
+    write(repository, "addons/demo/files/packages/web/tests/scenarios.ts", "// scenarios, version 2\n");
+    write(repository, "addons/demo/files/tools/demo/check.mts", "// the add-on's check, version 2\n");
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(read(project, "packages/web/tests/scenarios.ts")).toBe("// the project's own scenarios\n");
+    expect(read(project, "packages/web/tests/goldens/a.png")).toBe("the project's own image");
+    expect(read(project, "tools/demo/check.mts")).toBe("// the add-on's check, version 2\n");
+    expect(result.files.written).toEqual(["tools/demo/check.mts"]);
+  });
+
+  it("does not bring back a starting file the project deleted", () => {
+    const { repository, project } = createWorldWithKit();
+    withStartingFiles(repository);
+    addToProject({ project, unit: "demo", repository });
+    rmSync(join(project, "packages/web/tests/goldens/a.png"));
+
+    addToProject({ project, unit: "demo", repository });
+
+    expect(existsSync(join(project, "packages/web/tests/goldens/a.png"))).toBe(false);
+  });
+
   it("refuses a script the project already defines differently, and changes nothing", () => {
     const { repository, project } = createWorldWithKit();
     const manifest = readJson(project, "package.json");
@@ -304,6 +333,16 @@ const KIT_FILES = [
   "tools/arch/hooks/claude.settings.json",
   "tools/arch/hooks/codex.hooks.json",
 ];
+
+/** Gives the demo add-on two starting files: one named exactly, one by its folder. */
+function withStartingFiles(repository: string): void {
+  const manifest = readJson(repository, "addons/demo/addon.json");
+
+  manifest.startingFiles = ["packages/web/tests/scenarios.ts", "packages/web/tests/goldens/"];
+  write(repository, "addons/demo/addon.json", JSON.stringify(manifest));
+  write(repository, "addons/demo/files/packages/web/tests/scenarios.ts", "// scenarios, as shipped\n");
+  write(repository, "addons/demo/files/packages/web/tests/goldens/a.png", "an image, as shipped");
+}
 
 function createWorldWithKit(): { repository: string; project: string } {
   const world = createWorld();

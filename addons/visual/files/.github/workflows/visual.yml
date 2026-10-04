@@ -1,0 +1,66 @@
+name: Visual goldens
+
+# Renders every scenario of the visual tier and compares it with the committed
+# linux-x64 goldens. A difference, a missing golden or a broken host fails the
+# job. The HTML report with the three images of each failure (committed, new,
+# difference) is uploaded when it fails.
+#
+# This is a job of its own, not part of `gate:full`: it needs a browser and
+# goldens drawn on this exact system, which a developer's machine does not have.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# On a pull request a newer push replaces a run that is still going. On main
+# every commit is checked: a cancelled run would leave a commit unverified.
+concurrency:
+  group: visual-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  visual:
+    name: visual goldens (linux-x64)
+    runs-on: ubuntu-latest
+    # The official Playwright image: the browser build, the fonts and the system
+    # libraries are fixed, so the same commit draws the same pixels on every
+    # run. The goldens are drawn in this same image by update-visual-goldens.yml.
+    # The tag must be the @playwright/test version in packages/client-react;
+    # `pnpm visual:check` (part of gate:fast) fails when they differ.
+    container: mcr.microsoft.com/playwright:v1.63.0-noble
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Enable Corepack (provisions the pnpm pinned by the packageManager field)
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Not piped through anything: a filter on this output can hide the line
+      # that says a scenario failed.
+      - name: Compare every scenario with its golden
+        run: pnpm visual
+
+      - name: Write the job summary
+        if: always()
+        run: node tools/visual/summary.mts >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the report (committed, new and difference images)
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: visual-report
+          path: packages/client-react/tests/visual/reports/html
+          if-no-files-found: warn
+          retention-days: 7

@@ -17,6 +17,7 @@ import {
   assertInside,
   type InstallOutcome,
   InstallError,
+  installedUnits,
   installFiles,
   readFileSet,
   rewriteScope,
@@ -52,7 +53,7 @@ export interface AddResult {
   /** One line per change made to a package.json. */
   packageChanges: string[];
   agents: "added" | "updated" | "unchanged" | "none";
-  /** Files the kit needs that the project did not have, created from the kit's templates. */
+  /** Files written once for the project to own: the kit's set-up files, an add-on's starting files. */
   created: string[];
   /** What is still to be done by hand. */
   notes: string[];
@@ -70,6 +71,12 @@ interface AddonManifest {
   summary: string;
   packageJson?: Record<string, PackagePatch>;
   gates?: { fast?: string[]; full?: string[] };
+  /**
+   * Files the project is meant to edit: its scenarios, its goldens, its
+   * settings. Written when the add-on is first added, then never touched
+   * again, not even by --force. A path ending in `/` names a whole folder.
+   */
+  startingFiles?: string[];
   verify?: string;
 }
 
@@ -118,7 +125,22 @@ export function addToProject({ project, unit, force = false, scope, repository =
   const packagePlan = planPackageChanges(destination, manifest, force);
   const source = join(addon, "files");
   const files = existsSync(source) ? rewriteScope(readFileSet(source, ""), STARTER_SCOPE, projectScope) : new Map<string, Buffer>();
+  const starting = takeStartingFiles(files, manifest.startingFiles ?? []);
+  const firstTime = !installedUnits(destination).includes(unit);
+
+  for (const path of starting.keys()) {
+    assertInside(destination, path);
+  }
+
   const outcome = installFiles(destination, unit, files, force);
+  const created: string[] = [];
+
+  for (const [path, content] of firstTime ? starting : []) {
+    if (!existsSync(join(destination, path))) {
+      writeProjectFile(destination, path, content);
+      created.push(path);
+    }
+  }
 
   for (const { path, json } of packagePlan.writes) {
     writeProjectFile(destination, path, `${JSON.stringify(json, null, 2)}\n`);
@@ -129,7 +151,7 @@ export function addToProject({ project, unit, force = false, scope, repository =
     ? writeAgentsSection(destination, unit, readFileSync(section, "utf8").replaceAll(`${STARTER_SCOPE}/`, `${projectScope}/`))
     : "none";
 
-  return { unit, files: outcome, packageChanges: packagePlan.changes, agents, created: [], notes: [], verify: manifest.verify };
+  return { unit, files: outcome, packageChanges: packagePlan.changes, agents, created, notes: [], verify: manifest.verify };
 }
 
 /**
@@ -190,6 +212,20 @@ function setUpKit(project: string, repository: string): Pick<AddResult, "created
   }
 
   return { created, notes, packageChanges };
+}
+
+/** Moves the files the project will own out of `files`, and returns them. */
+function takeStartingFiles(files: Map<string, Buffer>, patterns: string[]): Map<string, Buffer> {
+  const starting = new Map<string, Buffer>();
+
+  for (const [path, content] of files) {
+    if (patterns.some((pattern) => (pattern.endsWith("/") ? path.startsWith(pattern) : path === pattern))) {
+      starting.set(path, content);
+      files.delete(path);
+    }
+  }
+
+  return starting;
 }
 
 export function listAddons(repository: string = REPOSITORY): { name: string; summary: string }[] {

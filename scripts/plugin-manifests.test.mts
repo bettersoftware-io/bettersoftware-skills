@@ -75,6 +75,15 @@ describe("every skill", () => {
   });
 });
 
+describe("reviewing-architecture", () => {
+  it("says the same as the copy every project carries in tools/arch/docs/review.md", () => {
+    const skill = readFileSync(join(SKILLS, "reviewing-architecture", "SKILL.md"), "utf8");
+    const inProjects = readFileSync(join(REPOSITORY, "kit", "docs", "review.md"), "utf8");
+
+    expect(skill.replace(/^---\n[\s\S]*?\n---\n\n/, "")).toBe(inProjects);
+  });
+});
+
 describe("creating-a-project", () => {
   it("finds the script where it tells the agent to look: two folders above the skill", () => {
     const skillFile = join(SKILLS, "creating-a-project", "SKILL.md");

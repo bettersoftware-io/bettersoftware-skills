@@ -34,6 +34,7 @@ addons/<name>/
     "packages/client-react": { "devDependencies": { "…": "…" } }
   },
   "gates": { "fast": ["pnpm perf:check"], "full": [] },
+  "startingFiles": ["packages/client-react/tests/visual/scenarios.ts", "packages/client-react/tests/visual/goldens/"],
   "verify": "pnpm coverage"
 }
 ```
@@ -46,6 +47,11 @@ addons/<name>/
   `gate:fast` (and so runs in `gate:full` too). `full` is appended to
   `gate:full` only. A check that needs a browser, a container or committed
   goldens joins neither, and runs in the add-on's own workflow.
+- `startingFiles` are the files the project is meant to edit: its scenarios,
+  its golden images, its settings. They are written when the add-on is first
+  added and never touched again, so a later update cannot overwrite the
+  project's work. A path ending in `/` names a whole folder. Every other file
+  belongs to the add-on, and an update replaces it.
 - `verify` is the one command that proves the add-on works in a project that
   has just received it.
 

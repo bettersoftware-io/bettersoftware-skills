@@ -1,0 +1,79 @@
+name: Update visual goldens
+
+# Draws the linux-x64 goldens again, in the same container the Visual goldens
+# job compares in, and offers them as an artifact. Run it by hand on your
+# branch after a change to the UI that was meant:
+#
+#   gh workflow run "Update visual goldens" --ref <your-branch>
+#
+# It does not commit. The job's summary gives the two commands that bring the
+# images into your branch, so you see them before they become the reference.
+# That also keeps this job read-only: nothing that `pnpm install` runs here
+# ever holds a token that can push.
+#
+# Run it several times on one commit and compare the artifacts with
+# `pnpm visual:jitter <dirA> <dirB> ...` to measure CI's own noise.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    name: regenerate goldens (linux-x64)
+    runs-on: ubuntu-latest
+    # Keep this tag the same as in visual.yml and as the @playwright/test
+    # version in packages/client-react; `pnpm visual:check` fails when they differ.
+    container: mcr.microsoft.com/playwright:v1.63.0-noble
+    env:
+      GOLDENS: packages/client-react/tests/visual/goldens/linux-x64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Enable Corepack (provisions the pnpm pinned by the packageManager field)
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # An update writes images but never deletes one, so start from nothing:
+      # the artifact then holds exactly one image per scenario.
+      - name: Remove the old set
+        run: rm -rf "$GOLDENS"
+
+      - name: Draw every scenario
+        run: pnpm visual:update
+
+      - name: Upload the new set
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: visual-goldens-linux-x64
+          path: ${{ env.GOLDENS }}
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Say how to bring the images into the branch
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          {
+            echo "### New linux-x64 goldens"
+            echo
+            echo "Nothing was committed. To bring the images into your branch, from the project root:"
+            echo
+            echo '```bash'
+            echo "rm -rf $GOLDENS"
+            echo "gh run download $RUN_ID --name visual-goldens-linux-x64 --dir $GOLDENS"
+            echo "git add $GOLDENS"
+            echo '```'
+            echo
+            echo "Look at the images before you commit them: after this they are what every later run is compared with."
+          } >> "$GITHUB_STEP_SUMMARY"

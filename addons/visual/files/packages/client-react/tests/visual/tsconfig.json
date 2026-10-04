@@ -1,0 +1,10 @@
+{
+  // The package's own tsconfig checks `src` only, so this folder would not be
+  // typechecked at all without a config of its own. `pnpm visual:check` runs it.
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": ["vite/client", "node"]
+  },
+  "include": ["."],
+  "exclude": ["reports"]
+}

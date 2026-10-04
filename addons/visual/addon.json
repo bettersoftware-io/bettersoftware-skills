@@ -1,0 +1,36 @@
+{
+  "name": "visual",
+  "summary": "Visual golden tests: each UI scenario is rendered in a known state and compared with a committed screenshot.",
+  "packageJson": {
+    ".": {
+      "scripts": {
+        "visual": "pnpm --dir packages/client-react exec playwright test --config tests/visual/playwright.config.ts",
+        "visual:update": "pnpm --dir packages/client-react exec playwright test --config tests/visual/playwright.config.ts --update-snapshots=all",
+        "visual:jitter": "node tools/visual/jitter.mts",
+        "visual:check": "node tools/visual/check-pin.mts && pnpm --dir packages/client-react run typecheck:visual"
+      }
+    },
+    "packages/client-react": {
+      "scripts": {
+        "typecheck:visual": "tsc --noEmit -p tests/visual/tsconfig.json"
+      },
+      "devDependencies": {
+        "@playwright/test": "1.63.0",
+        "@sinonjs/fake-timers": "^15.4.0",
+        "@types/node": "^26.2.0"
+      }
+    }
+  },
+  "gates": {
+    "fast": [
+      "pnpm visual:check"
+    ],
+    "full": []
+  },
+  "startingFiles": [
+    "packages/client-react/tests/visual/scenarios.ts",
+    "packages/client-react/tests/visual/tolerance.ts",
+    "packages/client-react/tests/visual/goldens/"
+  ],
+  "verify": "pnpm visual"
+}
