@@ -43,8 +43,6 @@ jobs:
       fail-fast: false
       matrix:
         addon: [none, coverage, visual, performance]
-    env:
-      PROJECT: ${{ runner.temp }}/project
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -56,6 +54,11 @@ jobs:
 
       - name: Enable Corepack (provisions the pnpm pinned by the packageManager field)
         run: corepack enable
+
+      # Outside this checkout, as a real project would be. Set in a step: the
+      # runner's folders are not known where a job's `env` is read.
+      - name: Choose where the project goes
+        run: echo "PROJECT=$RUNNER_TEMP/project" >> "$GITHUB_ENV"
 
       - name: Create a project from the starter
         run: node scripts/create-project.mts "$PROJECT" --scope @ci
