@@ -31,16 +31,15 @@ export function createPriceSimulator({
 
 /** Each call moves one symbol by at most 0.1% and returns its new price. */
 export function createRandomWalk(random: () => number = Math.random): () => Price {
-  const mids = new Map(Object.entries(OPENING_MIDS));
-  const symbols = [...mids.keys()];
+  const latest: Price[] = Object.entries(OPENING_MIDS).map(([symbol, mid]) => ({ symbol, mid }));
 
   return (): Price => {
-    const symbol = symbols[Math.floor(random() * symbols.length)] ?? symbols[0]!;
-    const mid = roundToPips((mids.get(symbol) ?? 1) * (1 + (random() * 2 - 1) * 0.001));
+    // `random()` is below 1, so the index is always inside the list.
+    const price = latest[Math.floor(random() * latest.length)]!;
 
-    mids.set(symbol, mid);
+    price.mid = roundToPips(price.mid * (1 + (random() * 2 - 1) * 0.001));
 
-    return { symbol, mid };
+    return { ...price };
   };
 }
 

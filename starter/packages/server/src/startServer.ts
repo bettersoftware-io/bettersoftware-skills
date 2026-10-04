@@ -1,3 +1,5 @@
+import type { AddressInfo } from "node:net";
+
 import type { PricePort } from "@app/domain";
 import { encodePrice, WS_PATH } from "@app/shared";
 import { share } from "rxjs";
@@ -44,10 +46,9 @@ export function startServer({ port, prices }: ServerOptions): Promise<RunningSer
   return new Promise((resolve, reject) => {
     server.once("error", reject);
     server.once("listening", () => {
-      const address = server.address();
-
       resolve({
-        port: typeof address === "object" && address !== null ? address.port : port,
+        // A server listening on a TCP port always reports an address object.
+        port: (server.address() as AddressInfo).port,
         close: () =>
           new Promise<void>((closed) => {
             for (const client of server.clients) {

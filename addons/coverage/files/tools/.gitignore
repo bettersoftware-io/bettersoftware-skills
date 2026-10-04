@@ -1,0 +1,3 @@
+# The project ignores every folder called coverage, because that is where the
+# reports go. This one holds the coverage tools, and they are source.
+!coverage/

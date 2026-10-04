@@ -1,3 +1,5 @@
+import { connect } from "node:net";
+
 import type { Price } from "@app/domain";
 import { encodePrice, WS_PATH } from "@app/shared";
 import { Subject } from "rxjs";
@@ -46,6 +48,20 @@ describe("the price server", () => {
     expect(feeds).toBe(1);
   });
 
+  it("drops a client that breaks the protocol, and keeps serving the others", async () => {
+    const prices$ = new Subject<Price>();
+    const server = await startTestServer(prices$);
+    const healthy = await connectClient(server.port);
+
+    await breakTheProtocol(server.port);
+
+    const message = healthy.nextMessage();
+
+    prices$.next({ symbol: "EURUSD", mid: 1.1 });
+
+    expect(await message).toEqual(encodePrice({ symbol: "EURUSD", mid: 1.1 }));
+  });
+
   it("stops listening to the price source when the last client leaves", async () => {
     const prices$ = new Subject<Price>();
     const server = await startTestServer(prices$);
@@ -65,6 +81,37 @@ async function startTestServer(prices$: Subject<Price>): Promise<RunningServer> 
   onTestFinished(() => server.close());
 
   return server;
+}
+
+/**
+ * Connects by hand and sends a frame no WebSocket client may send: one that is
+ * not masked. Resolves when the server has dropped the connection.
+ */
+function breakTheProtocol(port: number): Promise<void> {
+  const UNMASKED_TEXT_FRAME = Buffer.from([0x81, 0x01, 0x61]);
+  const socket = connect(port, "localhost");
+
+  socket.write(
+    [
+      `GET ${WS_PATH} HTTP/1.1`,
+      `Host: localhost:${port}`,
+      "Upgrade: websocket",
+      "Connection: Upgrade",
+      "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+      "Sec-WebSocket-Version: 13",
+      "",
+      "",
+    ].join("\r\n"),
+  );
+  socket.once("data", () => {
+    socket.write(UNMASKED_TEXT_FRAME);
+  });
+
+  return new Promise((dropped) => {
+    socket.once("close", () => {
+      dropped();
+    });
+  });
 }
 
 interface ConnectedClient {

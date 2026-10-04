@@ -41,6 +41,17 @@ describe("the selection machine", () => {
     machine.dispose();
   });
 
+  it("clears the selection on request", () => {
+    const machine = createSelectionMachine();
+
+    machine.intents.select("EURUSD");
+    machine.intents.clear();
+
+    expect(machine.state$.getValue()).toEqual({ selected: null });
+
+    machine.dispose();
+  });
+
   it("ignores intents after it is disposed", () => {
     const machine = createSelectionMachine();
     const seen: (string | null)[] = [];

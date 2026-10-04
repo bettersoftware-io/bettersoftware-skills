@@ -1,0 +1,1038 @@
+[
+  {
+    "name": "workspace: lists every folder a pattern matches that holds a package.json, sorted",
+    "file": "addons/coverage/files/tools/coverage/lib/workspace.mts",
+    "find": ".filter((directory) => !excluded.has(directory) && existsSync(join(root, directory, \"package.json\")));",
+    "replace": ".filter((directory) => !excluded.has(directory));",
+    "test": "pnpm vitest run addons/coverage/tests/workspace.test.mts -t \"lists every folder a pattern matches\""
+  },
+  {
+    "name": "workspace: reads a quoted entry, a literal folder and a name with a star in it",
+    "file": "addons/coverage/files/tools/coverage/lib/workspace.mts",
+    "find": "patterns.push(entry[1].replace(/^(['\"])(.*)\\1$/, \"$2\"));",
+    "replace": "patterns.push(entry[1]);",
+    "test": "pnpm vitest run addons/coverage/tests/workspace.test.mts -t \"reads a quoted entry\""
+  },
+  {
+    "name": "workspace: leaves out what an entry that starts with ! names",
+    "file": "addons/coverage/files/tools/coverage/lib/workspace.mts",
+    "find": "!excluded.has(directory) && ",
+    "replace": "",
+    "test": "pnpm vitest run addons/coverage/tests/workspace.test.mts -t \"leaves out what an entry that starts with\""
+  },
+  {
+    "name": "workspace: stops reading at the next top-level key",
+    "file": "addons/coverage/files/tools/coverage/lib/workspace.mts",
+    "find": "      inPackages = false;\n      continue;",
+    "replace": "      continue;",
+    "test": "pnpm vitest run addons/coverage/tests/workspace.test.mts -t \"stops reading at the next top-level key\""
+  },
+  {
+    "name": "workspace: says so when the folder has no workspace file",
+    "file": "addons/coverage/files/tools/coverage/lib/workspace.mts",
+    "find": "throw new CoverageError(`${WORKSPACE_FILE} not found in ${root} — run this from the project root`);",
+    "replace": "return [];",
+    "test": "pnpm vitest run addons/coverage/tests/workspace.test.mts -t \"says so when the folder has no workspace file\""
+  },
+  {
+    "name": "workspace: says so when the workspace file names no package that exists",
+    "file": "addons/coverage/files/tools/coverage/lib/workspace.mts",
+    "find": "if (packages.length === 0) {",
+    "replace": "if (packages.length < 0) {",
+    "test": "pnpm vitest run addons/coverage/tests/workspace.test.mts -t \"names no package that exists\""
+  },
+  {
+    "name": "workspace: refuses ** instead of guessing what it covers",
+    "file": "addons/coverage/files/tools/coverage/lib/workspace.mts",
+    "find": "if (segments.includes(\"**\")) {",
+    "replace": "if (segments.includes(\"***\")) {",
+    "test": "pnpm vitest run addons/coverage/tests/workspace.test.mts -t \"instead of guessing what it covers\""
+  },
+  {
+    "name": "config: holds every file to 95% of lines, statements and functions and 85% of branches by default",
+    "file": "addons/coverage/files/tools/coverage/lib/config.mts",
+    "find": "branches: 85 },",
+    "replace": "branches: 80 },",
+    "test": "pnpm vitest run addons/coverage/tests/config.test.mts -t \"holds every file to 95\""
+  },
+  {
+    "name": "config: leaves test code out by default, each pattern with its reason",
+    "file": "addons/coverage/files/tools/coverage/lib/config.mts",
+    "find": "    \"**/*.page.{ts,tsx}\": \"page objects are test code\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/coverage/tests/config.test.mts -t \"leaves test code out by default\""
+  },
+  {
+    "name": "config: reads the project's own file, adding its exclusions and replacing only the metrics it names",
+    "file": "addons/coverage/files/tools/coverage/lib/config.mts",
+    "find": "exclude: { ...DEFAULTS.exclude, ...(exclude as Record<string, string>) },",
+    "replace": "exclude: exclude as Record<string, string>,",
+    "test": "pnpm vitest run addons/coverage/tests/config.test.mts -t \"reads the project's own file\""
+  },
+  {
+    "name": "config: replaces the include patterns when the project gives its own",
+    "file": "addons/coverage/files/tools/coverage/lib/config.mts",
+    "find": "include: include as string[],",
+    "replace": "include: DEFAULTS.include,",
+    "test": "pnpm vitest run addons/coverage/tests/config.test.mts -t \"replaces the include patterns\""
+  },
+  {
+    "name": "config: refuses an exclusion without a reason",
+    "file": "addons/coverage/files/tools/coverage/lib/config.mts",
+    "find": "typeof reason !== \"string\" || reason.trim() === \"\"",
+    "replace": "typeof reason !== \"string\"",
+    "test": "pnpm vitest run addons/coverage/tests/config.test.mts -t \"refuses an exclusion without a reason\""
+  },
+  {
+    "name": "config: refuses a bar that is not a percentage",
+    "file": "addons/coverage/files/tools/coverage/lib/config.mts",
+    "find": "!(percent >= 0 && percent <= 100)",
+    "replace": "!(percent >= 0)",
+    "test": "pnpm vitest run addons/coverage/tests/config.test.mts -t \"refuses a bar that is not a percentage\""
+  },
+  {
+    "name": "config: refuses a metric it does not know",
+    "file": "addons/coverage/files/tools/coverage/lib/config.mts",
+    "find": "if (!METRICS.includes(metric as Metric)) {",
+    "replace": "if (metric === \"\") {",
+    "test": "pnpm vitest run addons/coverage/tests/config.test.mts -t \"refuses a metric it does not know\""
+  },
+  {
+    "name": "config: refuses a key it does not know, so a misspelt one is not silently ignored",
+    "file": "addons/coverage/files/tools/coverage/lib/config.mts",
+    "find": "if (Object.keys(unknown).length > 0) {",
+    "replace": "if (Object.keys(unknown).length > 1) {",
+    "test": "pnpm vitest run addons/coverage/tests/config.test.mts -t \"refuses a key it does not know\""
+  },
+  {
+    "name": "config: refuses an empty include, which would measure nothing",
+    "file": "addons/coverage/files/tools/coverage/lib/config.mts",
+    "find": "include.length === 0 || ",
+    "replace": "",
+    "test": "pnpm vitest run addons/coverage/tests/config.test.mts -t \"refuses an empty include\""
+  },
+  {
+    "name": "config: refuses a file that exports no object",
+    "file": "addons/coverage/files/tools/coverage/lib/config.mts",
+    "find": "typeof project !== \"object\" || project === null || Array.isArray(project)",
+    "replace": "project === null || Array.isArray(project)",
+    "test": "pnpm vitest run addons/coverage/tests/config.test.mts -t \"refuses a file that exports no object\""
+  },
+  {
+    "name": "measure: asks vitest for v8 coverage of every included file, held to the bar file by file",
+    "file": "addons/coverage/files/tools/coverage/lib/measure.mts",
+    "find": "    \"--coverage.thresholds.perFile\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/coverage/tests/measure.test.mts -t \"asks vitest for v8 coverage\""
+  },
+  {
+    "name": "measure: applies an exclusion written for one package in that package only, and one that starts with **/ in all",
+    "file": "addons/coverage/files/tools/coverage/lib/measure.mts",
+    "find": ".map((pattern) => (appliesEverywhere(pattern) ? pattern : pattern.slice(directory.length + 1)));",
+    "replace": ".map((pattern) => pattern);",
+    "test": "pnpm vitest run addons/coverage/tests/measure.test.mts -t \"applies an exclusion written for one package\""
+  },
+  {
+    "name": "measure: does not take packages/server-tools for a part of packages/server",
+    "file": "addons/coverage/files/tools/coverage/lib/measure.mts",
+    "find": ".filter((pattern) => appliesEverywhere(pattern) || pattern.startsWith(`${directory}/`))",
+    "replace": ".filter((pattern) => appliesEverywhere(pattern) || pattern.startsWith(directory))",
+    "test": "pnpm vitest run addons/coverage/tests/measure.test.mts -t \"does not take packages/server-tools\""
+  },
+  {
+    "name": "measure: finds an exclusion that names no package, which would reach nothing or too much",
+    "file": "addons/coverage/files/tools/coverage/lib/measure.mts",
+    "find": "!appliesEverywhere(pattern) && !packages.some(",
+    "replace": "!appliesEverywhere(pattern) && packages.some(",
+    "test": "pnpm vitest run addons/coverage/tests/measure.test.mts -t \"finds an exclusion that names no package\""
+  },
+  {
+    "name": "measure: runs vitest in the package's own folder, so the package's config is the one used",
+    "file": "addons/coverage/files/tools/coverage/lib/measure.mts",
+    "find": "run(join(root, directory), vitestArguments(config, directory), quiet)",
+    "replace": "run(root, vitestArguments(config, directory), quiet)",
+    "test": "pnpm vitest run addons/coverage/tests/measure.test.mts -t \"runs vitest in the package's own folder\""
+  },
+  {
+    "name": "measure: reads each file's numbers, with paths from the project root",
+    "file": "addons/coverage/files/tools/coverage/lib/measure.mts",
+    "find": "return inPackage.startsWith(\"..\") ? absolute : `${directory}/${inPackage.split(sep).join(\"/\")}`;",
+    "replace": "return absolute;",
+    "test": "pnpm vitest run addons/coverage/tests/measure.test.mts -t \"with paths from the project root\""
+  },
+  {
+    "name": "measure: reads nothing-to-cover as 100%, where istanbul writes Unknown",
+    "file": "addons/coverage/files/tools/coverage/lib/measure.mts",
+    "find": "total === 0 ? 100 : (covered / total) * 100",
+    "replace": "total === 0 ? 0 : (covered / total) * 100",
+    "test": "pnpm vitest run addons/coverage/tests/measure.test.mts -t \"where istanbul writes Unknown\""
+  },
+  {
+    "name": "measure: never reads numbers an earlier run left behind",
+    "file": "addons/coverage/files/tools/coverage/lib/measure.mts",
+    "find": "  rmSync(join(reports, SUMMARY_FILE), { force: true });\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/coverage/tests/measure.test.mts -t \"never reads numbers an earlier run left behind\""
+  },
+  {
+    "name": "measure: lists each failed test with the first line of its failure",
+    "file": "addons/coverage/files/tools/coverage/lib/measure.mts",
+    "find": "return (text ?? \"\").split(\"\\n\")[0]?.trim() ?? \"\";",
+    "replace": "return (text ?? \"\").trim();",
+    "test": "pnpm vitest run addons/coverage/tests/measure.test.mts -t \"lists each failed test with the first line\""
+  },
+  {
+    "name": "measure: counts a test file that could not be loaded as a failure, though no test in it ran",
+    "file": "addons/coverage/files/tools/coverage/lib/measure.mts",
+    "find": "if (file.status === \"failed\" && failedTests.length === 0) {",
+    "replace": "if (file.status === \"failed\" && failedTests.length > 0) {",
+    "test": "pnpm vitest run addons/coverage/tests/measure.test.mts -t \"counts a test file that could not be loaded\""
+  },
+  {
+    "name": "measure: looks in the measured files for comments that leave code out without a reason",
+    "file": "addons/coverage/files/tools/coverage/lib/measure.mts",
+    "find": "unexplainedIgnores: findUnexplainedIgnores(root, (files ?? []).map(({ file }) => file)),",
+    "replace": "unexplainedIgnores: [],",
+    "test": "pnpm vitest run addons/coverage/tests/measure.test.mts -t \"looks in the measured files for comments\""
+  },
+  {
+    "name": "measure: reports no numbers and no tests when vitest wrote nothing",
+    "file": "addons/coverage/files/tools/coverage/lib/measure.mts",
+    "find": "  const path = join(root, directory, REPORTS_DIRECTORY, TEST_RESULTS_FILE);\n\n  if (!existsSync(path)) {\n    return undefined;\n  }\n",
+    "replace": "  const path = join(root, directory, REPORTS_DIRECTORY, TEST_RESULTS_FILE);\n",
+    "test": "pnpm vitest run addons/coverage/tests/measure.test.mts -t \"reports no numbers and no tests when vitest wrote nothing\""
+  },
+  {
+    "name": "ignores: finds one that gives no reason, with its line",
+    "file": "addons/coverage/files/tools/coverage/lib/ignores.mts",
+    "find": "line: index + 1,",
+    "replace": "line: index,",
+    "test": "pnpm vitest run addons/coverage/tests/ignores.test.mts -t \"finds one that gives no reason, with its line\""
+  },
+  {
+    "name": "ignores: accepts one that says why after --",
+    "file": "addons/coverage/files/tools/coverage/lib/ignores.mts",
+    "find": "const REASON = /\\s--\\s+\\S/;",
+    "replace": "const REASON = /\\s==\\s+\\S/;",
+    "test": "pnpm vitest run addons/coverage/tests/ignores.test.mts -t \"accepts one that says why after\""
+  },
+  {
+    "name": "ignores: does not take a bare -- for a reason",
+    "file": "addons/coverage/files/tools/coverage/lib/ignores.mts",
+    "find": "const REASON = /\\s--\\s+\\S/;",
+    "replace": "const REASON = /\\s--/;",
+    "test": "pnpm vitest run addons/coverage/tests/ignores.test.mts -t \"does not take a bare\""
+  },
+  {
+    "name": "ignores: asks for the reason at the start of a range, not at its stop",
+    "file": "addons/coverage/files/tools/coverage/lib/ignores.mts",
+    "find": "(?!stop\\b)",
+    "replace": "",
+    "test": "pnpm vitest run addons/coverage/tests/ignores.test.mts -t \"asks for the reason at the start of a range\""
+  },
+  {
+    "name": "ignores: sees the istanbul and c8 spellings, and a line comment",
+    "file": "addons/coverage/files/tools/coverage/lib/ignores.mts",
+    "find": "(?:v8|c8|istanbul)",
+    "replace": "(?:v8)",
+    "test": "pnpm vitest run addons/coverage/tests/ignores.test.mts -t \"sees the istanbul and c8 spellings\""
+  },
+  {
+    "name": "ignores: passes over a file that is no longer there",
+    "file": "addons/coverage/files/tools/coverage/lib/ignores.mts",
+    "find": "    if (!existsSync(path)) {\n      return [];\n    }\n\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/coverage/tests/ignores.test.mts -t \"passes over a file that is no longer there\""
+  },
+  {
+    "name": "judge: passes a package whose every file meets the bar",
+    "file": "addons/coverage/files/tools/coverage/lib/judge.mts",
+    "find": "if (status !== 0) {",
+    "replace": "if (status === 0) {",
+    "test": "pnpm vitest run addons/coverage/tests/judge.test.mts -t \"passes a package whose every file meets the bar\""
+  },
+  {
+    "name": "judge: fails one weak file however good the package's average is",
+    "file": "addons/coverage/files/tools/coverage/lib/judge.mts",
+    "find": "file[metric].pct < thresholds[metric]",
+    "replace": "file[metric].pct < thresholds.branches",
+    "test": "pnpm vitest run addons/coverage/tests/judge.test.mts -t \"fails one weak file however good\""
+  },
+  {
+    "name": "judge: holds branches to their own, lower bar",
+    "file": "addons/coverage/files/tools/coverage/lib/judge.mts",
+    "find": "file[metric].pct < thresholds[metric]",
+    "replace": "file[metric].pct < thresholds.lines",
+    "test": "pnpm vitest run addons/coverage/tests/judge.test.mts -t \"holds branches to their own, lower bar\""
+  },
+  {
+    "name": "judge: passes a file that is exactly on the bar",
+    "file": "addons/coverage/files/tools/coverage/lib/judge.mts",
+    "find": "file[metric].pct < thresholds[metric]",
+    "replace": "file[metric].pct <= thresholds[metric]",
+    "test": "pnpm vitest run addons/coverage/tests/judge.test.mts -t \"passes a file that is exactly on the bar\""
+  },
+  {
+    "name": "judge: fails when a test failed, and says that nothing was measured",
+    "file": "addons/coverage/files/tools/coverage/lib/judge.mts",
+    "find": "if (result.failedTests.length > 0) {",
+    "replace": "if (result.failedTests.length > 1) {",
+    "test": "pnpm vitest run addons/coverage/tests/judge.test.mts -t \"fails when a test failed\""
+  },
+  {
+    "name": "judge: is an error, not a pass, when vitest wrote no coverage summary",
+    "file": "addons/coverage/files/tools/coverage/lib/judge.mts",
+    "find": "    verdict: \"ERROR\",\n    reason: \"\",",
+    "replace": "    verdict: \"SKIP\",\n    reason: \"\",",
+    "test": "pnpm vitest run addons/coverage/tests/judge.test.mts -t \"is an error, not a pass, when vitest wrote no coverage summary\""
+  },
+  {
+    "name": "judge: skips a package where no source file matches, and says so",
+    "file": "addons/coverage/files/tools/coverage/lib/judge.mts",
+    "find": "if (files.length === 0) {",
+    "replace": "if (files.length < 0) {",
+    "test": "pnpm vitest run addons/coverage/tests/judge.test.mts -t \"skips a package where no source file matches\""
+  },
+  {
+    "name": "judge: skips a package whose files hold only types, and does not call that a pass",
+    "file": "addons/coverage/files/tools/coverage/lib/judge.mts",
+    "find": "if (result.measured.length === 0) {",
+    "replace": "if (result.measured.length < 0) {",
+    "test": "pnpm vitest run addons/coverage/tests/judge.test.mts -t \"skips a package whose files hold only types\""
+  },
+  {
+    "name": "judge: does not count a file with nothing to cover among the measured files",
+    "file": "addons/coverage/files/tools/coverage/lib/judge.mts",
+    "find": "return METRICS.some((metric) => file[metric].total > 0);",
+    "replace": "return METRICS.some((metric) => file[metric].total >= 0);",
+    "test": "pnpm vitest run addons/coverage/tests/judge.test.mts -t \"does not count a file with nothing to cover\""
+  },
+  {
+    "name": "judge: never passes when vitest failed for a reason the numbers do not show",
+    "file": "addons/coverage/files/tools/coverage/lib/judge.mts",
+    "find": "if (status !== 0) {",
+    "replace": "if (status === null) {",
+    "test": "pnpm vitest run addons/coverage/tests/judge.test.mts -t \"never passes when vitest failed for a reason\""
+  },
+  {
+    "name": "judge: does not skip a package with nothing to measure when vitest itself failed",
+    "file": "addons/coverage/files/tools/coverage/lib/judge.mts",
+    "find": "if (status !== 0) {",
+    "replace": "if (status !== 0 && files.length > 0) {",
+    "test": "pnpm vitest run addons/coverage/tests/judge.test.mts -t \"does not skip a package with nothing to measure when vitest itself failed\""
+  },
+  {
+    "name": "judge: fails a package that leaves code out by a comment without a reason, though every number is fine",
+    "file": "addons/coverage/files/tools/coverage/lib/judge.mts",
+    "find": "...(unexplainedIgnores.length > 0 ?",
+    "replace": "...(unexplainedIgnores.length > 1 ?",
+    "test": "pnpm vitest run addons/coverage/tests/judge.test.mts -t \"fails a package that leaves code out by a comment\""
+  },
+  {
+    "name": "judge: fails a package whose only file is ignored whole without a reason, where it would otherwise have nothing to measure",
+    "file": "addons/coverage/files/tools/coverage/lib/judge.mts",
+    "find": "if (problems.length > 0) {",
+    "replace": "if (problems.length > 0 && result.measured.length > 0) {",
+    "test": "pnpm vitest run addons/coverage/tests/judge.test.mts -t \"fails a package whose only file is ignored whole\""
+  },
+  {
+    "name": "judge: is 0 when a package passed and the others had nothing to measure",
+    "file": "addons/coverage/files/tools/coverage/lib/judge.mts",
+    "find": "return results.some((result) => result.verdict === \"PASS\") ? 0 : 2;",
+    "replace": "return results.every((result) => result.verdict === \"PASS\") ? 0 : 2;",
+    "test": "pnpm vitest run addons/coverage/tests/judge.test.mts -t \"is 0 when a package passed and the others\""
+  },
+  {
+    "name": "judge: is 1 when a package failed",
+    "file": "addons/coverage/files/tools/coverage/lib/judge.mts",
+    "find": "result.verdict === \"FAIL\")) {\n    return 1;",
+    "replace": "result.verdict === \"FAIL\")) {\n    return 0;",
+    "test": "pnpm vitest run addons/coverage/tests/judge.test.mts -t \"is 1 when a package failed\""
+  },
+  {
+    "name": "judge: is 2 when a package could not be read, even beside a failure",
+    "file": "addons/coverage/files/tools/coverage/lib/judge.mts",
+    "find": "result.verdict === \"ERROR\")) {\n    return 2;",
+    "replace": "result.verdict === \"ERROR\")) {\n    return 1;",
+    "test": "pnpm vitest run addons/coverage/tests/judge.test.mts -t \"is 2 when a package could not be read\""
+  },
+  {
+    "name": "judge: is 2, not 0, when nothing was measured in any package",
+    "file": "addons/coverage/files/tools/coverage/lib/judge.mts",
+    "find": "=== \"PASS\") ? 0 : 2;",
+    "replace": "=== \"PASS\") ? 0 : 0;",
+    "test": "pnpm vitest run addons/coverage/tests/judge.test.mts -t \"when nothing was measured in any package\""
+  },
+  {
+    "name": "report: names each file under the bar with the metric, its number and what it needs",
+    "file": "addons/coverage/files/tools/coverage/lib/report.mts",
+    "find": "(needs ${needed}%, ${uncovered} not covered)",
+    "replace": "(needs ${pct}%, ${uncovered} not covered)",
+    "test": "pnpm vitest run addons/coverage/tests/report.test.mts -t \"names each file under the bar with the metric\""
+  },
+  {
+    "name": "report: says what to do about a file under the bar",
+    "file": "addons/coverage/files/tools/coverage/lib/report.mts",
+    "find": "      \"Rank them with `pnpm coverage:gaps` and write tests through the public interface.\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/coverage/tests/report.test.mts -t \"says what to do about a file under the bar\""
+  },
+  {
+    "name": "report: gives no advice about files when every file meets the bar",
+    "file": "addons/coverage/files/tools/coverage/lib/report.mts",
+    "find": "  if (files > 0) {\n    lines.push(",
+    "replace": "  if (files >= 0) {\n    lines.push(",
+    "test": "pnpm vitest run addons/coverage/tests/report.test.mts -t \"gives no advice about files when every file meets the bar\""
+  },
+  {
+    "name": "report: tells a failed test apart from low coverage",
+    "file": "addons/coverage/files/tools/coverage/lib/report.mts",
+    "find": "  if (failedTests > 0) {\n    lines.push(",
+    "replace": "  if (failedTests > 1) {\n    lines.push(",
+    "test": "pnpm vitest run addons/coverage/tests/report.test.mts -t \"tells a failed test apart from low coverage\""
+  },
+  {
+    "name": "report: does not call it a pass when nothing was measured",
+    "file": "addons/coverage/files/tools/coverage/lib/report.mts",
+    "find": "return exitCodeFor(results) === 0\n",
+    "replace": "return exitCodeFor(results) !== 1\n",
+    "test": "pnpm vitest run addons/coverage/tests/report.test.mts -t \"does not call it a pass when nothing was measured\""
+  },
+  {
+    "name": "report: says a package that could not be measured is not a pass",
+    "file": "addons/coverage/files/tools/coverage/lib/report.mts",
+    "find": "  if (unread > 0) {",
+    "replace": "  if (unread > 1) {",
+    "test": "pnpm vitest run addons/coverage/tests/report.test.mts -t \"says a package that could not be measured is not a pass\""
+  },
+  {
+    "name": "report: points at each ignore comment without a reason and says what to write",
+    "file": "addons/coverage/files/tools/coverage/lib/report.mts",
+    "find": "lines.push(`  ${file}:${line}`, `    ${UNEXPLAINED_IGNORE}`);",
+    "replace": "lines.push(`  ${file}`, `    ${UNEXPLAINED_IGNORE}`);",
+    "test": "pnpm vitest run addons/coverage/tests/report.test.mts -t \"points at each ignore comment without a reason\""
+  },
+  {
+    "name": "report: lists the ignore comments without a reason",
+    "file": "addons/coverage/files/tools/coverage/lib/report.mts",
+    "find": "if (ignores.length > 0) {",
+    "replace": "if (ignores.length > 1) {",
+    "test": "pnpm vitest run addons/coverage/tests/report.test.mts -t \"lists the ignore comments without a reason\""
+  },
+  {
+    "name": "report: rounds a percentage down, so 94.999 never reads as 95",
+    "file": "addons/coverage/files/tools/coverage/lib/report.mts",
+    "find": "Math.floor(pct * 100) / 100",
+    "replace": "Math.round(pct * 100) / 100",
+    "test": "pnpm vitest run addons/coverage/tests/report.test.mts -t \"rounds a percentage down\""
+  },
+  {
+    "name": "report: states the commit, the branch and the time",
+    "file": "addons/coverage/files/tools/coverage/lib/report.mts",
+    "find": "date.toISOString().slice(0, 16)",
+    "replace": "date.toISOString().slice(0, 10)",
+    "test": "pnpm vitest run addons/coverage/tests/report.test.mts -t \"states the commit, the branch and the time\""
+  },
+  {
+    "name": "report: says so when the tree had changes that are not in the commit",
+    "file": "addons/coverage/files/tools/coverage/lib/report.mts",
+    "find": "dirty ? \" with uncommitted changes\" : \"\"",
+    "replace": "dirty ? \"\" : \"\"",
+    "test": "pnpm vitest run addons/coverage/tests/report.test.mts -t \"says so when the tree had changes\""
+  },
+  {
+    "name": "report: says so when there is no commit to name",
+    "file": "addons/coverage/files/tools/coverage/lib/report.mts",
+    "find": "commit === undefined ? \"an unknown commit (git has no commit here)\" : `commit ${commit.slice(0, 7)}`;",
+    "replace": "`commit ${String(commit).slice(0, 7)}`;",
+    "test": "pnpm vitest run addons/coverage/tests/report.test.mts -t \"says so when there is no commit to name\""
+  },
+  {
+    "name": "report: has a row per package with the package's own percentages",
+    "file": "addons/coverage/files/tools/coverage/lib/report.mts",
+    "find": "formatPercent((covered / total) * 100);",
+    "replace": "formatPercent(covered / total);",
+    "test": "pnpm vitest run addons/coverage/tests/report.test.mts -t \"has a row per package\""
+  },
+  {
+    "name": "report: lists the files under the bar",
+    "file": "addons/coverage/files/tools/coverage/lib/report.mts",
+    "find": "  if (underTheBar.length > 0) {\n    lines.push(\n      \"\",\n      \"### Files under the bar\",",
+    "replace": "  if (underTheBar.length > 1) {\n    lines.push(\n      \"\",\n      \"### Files under the bar\",",
+    "test": "pnpm vitest run addons/coverage/tests/report.test.mts -t \"lists the files under the bar\""
+  },
+  {
+    "name": "report: lists the packages that were not measured, with the reason",
+    "file": "addons/coverage/files/tools/coverage/lib/report.mts",
+    "find": "result.verdict === \"SKIP\" || result.verdict === \"ERROR\");",
+    "replace": "result.verdict === \"ERROR\");",
+    "test": "pnpm vitest run addons/coverage/tests/report.test.mts -t \"lists the packages that were not measured\""
+  },
+  {
+    "name": "report: lists the failed tests",
+    "file": "addons/coverage/files/tools/coverage/lib/report.mts",
+    "find": "test.message.replaceAll(\"`\", \"'\")",
+    "replace": "test.message",
+    "test": "pnpm vitest run addons/coverage/tests/report.test.mts -t \"lists the failed tests\""
+  },
+  {
+    "name": "report: leaves out the sections that have nothing in them",
+    "file": "addons/coverage/files/tools/coverage/lib/report.mts",
+    "find": "if (notMeasured.length > 0) {",
+    "replace": "if (notMeasured.length >= 0) {",
+    "test": "pnpm vitest run addons/coverage/tests/report.test.mts -t \"leaves out the sections that have nothing in them\""
+  },
+  {
+    "name": "site: copies each measured package's HTML report under the package's path and links it from the index",
+    "file": "addons/coverage/files/tools/coverage/lib/site.mts",
+    "find": "      browsable.add(directory);\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/coverage/tests/site.test.mts -t \"copies each measured package's HTML report\""
+  },
+  {
+    "name": "site: states the commit and the date it was built from, and that a published report can be old",
+    "file": "addons/coverage/files/tools/coverage/lib/site.mts",
+    "find": "<p class=\"build\">Built from ${escapeHtml(describeBuild(build))}.</p>",
+    "replace": "<p class=\"build\">Built at ${escapeHtml(build.builtAt.toISOString())}.</p>",
+    "test": "pnpm vitest run addons/coverage/tests/site.test.mts -t \"states the commit and the date it was built from\""
+  },
+  {
+    "name": "site: links the CI run that built it when there is one",
+    "file": "addons/coverage/files/tools/coverage/lib/site.mts",
+    "find": "const run = build.runUrl === undefined ? \"\"",
+    "replace": "const run = build.runUrl !== undefined ? \"\"",
+    "test": "pnpm vitest run addons/coverage/tests/site.test.mts -t \"links the CI run that built it\""
+  },
+  {
+    "name": "site: keeps the test results out of the published report and gathers them beside it",
+    "file": "addons/coverage/files/tools/coverage/lib/site.mts",
+    "find": "filter: (source) => basename(source) !== TEST_RESULTS_FILE,",
+    "replace": "filter: () => true,",
+    "test": "pnpm vitest run addons/coverage/tests/site.test.mts -t \"keeps the test results out of the published report\""
+  },
+  {
+    "name": "site: does not show an HTML report for a package that was not measured in this run",
+    "file": "addons/coverage/files/tools/coverage/lib/site.mts",
+    "find": "if (measured.length > 0 && existsSync(",
+    "replace": "if (existsSync(",
+    "test": "pnpm vitest run addons/coverage/tests/site.test.mts -t \"does not show an HTML report for a package that was not measured\""
+  },
+  {
+    "name": "site: removes the previous merged report first",
+    "file": "addons/coverage/files/tools/coverage/lib/site.mts",
+    "find": "  rmSync(report, { recursive: true, force: true });\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/coverage/tests/site.test.mts -t \"removes the previous merged report first\""
+  },
+  {
+    "name": "site: lists the files under the bar",
+    "file": "addons/coverage/files/tools/coverage/lib/site.mts",
+    "find": "underTheBar.length + ignores.length === 0 ? \"    <p>None.</p>\"",
+    "replace": "underTheBar.length + ignores.length >= 0 ? \"    <p>None.</p>\"",
+    "test": "pnpm vitest run addons/coverage/tests/site.test.mts -t \"lists the files under the bar\""
+  },
+  {
+    "name": "site: lists the ignore comments without a reason",
+    "file": "addons/coverage/files/tools/coverage/lib/site.mts",
+    "find": "<li><code>${escapeHtml(file)}:${line}</code> — an ignore comment",
+    "replace": "<li><code>${escapeHtml(file)}</code> — an ignore comment",
+    "test": "pnpm vitest run addons/coverage/tests/site.test.mts -t \"lists the ignore comments without a reason\""
+  },
+  {
+    "name": "site: lists what is left out of the measurement, with the reasons",
+    "file": "addons/coverage/files/tools/coverage/lib/site.mts",
+    "find": "leftOut.length === 0 ? \"    <p>Nothing.</p>\"",
+    "replace": "leftOut.length >= 0 ? \"    <p>Nothing.</p>\"",
+    "test": "pnpm vitest run addons/coverage/tests/site.test.mts -t \"lists what is left out of the measurement\""
+  },
+  {
+    "name": "site: escapes what it writes into the page",
+    "file": "addons/coverage/files/tools/coverage/lib/site.mts",
+    "find": ".replaceAll(\"<\", \"&lt;\")",
+    "replace": "",
+    "test": "pnpm vitest run addons/coverage/tests/site.test.mts -t \"escapes what it writes into the page\""
+  },
+  {
+    "name": "site: writes the same facts for a machine: the commit, the date, the bar and each verdict",
+    "file": "addons/coverage/files/tools/coverage/lib/site.mts",
+    "find": "uncommittedChanges: build.dirty,",
+    "replace": "uncommittedChanges: false,",
+    "test": "pnpm vitest run addons/coverage/tests/site.test.mts -t \"writes the same facts for a machine\""
+  },
+  {
+    "name": "run: measures every workspace package with its own tests and judges each",
+    "file": "addons/coverage/files/tools/coverage/run.mts",
+    "find": "return (packages?.length ? packages : inWorkspace).map((directory) => {",
+    "replace": "return (packages?.length ? packages : inWorkspace.slice(0, 1)).map((directory) => {",
+    "test": "pnpm vitest run addons/coverage/tests/run.test.mts -t \"measures every workspace package with its own tests\""
+  },
+  {
+    "name": "run: measures only the packages asked for",
+    "file": "addons/coverage/files/tools/coverage/run.mts",
+    "find": "return (packages?.length ? packages : inWorkspace).map((directory) => {",
+    "replace": "return inWorkspace.map((directory) => {",
+    "test": "pnpm vitest run addons/coverage/tests/run.test.mts -t \"measures only the packages asked for\""
+  },
+  {
+    "name": "run: refuses a folder that is not a workspace package",
+    "file": "addons/coverage/files/tools/coverage/run.mts",
+    "find": "if (unknown.length > 0) {",
+    "replace": "if (unknown.length > 1) {",
+    "test": "pnpm vitest run addons/coverage/tests/run.test.mts -t \"refuses a folder that is not a workspace package\""
+  },
+  {
+    "name": "run: refuses an exclusion that is in no workspace package, before measuring anything",
+    "file": "addons/coverage/files/tools/coverage/run.mts",
+    "find": "if (misplaced.length > 0) {",
+    "replace": "if (misplaced.length > 1) {",
+    "test": "pnpm vitest run addons/coverage/tests/run.test.mts -t \"refuses an exclusion that is in no workspace package\""
+  },
+  {
+    "name": "run: exits 2 and says why when it is not run from a project root",
+    "file": "addons/coverage/files/tools/coverage/run.mts",
+    "find": "console.error(error instanceof CoverageError ? `coverage could not run: ${error.message}` : error);\n    process.exit(2);",
+    "replace": "console.error(error instanceof CoverageError ? `coverage could not run: ${error.message}` : error);\n    process.exit(1);",
+    "test": "pnpm vitest run addons/coverage/tests/run.test.mts -t \"exits 2 and says why when it is not run from a project root\""
+  },
+  {
+    "name": "run: exits 2 on an argument it does not know",
+    "file": "addons/coverage/files/tools/coverage/run.mts",
+    "find": "} else if (argument.startsWith(\"--\")) {",
+    "replace": "} else if (argument.startsWith(\"---\")) {",
+    "test": "pnpm vitest run addons/coverage/tests/run.test.mts -t \"exits 2 on an argument it does not know\""
+  },
+  {
+    "name": "run: reads the commit and the branch from git",
+    "file": "addons/coverage/files/tools/coverage/run.mts",
+    "find": "git(root, [\"rev-parse\", \"HEAD\"])",
+    "replace": "git(root, [\"rev-parse\", \"--short\", \"HEAD\"])",
+    "test": "pnpm vitest run addons/coverage/tests/run.test.mts -t \"reads the commit and the branch from git\""
+  },
+  {
+    "name": "run: marks a tree that has changes the commit does not hold",
+    "file": "addons/coverage/files/tools/coverage/run.mts",
+    "find": "git(root, [\"status\", \"--porcelain\"]) !== \"\"",
+    "replace": "git(root, [\"status\", \"--porcelain\", \"--untracked-files=no\"]) !== \"\"",
+    "test": "pnpm vitest run addons/coverage/tests/run.test.mts -t \"marks a tree that has changes the commit does not hold\""
+  },
+  {
+    "name": "run: takes the branch name and the run link from CI when CI gives them",
+    "file": "addons/coverage/files/tools/coverage/run.mts",
+    "find": "/actions/runs/${GITHUB_RUN_ID}",
+    "replace": "/runs/${GITHUB_RUN_ID}",
+    "test": "pnpm vitest run addons/coverage/tests/run.test.mts -t \"takes the branch name and the run link from CI\""
+  },
+  {
+    "name": "run: names no commit outside a git checkout, and does not call the tree changed",
+    "file": "addons/coverage/files/tools/coverage/run.mts",
+    "find": "return status === 0 ? stdout.trim() : undefined;",
+    "replace": "return stdout.trim();",
+    "test": "pnpm vitest run addons/coverage/tests/run.test.mts -t \"names no commit outside a git checkout\""
+  },
+  {
+    "name": "gaps: puts the file with the most lines not covered first, across packages",
+    "file": "addons/coverage/files/tools/coverage/gaps.mts",
+    "find": "b.uncoveredLines - a.uncoveredLines ||",
+    "replace": "a.uncoveredLines - b.uncoveredLines ||",
+    "test": "pnpm vitest run addons/coverage/tests/gaps.test.mts -t \"puts the file with the most lines not covered first\""
+  },
+  {
+    "name": "gaps: breaks a tie on lines with the lower percentage",
+    "file": "addons/coverage/files/tools/coverage/gaps.mts",
+    "find": "a.linesPct - b.linesPct ||",
+    "replace": "b.linesPct - a.linesPct ||",
+    "test": "pnpm vitest run addons/coverage/tests/gaps.test.mts -t \"breaks a tie on lines with the lower percentage\""
+  },
+  {
+    "name": "gaps: lists a file that lacks only a branch, after the files that lack lines",
+    "file": "addons/coverage/files/tools/coverage/gaps.mts",
+    "find": ".filter((gap) => gap.uncoveredLines + gap.uncoveredBranches + gap.uncoveredFunctions > 0)",
+    "replace": ".filter((gap) => gap.uncoveredLines > 0)",
+    "test": "pnpm vitest run addons/coverage/tests/gaps.test.mts -t \"lists a file that lacks only a branch\""
+  },
+  {
+    "name": "gaps: leaves out a file every test reaches",
+    "file": "addons/coverage/files/tools/coverage/gaps.mts",
+    "find": "gap.uncoveredLines + gap.uncoveredBranches + gap.uncoveredFunctions > 0)",
+    "replace": "gap.uncoveredLines + gap.uncoveredBranches + gap.uncoveredFunctions >= 0)",
+    "test": "pnpm vitest run addons/coverage/tests/gaps.test.mts -t \"leaves out a file every test reaches\""
+  },
+  {
+    "name": "gaps: marks the metrics that put a file under the bar, and leaves a file above it unmarked",
+    "file": "addons/coverage/files/tools/coverage/gaps.mts",
+    "find": "result.underTheBar.find((entry) => entry.file === file.file)",
+    "replace": "result.underTheBar.find((entry) => entry.file !== file.file)",
+    "test": "pnpm vitest run addons/coverage/tests/gaps.test.mts -t \"marks the metrics that put a file under the bar\""
+  },
+  {
+    "name": "gaps: shows the worst files up to the limit and says how many it left out",
+    "file": "addons/coverage/files/tools/coverage/gaps.mts",
+    "find": "for (const gap of gaps.slice(0, limit)) {",
+    "replace": "for (const gap of gaps) {",
+    "test": "pnpm vitest run addons/coverage/tests/gaps.test.mts -t \"shows the worst files up to the limit\""
+  },
+  {
+    "name": "gaps: gives the count of lines not covered and the line percentage for each file",
+    "file": "addons/coverage/files/tools/coverage/gaps.mts",
+    "find": "String(gap.uncoveredLines).padStart(19),",
+    "replace": "String(gap.uncoveredFunctions).padStart(19),",
+    "test": "pnpm vitest run addons/coverage/tests/gaps.test.mts -t \"gives the count of lines not covered\""
+  },
+  {
+    "name": "gaps: says the list is incomplete when a package's tests failed",
+    "file": "addons/coverage/files/tools/coverage/gaps.mts",
+    "find": "return results.filter((result) => result.verdict === \"ERROR\" || result.failedTests.length > 0);",
+    "replace": "return results.filter((result) => result.verdict === \"ERROR\");",
+    "test": "pnpm vitest run addons/coverage/tests/gaps.test.mts -t \"says the list is incomplete when a package's tests failed\""
+  },
+  {
+    "name": "gaps: does not count a package with files under the bar as unmeasured",
+    "file": "addons/coverage/files/tools/coverage/gaps.mts",
+    "find": "return results.filter((result) => result.verdict === \"ERROR\" || result.failedTests.length > 0);",
+    "replace": "return results.filter((result) => result.verdict === \"ERROR\" || result.verdict === \"FAIL\");",
+    "test": "pnpm vitest run addons/coverage/tests/gaps.test.mts -t \"does not count a package with files under the bar as unmeasured\""
+  },
+  {
+    "name": "gaps: names the packages with nothing to measure, and does not call an empty list clean",
+    "file": "addons/coverage/files/tools/coverage/gaps.mts",
+    "find": "} else if (measured === 0) {",
+    "replace": "} else if (measured < 0) {",
+    "test": "pnpm vitest run addons/coverage/tests/gaps.test.mts -t \"names the packages with nothing to measure\""
+  },
+  {
+    "name": "gaps: refuses a limit that is not a whole number above 0",
+    "file": "addons/coverage/files/tools/coverage/gaps.mts",
+    "find": "Number.isInteger(Number(value)) && Number(value) > 0",
+    "replace": "Number.isInteger(Number(value))",
+    "test": "pnpm vitest run addons/coverage/tests/gaps.test.mts -t \"refuses a limit that is not a whole number above 0\""
+  },
+  {
+    "name": "mutation-check: reports a mutant as KILLED when its test goes red with the mutant in place",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "if (run === \"red\") {\n      return { status: \"KILLED\", detail: \"\" };",
+    "replace": "if (run === \"green\") {\n      return { status: \"KILLED\", detail: \"\" };",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"reports a mutant as KILLED\""
+  },
+  {
+    "name": "mutation-check: reports a mutant as SURVIVED when its test stays green, and says that is about the test",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "? { status: \"SURVIVED\", detail: \"the test passes with the mutant applied\" }",
+    "replace": "? { status: \"KILLED\", detail: \"\" }",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"reports a mutant as SURVIVED\""
+  },
+  {
+    "name": "mutation-check: puts the file back after the mutant has run",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "  } finally {\n    writeFileSync(path, original);\n  }",
+    "replace": "  } finally {\n    // the file is left as the mutant\n  }",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"puts the file back after the mutant has run\""
+  },
+  {
+    "name": "mutation-check: puts the file back even when running the test throws",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "  } finally {\n    writeFileSync(path, original);\n  }",
+    "replace": "  } catch (error) {\n    throw error;\n  }",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"puts the file back even when running the test throws\""
+  },
+  {
+    "name": "mutation-check: refuses a `find` that occurs more than once, without touching the file or running a test",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "if (occurrences !== 1) {",
+    "replace": "if (occurrences < 1) {",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"that occurs more than once\""
+  },
+  {
+    "name": "mutation-check: refuses a `find` that does not occur",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "if (occurrences !== 1) {",
+    "replace": "if (occurrences > 1) {",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"that does not occur\""
+  },
+  {
+    "name": "mutation-check: refuses a mutant whose test is red before anything is changed",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "if (baseline !== \"green\") {",
+    "replace": "if (baseline === \"timed out\") {",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"refuses a mutant whose test is red before anything is changed\""
+  },
+  {
+    "name": "mutation-check: runs each test command once without a mutant, however many mutants share it",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "  baselines.set(mutant.test, baseline);\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"runs each test command once without a mutant\""
+  },
+  {
+    "name": "mutation-check: writes $& in a replacement as it is, not as the text it replaced",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "original.replace(mutant.find, () => mutant.replace)",
+    "replace": "original.replace(mutant.find, mutant.replace)",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"in a replacement as it is, not as the text it replaced\""
+  },
+  {
+    "name": "mutation-check: reports a file that does not exist as an error in the table",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "  if (!existsSync(path)) {\n    return { status: \"ERROR\", detail: `${mutant.file} does not exist` };\n  }\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"reports a file that does not exist as an error in the table\""
+  },
+  {
+    "name": "mutation-check: counts a test that timed out under the mutant as neither killed nor survived",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "return run === \"green\"\n",
+    "replace": "return run !== \"red\"\n",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"counts a test that timed out under the mutant\""
+  },
+  {
+    "name": "mutation-check: stops between mutants when asked to, and says the rest did not run",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "if (isStopped?.()) {",
+    "replace": "if (isStopped === undefined) {",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"stops between mutants when asked to\""
+  },
+  {
+    "name": "mutation-check: reads a list of mutants",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "if (mutant.find === mutant.replace) {",
+    "replace": "if (mutant.find !== mutant.replace) {",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"reads a list of mutants\""
+  },
+  {
+    "name": "mutation-check: refuses a mutant with a field that is missing or not text",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "if (typeof mutant?.[field] !== \"string\") {",
+    "replace": "if (mutant?.[field] === undefined) {",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"refuses a mutant with a field that is missing or not text\""
+  },
+  {
+    "name": "mutation-check: refuses a mutant that changes nothing",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "if (mutant.find === mutant.replace) {",
+    "replace": "if (mutant.find === mutant.name) {",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"refuses a mutant that changes nothing\""
+  },
+  {
+    "name": "mutation-check: refuses an empty list",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "!Array.isArray(spec) || spec.length === 0",
+    "replace": "!Array.isArray(spec)",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"refuses an empty list\""
+  },
+  {
+    "name": "mutation-check: is 0 when every mutant ran and was killed",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "results.every((result) => result.status === \"KILLED\") ? 0 : 1;",
+    "replace": "results.every((result) => result.status === \"KILLED\") ? 1 : 0;",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"is 0 when every mutant ran and was killed\""
+  },
+  {
+    "name": "mutation-check: is 1 when a mutant survived",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "results.every((result) => result.status === \"KILLED\")",
+    "replace": "results.some((result) => result.status === \"KILLED\")",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"is 1 when a mutant survived\""
+  },
+  {
+    "name": "mutation-check: is 1 when the run stopped before every mutant ran",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "results.length === total && ",
+    "replace": "",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"is 1 when the run stopped before every mutant ran\""
+  },
+  {
+    "name": "mutation-check: is 2 when a mutant could not be judged",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "result.status === \"ERROR\")) {\n    return 2;",
+    "replace": "result.status === \"ERROR\")) {\n    return 1;",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"is 2 when a mutant could not be judged\""
+  },
+  {
+    "name": "mutation-check: reads exit 0 as green and any other exit as red",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": ".code === \"ETIMEDOUT\" ? \"timed out\" : \"red\";",
+    "replace": ".code === \"ETIMEDOUT\" ? \"timed out\" : \"green\";",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"reads exit 0 as green and any other exit as red\""
+  },
+  {
+    "name": "mutation-check: runs the command in the project root",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "execSync(command, { cwd: root, stdio: \"ignore\",",
+    "replace": "execSync(command, { stdio: \"ignore\",",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"runs the command in the project root\""
+  },
+  {
+    "name": "mutation-check: reads a command that outlives the timeout as timed out, not as red",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": ".code === \"ETIMEDOUT\"",
+    "replace": ".code === \"ETIME\"",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"reads a command that outlives the timeout as timed out\""
+  },
+  {
+    "name": "mutation-check: prints the table and exits 0 when the mutant is killed, leaving the file as it was",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "runTest: createShellRunner(root, timeoutSeconds),",
+    "replace": "runTest: () => \"green\",",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"prints the table and exits 0 when the mutant is killed\""
+  },
+  {
+    "name": "mutation-check: waits for the file to be put back when it is told to terminate while a mutant is applied",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "for (const signal of [\"SIGINT\", \"SIGTERM\"] as const) {",
+    "replace": "for (const signal of [\"SIGINT\"] as const) {",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"waits for the file to be put back when it is told to terminate\""
+  },
+  {
+    "name": "mutation-check: exits 2 with the usage when no spec is given",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "if (options.specPath === \"\") {",
+    "replace": "if (options.specPath === \"--\") {",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"exits 2 with the usage when no spec is given\""
+  },
+  {
+    "name": "mutation-check: refuses a timeout that is not a number of seconds above 0",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "if (!Number.isFinite(seconds) || seconds <= 0) {",
+    "replace": "if (!Number.isFinite(seconds) || seconds < 0) {",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"refuses a timeout that is not a number of seconds above 0\""
+  },
+  {
+    "name": "publish-to-pages: creates the branch when the remote does not have it, holding only what was published",
+    "file": "addons/coverage/files/tools/coverage/publish-to-pages.mts",
+    "find": "      git(work, [\"checkout\", \"--orphan\", branch]);\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/coverage/tests/publish-to-pages.test.mts -t \"creates the branch when the remote does not have it\""
+  },
+  {
+    "name": "publish-to-pages: keeps what other producers published under other names",
+    "file": "addons/coverage/files/tools/coverage/publish-to-pages.mts",
+    "find": "rmSync(join(work, entry), { recursive: true, force: true });",
+    "replace": "git(work, [\"rm\", \"-rf\", \"--quiet\", \"--ignore-unmatch\", \".\"]);",
+    "test": "pnpm vitest run addons/coverage/tests/publish-to-pages.test.mts -t \"keeps what other producers published\""
+  },
+  {
+    "name": "publish-to-pages: replaces its own entry whole, so a page that is gone from the report is gone from the site",
+    "file": "addons/coverage/files/tools/coverage/publish-to-pages.mts",
+    "find": "      rmSync(join(work, entry), { recursive: true, force: true });\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/coverage/tests/publish-to-pages.test.mts -t \"replaces its own entry whole\""
+  },
+  {
+    "name": "publish-to-pages: makes no commit when nothing has changed",
+    "file": "addons/coverage/files/tools/coverage/publish-to-pages.mts",
+    "find": "if (git(work, [\"status\", \"--porcelain\"]) === \"\") {",
+    "replace": "if (git(work, [\"status\", \"--porcelain\"]) === \"nothing\") {",
+    "test": "pnpm vitest run addons/coverage/tests/publish-to-pages.test.mts -t \"makes no commit when nothing has changed\""
+  },
+  {
+    "name": "publish-to-pages: adds .nojekyll, so Pages serves folders whose name starts with an underscore",
+    "file": "addons/coverage/files/tools/coverage/publish-to-pages.mts",
+    "find": "    writeFileSync(join(work, \".nojekyll\"), \"\");\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/coverage/tests/publish-to-pages.test.mts -t \"so Pages serves folders whose name starts with an underscore\""
+  },
+  {
+    "name": "publish-to-pages: tries again when the remote rejects the push",
+    "file": "addons/coverage/files/tools/coverage/publish-to-pages.mts",
+    "find": "if (attempt === PUSH_ATTEMPTS) {",
+    "replace": "if (attempt === 1) {",
+    "test": "pnpm vitest run addons/coverage/tests/publish-to-pages.test.mts -t \"tries again when the remote rejects the push\""
+  },
+  {
+    "name": "publish-to-pages: commits with the given message as the workflow bot, without writing to the checkout's git config",
+    "file": "addons/coverage/files/tools/coverage/publish-to-pages.mts",
+    "find": "git(work, [\"commit\", \"--quiet\", \"-m\", message]);",
+    "replace": "git(work, [\"commit\", \"--quiet\", \"-m\", \"publish\"]);",
+    "test": "pnpm vitest run addons/coverage/tests/publish-to-pages.test.mts -t \"commits with the given message as the workflow bot\""
+  },
+  {
+    "name": "publish-to-pages: leaves no worktree behind, and leaves the checkout on its own branch",
+    "file": "addons/coverage/files/tools/coverage/publish-to-pages.mts",
+    "find": "      git(repository, [\"worktree\", \"remove\", \"--force\", work]);\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/coverage/tests/publish-to-pages.test.mts -t \"leaves no worktree behind\""
+  },
+  {
+    "name": "publish-to-pages: refuses a source that is not a folder",
+    "file": "addons/coverage/files/tools/coverage/publish-to-pages.mts",
+    "find": "if (!existsSync(source) || !statSync(source).isDirectory()) {",
+    "replace": "if (existsSync(source) && !statSync(source).isDirectory()) {",
+    "test": "pnpm vitest run addons/coverage/tests/publish-to-pages.test.mts -t \"refuses a source that is not a folder\""
+  },
+  {
+    "name": "publish-to-pages: refuses an empty source, so an empty report is not published as if it were one",
+    "file": "addons/coverage/files/tools/coverage/publish-to-pages.mts",
+    "find": "if (owned.length === 0) {",
+    "replace": "if (owned.length < 0) {",
+    "test": "pnpm vitest run addons/coverage/tests/publish-to-pages.test.mts -t \"refuses an empty source\""
+  },
+  {
+    "name": "publish-to-pages: exits 2 with the usage when --source is missing",
+    "file": "addons/coverage/files/tools/coverage/publish-to-pages.mts",
+    "find": "console.error(`publish-to-pages could not run: ${error.message}`);\n      process.exit(2);",
+    "replace": "console.error(`publish-to-pages could not run: ${error.message}`);\n      process.exit(1);",
+    "test": "pnpm vitest run addons/coverage/tests/publish-to-pages.test.mts -t \"with the usage when --source is missing\""
+  },
+  {
+    "name": "publish-to-pages: exits 1 with git's own words when git fails",
+    "file": "addons/coverage/files/tools/coverage/publish-to-pages.mts",
+    "find": "console.error(stderr === \"\" ? error : stderr);\n    process.exit(1);",
+    "replace": "console.error(stderr === \"\" ? error : stderr);\n    process.exit(0);",
+    "test": "pnpm vitest run addons/coverage/tests/publish-to-pages.test.mts -t \"own words when git fails\""
+  },
+  {
+    "name": "addon: has its tools tracked by git, although the starter ignores every folder called coverage",
+    "file": "addons/coverage/files/tools/.gitignore",
+    "find": "!coverage/",
+    "replace": "coverage/",
+    "test": "pnpm vitest run addons/coverage/tests/addon.test.mts -t \"has its tools tracked by git\""
+  },
+  {
+    "name": "addon: writes its reports only where the starter's .gitignore already covers them",
+    "file": "addons/coverage/files/tools/coverage/lib/site.mts",
+    "find": "export const REPORT_DIRECTORY = \"coverage/report\";",
+    "replace": "export const REPORT_DIRECTORY = \"reports/merged\";",
+    "test": "pnpm vitest run addons/coverage/tests/addon.test.mts -t \"writes its reports only where the starter\""
+  },
+  {
+    "name": "addon: adds only scripts that run a tool it ships",
+    "file": "addons/coverage/addon.json",
+    "find": "\"node tools/coverage/gaps.mts\"",
+    "replace": "\"node tools/coverage/gap.mts\"",
+    "test": "pnpm vitest run addons/coverage/tests/addon.test.mts -t \"adds only scripts that run a tool it ships\""
+  },
+  {
+    "name": "addon: pins every action to a full commit hash, with the version beside it",
+    "file": "addons/coverage/files/.github/workflows/coverage.yml",
+    "find": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1",
+    "replace": "actions/download-artifact@v8",
+    "test": "pnpm vitest run addons/coverage/tests/addon.test.mts -t \"pins every action to a full commit hash\""
+  },
+  {
+    "name": "addon: uploads and publishes the folders the tools write",
+    "file": "addons/coverage/files/tools/coverage/lib/site.mts",
+    "find": "export const TEST_REPORT_DIRECTORY = \"coverage/test-results\";",
+    "replace": "export const TEST_REPORT_DIRECTORY = \"coverage/tests\";",
+    "test": "pnpm vitest run addons/coverage/tests/addon.test.mts -t \"uploads and publishes the folders the tools write\""
+  },
+  {
+    "name": "addon: runs the gate with the script the add-on adds, and publishes with the tool it ships",
+    "file": "addons/coverage/files/.github/workflows/coverage.yml",
+    "find": "run: pnpm coverage\n",
+    "replace": "run: pnpm test:coverage\n",
+    "test": "pnpm vitest run addons/coverage/tests/addon.test.mts -t \"runs the gate with the script the add-on adds\""
+  },
+  {
+    "name": "addon: gives write access to the repository to the publish job only",
+    "file": "addons/coverage/files/.github/workflows/coverage.yml",
+    "find": "permissions:\n  contents: read\n\njobs:",
+    "replace": "permissions:\n  contents: write\n\njobs:",
+    "test": "pnpm vitest run addons/coverage/tests/addon.test.mts -t \"gives write access to the repository to the publish job only\""
+  },
+  {
+    "name": "addon: keeps the token out of the job that installs dependencies and runs the tests",
+    "file": "addons/coverage/files/.github/workflows/coverage.yml",
+    "find": "          persist-credentials: false",
+    "replace": "          persist-credentials: true",
+    "test": "pnpm vitest run addons/coverage/tests/addon.test.mts -t \"keeps the token out of the job that installs\""
+  }
+]

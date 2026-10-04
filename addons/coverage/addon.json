@@ -1,0 +1,26 @@
+{
+  "name": "coverage",
+  "summary": "A per-file coverage gate for every package, a ranked list of the gaps, a check that proves a test can fail, and a published coverage report.",
+  "packageJson": {
+    ".": {
+      "scripts": {
+        "coverage": "node tools/coverage/run.mts",
+        "coverage:gaps": "node tools/coverage/gaps.mts",
+        "mutation-check": "node tools/coverage/mutation-check.mts"
+      },
+      "devDependencies": {
+        "@vitest/coverage-v8": "^5.0.3"
+      }
+    }
+  },
+  "gates": {
+    "fast": [],
+    "full": [
+      "pnpm coverage"
+    ]
+  },
+  "startingFiles": [
+    "tools/coverage.config.mts"
+  ],
+  "verify": "pnpm coverage"
+}

@@ -1,0 +1,113 @@
+name: Coverage
+
+# The coverage gate, with a summary on the run page and the HTML report as an
+# artifact. On a push to main the report is also published to GitHub Pages.
+#
+# A published report shows the commit that built it. This workflow rebuilds it
+# on every push to main, and the report's index page states its commit and
+# date, so a reader can tell how old it is.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    name: coverage gate · report
+    runs-on: ubuntu-latest
+    outputs:
+      report: ${{ steps.report.outputs.built }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Enable Corepack (provisions the pnpm pinned by the packageManager field)
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The same command a person runs. It writes the table on the run's
+      # summary page itself, and the merged report to coverage/report.
+      - name: Coverage gate (every file of every package)
+        run: pnpm coverage
+
+      - name: Was a report built?
+        id: report
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -f coverage/report/index.html ]; then
+            echo "built=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "built=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Coverage::No coverage report was built, so none is uploaded or published."
+          fi
+
+      # Always, not only on failure: it is small, and it is what the publish
+      # job below takes its files from.
+      - name: Upload the coverage report
+        if: ${{ !cancelled() && steps.report.outputs.built == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-report
+          path: coverage/report/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload the test reports (on failure)
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-reports
+          path: coverage/test-results/
+          if-no-files-found: warn
+          retention-days: 14
+
+  # A job of its own so that write access to the repository is held only here,
+  # where no dependency is installed and no project test runs. The report is
+  # published even when the gate above failed: showing the gaps is its purpose.
+  publish:
+    name: publish the report to GitHub Pages
+    needs: coverage
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.coverage.outputs.report == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # Shared with any other workflow that writes to the Pages branch, so two
+    # of them never push at once.
+    concurrency:
+      group: pages-write
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # This job pushes the gh-pages branch with the checkout's token, so
+          # the token must stay in the git config here.
+          persist-credentials: true
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: coverage-report
+          path: _pages/coverage
+
+      # Replaces only /coverage on the branch; anything else there is kept.
+      - name: Publish to the gh-pages branch
+        run: node tools/coverage/publish-to-pages.mts --source _pages --message "coverage report for ${GITHUB_SHA}"
+
+      - name: Where the report is
+        run: |
+          url="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/coverage/"
+          echo "::notice title=Coverage report::${url} (served only when GitHub Pages is set to deploy from the gh-pages branch)"

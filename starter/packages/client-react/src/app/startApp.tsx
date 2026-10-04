@@ -10,8 +10,11 @@ import { buildPorts } from "./buildPorts.ts";
  * The composition root. It reads the configuration, picks the adapters, builds
  * the application and the view model once, and hands the view model to the UI.
  * Nothing else in the client does any of those things.
+ *
+ * Returns what stops the app again: the UI is unmounted and, with it, every
+ * subscription the UI held.
  */
-export function startApp(): void {
+export function startApp(): () => void {
   const container = document.getElementById("root");
 
   if (container === null) {
@@ -20,11 +23,17 @@ export function startApp(): void {
 
   const viewModel = createViewModel(createApp(buildPorts(import.meta.env.VITE_SERVER_URL)));
 
-  createRoot(container).render(
+  const root = createRoot(container);
+
+  root.render(
     <StrictMode>
       <ViewModelProvider viewModel={viewModel}>
         <App />
       </ViewModelProvider>
     </StrictMode>,
   );
+
+  return (): void => {
+    root.unmount();
+  };
 }
