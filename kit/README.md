@@ -1,8 +1,9 @@
 # The kit
 
 Deterministic checks for the architecture, and the hooks that run them. The
-kit is copied into a project (as `tools/arch/`) by the scaffold; everything in
-it also runs from here against any folder, which is how it is tested.
+kit is copied into a new project as `tools/arch/` by
+`scripts/create-project.mts`; everything in it also runs from here against any
+folder, which is how it is tested.
 
 The checks do not depend on which model, or which person, wrote the code.
 

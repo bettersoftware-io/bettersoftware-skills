@@ -1,0 +1,20 @@
+{
+  // The repo's own tooling: the architecture gates, the lint rules and the root
+  // configs. Node runs these files directly and never checks them, so this is
+  // the only place they are typechecked.
+  "compilerOptions": {
+    "noEmit": true,
+    "strict": true,
+    "target": "ES2024",
+    "lib": ["ES2024"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["tools/arch/**/*.mts", "eslint.config.mts", "architecture.config.mts"],
+  "exclude": ["tools/arch/**/*.test.mts", "tools/arch/gates/fixtures", "tools/arch/architecture.config.example.mts"]
+}

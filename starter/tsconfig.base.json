@@ -1,0 +1,19 @@
+{
+  // Shared by every package. Packages export their TypeScript source and are
+  // never compiled on their own: the client is bundled by Vite and the server
+  // is run by Node, which strips the types. So this config only typechecks.
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
+  }
+}

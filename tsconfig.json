@@ -16,6 +16,6 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["kit/**/*.mts", "vitest.config.mts"],
+  "include": ["kit/**/*.mts", "scripts/**/*.mts", "vitest.config.mts"],
   "exclude": ["kit/gates/fixtures", "kit/architecture.config.example.mts", "node_modules"]
 }

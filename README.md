@@ -12,6 +12,9 @@ where each one exists because something went wrong without it.
 
 Early. No plugin is installable yet. What exists:
 
+- [`starter/`](starter/README.md): a working project to start from, with one
+  small feature built the way every feature is meant to be built. Create a
+  project from it with `node scripts/create-project.mts <target> --scope @acme`.
 - [`kit/`](kit/README.md): the deterministic checks (architecture gates, lint
   rules) and the agent hooks that run them. Tested, and proven against a
   baseline run.

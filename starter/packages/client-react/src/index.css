@@ -1,0 +1,35 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color-scheme: light dark;
+}
+
+table {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+th,
+td {
+  padding: 0.4rem 1rem;
+  text-align: left;
+}
+
+tbody tr {
+  cursor: pointer;
+}
+
+tr[data-selected="true"] {
+  background: color-mix(in srgb, currentColor 18%, transparent);
+}
+
+tr[data-stale="true"] {
+  opacity: 0.45;
+}
+
+td[data-movement="up"] {
+  color: #1a8f4c;
+}
+
+td[data-movement="down"] {
+  color: #c0392b;
+}

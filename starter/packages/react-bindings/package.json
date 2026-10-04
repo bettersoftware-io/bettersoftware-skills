@@ -1,0 +1,26 @@
+{
+  "name": "@app/react-bindings",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@app/client-core": "workspace:*",
+    "@react-rxjs/core": "^0.10.7",
+    "react": "^19.2.3"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "jsdom": "^30.0.1",
+    "react-dom": "^19.2.3"
+  }
+}

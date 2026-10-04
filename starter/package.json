@@ -1,0 +1,32 @@
+{
+  "name": "starter",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.6.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @app/client-react dev",
+    "dev:server": "pnpm --filter @app/server dev",
+    "dev:fs": "VITE_SERVER_URL=ws://localhost:4000/ws turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck && tsc --noEmit -p tsconfig.tooling.json",
+    "test": "turbo run test",
+    "lint": "eslint --flag unstable_native_nodejs_ts_config .",
+    "gates": "node tools/arch/gates/run.mts",
+    "gate:fast": "pnpm gates && pnpm lint && pnpm typecheck",
+    "gate:full": "pnpm gate:fast && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@typescript-eslint/utils": "^8.70.1",
+    "@typescript/native": "npm:typescript@^7.0.2",
+    "dependency-cruiser": "^18.0.0",
+    "eslint": "^10.5.0",
+    "turbo": "^2.4",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "typescript-eslint": "^8.61.1",
+    "vitest": "^5.0.3"
+  }
+}
