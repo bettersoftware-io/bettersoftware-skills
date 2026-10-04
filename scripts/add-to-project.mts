@@ -8,18 +8,29 @@
 // files. A file that was edited in the project is never overwritten unless
 // --force is given: the script stops, lists those files, and changes nothing.
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { isMainModule } from "../kit/gates/lib/files.mts";
-import { type InstallOutcome, InstallError, installFiles, readFileSet, rewriteScope } from "./lib/install.mts";
+import {
+  assertInside,
+  type InstallOutcome,
+  InstallError,
+  installFiles,
+  readFileSet,
+  rewriteScope,
+  writeProjectFile,
+} from "./lib/install.mts";
 
 const REPOSITORY = dirname(dirname(fileURLToPath(import.meta.url)));
 const STARTER_SCOPE = "@app";
 
 /** The kit installs under this name; every other unit is an add-on. */
 export const KIT = "kit";
+
+/** What setting up the kit may create or edit, beyond the kit's own files. */
+const KIT_SETUP_FILES = ["architecture.config.mts", ".claude/settings.json", ".codex/hooks.json", "package.json"];
 
 /** Never copied from the kit: its own tests and the broken projects they run against. */
 export const SKIPPED_IN_KIT = /(\.test\.mts$|\/gates\/fixtures(\/|$)|\/architecture\.config\.example\.mts$)/;
@@ -76,6 +87,11 @@ export function addToProject({ project, unit, force = false, scope, repository =
   if (unit === KIT) {
     const files = readFileSet(join(repository, "kit"), "tools/arch", (path) => SKIPPED_IN_KIT.test(path));
 
+    // Everything the setup below may write is checked before the kit goes in.
+    for (const path of KIT_SETUP_FILES) {
+      assertInside(destination, path);
+    }
+
     const outcome = installFiles(destination, KIT, files, force);
 
     return { unit, files: outcome, agents: "none", ...setUpKit(destination, repository) };
@@ -97,13 +113,15 @@ export function addToProject({ project, unit, force = false, scope, repository =
   ) as AddonManifest;
 
   // Everything that can refuse is worked out before anything is written.
+  assertInside(destination, "AGENTS.md");
+
   const packagePlan = planPackageChanges(destination, manifest, force);
   const source = join(addon, "files");
   const files = existsSync(source) ? rewriteScope(readFileSet(source, ""), STARTER_SCOPE, projectScope) : new Map<string, Buffer>();
   const outcome = installFiles(destination, unit, files, force);
 
-  for (const { file, json } of packagePlan.writes) {
-    writeFileSync(file, `${JSON.stringify(json, null, 2)}\n`);
+  for (const { path, json } of packagePlan.writes) {
+    writeProjectFile(destination, path, `${JSON.stringify(json, null, 2)}\n`);
   }
 
   const section = join(addon, "AGENTS.section.md");
@@ -126,7 +144,7 @@ function setUpKit(project: string, repository: string): Pick<AddResult, "created
   const packageChanges: string[] = [];
 
   if (!existsSync(join(project, "architecture.config.mts")) && !existsSync(join(project, "architecture.config.mjs"))) {
-    writeFileSync(join(project, "architecture.config.mts"), readFileSync(join(repository, "kit", "architecture.config.example.mts"), "utf8"));
+    writeProjectFile(project, "architecture.config.mts", readFileSync(join(repository, "kit", "architecture.config.example.mts"), "utf8"));
     created.push("architecture.config.mts");
     notes.push("architecture.config.mts is an example: list this project's own packages in it, each with its role");
   }
@@ -143,8 +161,7 @@ function setUpKit(project: string, repository: string): Pick<AddResult, "created
     }
 
     if (!existsSync(file)) {
-      mkdirSync(dirname(file), { recursive: true });
-      writeFileSync(file, readFileSync(source, "utf8"));
+      writeProjectFile(project, target, readFileSync(source, "utf8"));
       created.push(target);
     } else if (!readFileSync(file, "utf8").includes("tools/arch/hooks/")) {
       notes.push(`${target} exists and does not run the hooks: merge in the two entries from tools/arch/hooks/${template}`);
@@ -156,7 +173,7 @@ function setUpKit(project: string, repository: string): Pick<AddResult, "created
 
   if (manifest.scripts?.gates === undefined) {
     manifest.scripts = { ...manifest.scripts, gates: "node tools/arch/gates/run.mts" };
-    writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
+    writeProjectFile(project, "package.json", `${JSON.stringify(manifest, null, 2)}\n`);
     packageChanges.push("package.json: scripts.gates");
   }
 
@@ -232,7 +249,8 @@ function expandPackagePath(project: string, path: string): string[] {
 }
 
 interface PackagePlan {
-  writes: { file: string; json: PackageJson }[];
+  /** `path` is the package.json's place in the project. */
+  writes: { path: string; json: PackageJson }[];
   changes: string[];
 }
 
@@ -242,18 +260,20 @@ function planPackageChanges(project: string, manifest: AddonManifest, force: boo
   const changes: string[] = [];
   const conflicts: string[] = [];
 
-  function load(path: string): PackageJson {
-    const file = join(project, path, "package.json");
+  function load(directory: string): PackageJson {
+    const path = join(directory, "package.json");
 
-    if (!existsSync(file)) {
-      throw new InstallError(`the add-on "${manifest.name}" needs ${join(path, "package.json")}, which this project does not have`);
+    if (!existsSync(join(project, path))) {
+      throw new InstallError(`the add-on "${manifest.name}" needs ${path}, which this project does not have`);
     }
 
-    if (!loaded.has(file)) {
-      loaded.set(file, JSON.parse(readFileSync(file, "utf8")) as PackageJson);
+    assertInside(project, path);
+
+    if (!loaded.has(path)) {
+      loaded.set(path, JSON.parse(readFileSync(join(project, path), "utf8")) as PackageJson);
     }
 
-    return loaded.get(file) as PackageJson;
+    return loaded.get(path) as PackageJson;
   }
 
   for (const [pattern, patch] of Object.entries(manifest.packageJson ?? {})) {
@@ -306,7 +326,7 @@ function planPackageChanges(project: string, manifest: AddonManifest, force: boo
   }
 
   return {
-    writes: [...loaded].filter(([, json]) => changed.has(json)).map(([file, json]) => ({ file, json })),
+    writes: [...loaded].filter(([, json]) => changed.has(json)).map(([path, json]) => ({ path, json })),
     changes,
   };
 }
@@ -321,7 +341,7 @@ function writeAgentsSection(project: string, unit: string, section: string): Add
   const to = original.indexOf(end);
 
   if (from === -1 || to === -1) {
-    writeFileSync(file, `${original.trimEnd()}${original.trim() === "" ? "" : "\n\n"}${block}\n`);
+    writeProjectFile(project, "AGENTS.md", `${original.trimEnd()}${original.trim() === "" ? "" : "\n\n"}${block}\n`);
 
     return "added";
   }
@@ -332,7 +352,7 @@ function writeAgentsSection(project: string, unit: string, section: string): Add
     return "unchanged";
   }
 
-  writeFileSync(file, replaced);
+  writeProjectFile(project, "AGENTS.md", replaced);
 
   return "updated";
 }

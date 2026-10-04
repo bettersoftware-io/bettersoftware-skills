@@ -10,8 +10,8 @@
 // Nothing is written until the whole change is known to be free of conflicts.
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, sep } from "node:path";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 
 export class InstallError extends Error {}
 
@@ -89,7 +89,7 @@ export function installFiles(project: string, unit: string, files: FileSet, forc
   // Both lists of paths are checked before anything is touched. The record is
   // a file in the project, so it is input like any other: a path in it that
   // leaves the project must never reach `rmSync`.
-  for (const path of [...files.keys(), ...Object.keys(before)]) {
+  for (const path of [...files.keys(), ...Object.keys(before), RECORD]) {
     assertInside(project, path);
   }
 
@@ -138,10 +138,7 @@ export function installFiles(project: string, unit: string, files: FileSet, forc
   }
 
   for (const path of outcome.written) {
-    const target = join(project, path);
-
-    mkdirSync(dirname(target), { recursive: true });
-    writeFileSync(target, files.get(path) as Buffer);
+    writeProjectFile(project, path, files.get(path) as Buffer);
   }
 
   record[unit] = { files: Object.fromEntries([...files].map(([path, content]) => [path, hash(content)]).sort()) };
@@ -151,23 +148,46 @@ export function installFiles(project: string, unit: string, files: FileSet, forc
 }
 
 /**
- * Throws unless `path` names a place inside the project once every `..` and
- * every symbolic link on the way has been followed.
+ * Throws unless `path` is a plain place inside the project: relative, with no
+ * `..`, and with no symbolic link anywhere on the way, the last part included.
+ *
+ * Links are refused outright instead of being resolved. Resolving asks "where
+ * does this lead?", and a link that points at nothing yet has no answer until
+ * the write creates its target, outside. Refusing has no such gap.
  */
-function assertInside(project: string, path: string): void {
-  // The file may not exist yet, so resolve the part of the path that does.
-  let existing = join(project, path);
+export function assertInside(project: string, path: string): void {
+  const outside = new InstallError(`"${path}" is outside the project, or reaches it through a link — nothing was changed`);
+  const parts = path.split(/[\\/]/);
 
-  while (!existsSync(existing)) {
-    existing = dirname(existing);
+  if (path === "" || isAbsolute(path) || parts.includes("..")) {
+    throw outside;
   }
 
-  const root = realpathSync(project);
-  const real = realpathSync(existing);
+  let current = project;
 
-  if (real !== root && !real.startsWith(`${root}${sep}`)) {
-    throw new InstallError(`"${path}" is outside the project — nothing was changed`);
+  for (const part of parts) {
+    current = join(current, part);
+
+    const found = lstatSync(current, { throwIfNoEntry: false });
+
+    if (found === undefined) {
+      return;
+    }
+
+    if (found.isSymbolicLink()) {
+      throw outside;
+    }
   }
+}
+
+/** The only way this installer writes a file: checked, then written. */
+export function writeProjectFile(project: string, path: string, content: string | Buffer): void {
+  assertInside(project, path);
+
+  const target = join(project, path);
+
+  mkdirSync(dirname(target), { recursive: true });
+  writeFileSync(target, content);
 }
 
 export function installedUnits(project: string): string[] {
@@ -181,10 +201,7 @@ function readRecord(project: string): InstalledRecord {
 }
 
 function writeRecord(project: string, record: InstalledRecord): void {
-  const file = join(project, RECORD);
-
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, `${JSON.stringify(record, null, 2)}\n`);
+  writeProjectFile(project, RECORD, `${JSON.stringify(record, null, 2)}\n`);
 }
 
 function hash(content: Buffer): string {

@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
 
 import { addToProject, listAddons } from "./add-to-project.mts";
-import { InstallError } from "./lib/install.mts";
+import { InstallError, writeProjectFile } from "./lib/install.mts";
 
 describe("adding the kit", () => {
   it("copies the kit to tools/arch, without its tests, and records what it installed", () => {
@@ -142,6 +142,29 @@ describe("adding the kit", () => {
     expect(existsSync(join(elsewhere, "gates", "run.mts"))).toBe(false);
   });
 
+  it("never creates a file through a link that points at nothing yet", () => {
+    const { repository, project } = createWorld();
+    const outside = join(project, "..", "created-outside.mts");
+    mkdirSync(join(project, "tools", "arch", "gates"), { recursive: true });
+    symlinkSync(outside, join(project, "tools", "arch", "gates", "run.mts"));
+
+    expect(() => addToProject({ project, unit: "kit", repository })).toThrow(/outside the project/);
+
+    expect(existsSync(outside)).toBe(false);
+  });
+
+  it("never sets up a hook file through a link that leads out of the project", () => {
+    const { repository, project } = createWorld();
+    const elsewhere = join(project, "..", "elsewhere");
+    mkdirSync(elsewhere);
+    symlinkSync(elsewhere, join(project, ".claude"));
+
+    expect(() => addToProject({ project, unit: "kit", repository })).toThrow(/outside the project/);
+
+    expect(existsSync(join(elsewhere, "settings.json"))).toBe(false);
+    expect(existsSync(join(project, "tools", "arch"))).toBe(false);
+  });
+
   it("refuses a folder that is not a project", () => {
     const { repository } = createWorld();
     const empty = mkdtempSync(join(tmpdir(), "not-a-project-"));
@@ -150,6 +173,23 @@ describe("adding the kit", () => {
     });
 
     expect(() => addToProject({ project: empty, unit: "kit", repository })).toThrow(InstallError);
+  });
+});
+
+describe("writing a project file", () => {
+  it("is refused through a link on its own, so a write that skips the checks up front is still safe", () => {
+    const { project } = createWorld();
+    const elsewhere = join(project, "..", "elsewhere");
+    mkdirSync(elsewhere);
+    symlinkSync(elsewhere, join(project, "linked"));
+
+    expect(() => {
+      writeProjectFile(project, "linked/file.txt", "content\n");
+    }).toThrow(/outside the project/);
+    expect(existsSync(join(elsewhere, "file.txt"))).toBe(false);
+
+    writeProjectFile(project, "plain/file.txt", "content\n");
+    expect(read(project, "plain/file.txt")).toBe("content\n");
   });
 });
 
@@ -210,6 +250,30 @@ describe("adding an add-on", () => {
     expect(existsSync(join(project, "tools/demo/check.mts"))).toBe(false);
     expect(readJson(project, "package.json").scripts["gate:fast"]).toBe("pnpm gates && pnpm lint");
     expect(read(project, "AGENTS.md")).not.toContain("add-on: demo");
+  });
+
+  it("never writes its section through an AGENTS.md that is a link out of the project", () => {
+    const { repository, project } = createWorldWithKit();
+    write(project, "../shared-agents.md", "someone else's file\n");
+    rmSync(join(project, "AGENTS.md"));
+    symlinkSync(join(project, "..", "shared-agents.md"), join(project, "AGENTS.md"));
+
+    expect(() => addToProject({ project, unit: "demo", repository })).toThrow(/outside the project/);
+
+    expect(read(project, "../shared-agents.md")).toBe("someone else's file\n");
+    expect(existsSync(join(project, "tools/demo/check.mts"))).toBe(false);
+  });
+
+  it("never edits a package.json that is a link out of the project", () => {
+    const { repository, project } = createWorldWithKit();
+    write(project, "../other-package.json", '{ "name": "@acme/api" }\n');
+    rmSync(join(project, "packages/api/package.json"));
+    symlinkSync(join(project, "..", "other-package.json"), join(project, "packages/api/package.json"));
+
+    expect(() => addToProject({ project, unit: "demo", repository })).toThrow(/outside the project/);
+
+    expect(read(project, "../other-package.json")).toBe('{ "name": "@acme/api" }\n');
+    expect(existsSync(join(project, "tools/demo/check.mts"))).toBe(false);
   });
 
   it("refuses a project that does not have the kit", () => {
