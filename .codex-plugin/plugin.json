@@ -1,0 +1,36 @@
+{
+  "name": "inward",
+  "version": "0.1.0",
+  "description": "Clean architecture with a streaming UI for TypeScript monorepos: a tested starter project, deterministic architecture gates, and a review of what no gate can check.",
+  "author": {
+    "name": "bettersoftware-io",
+    "url": "https://github.com/bettersoftware-io"
+  },
+  "homepage": "https://github.com/bettersoftware-io/bettersoftware-skills",
+  "repository": "https://github.com/bettersoftware-io/bettersoftware-skills",
+  "license": "MIT",
+  "keywords": [
+    "clean-architecture",
+    "ports-and-adapters",
+    "rxjs",
+    "streaming-ui",
+    "typescript",
+    "monorepo",
+    "architecture-gates",
+    "code-review"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Inward",
+    "shortDescription": "Clean architecture with a streaming UI, checked by gates",
+    "longDescription": "Start a TypeScript monorepo from a tested starter (domain, core, bindings, client, server), keep it in shape with deterministic architecture gates and lint rules that run as agent hooks and in CI, and review what no gate can check with seven judgement questions.",
+    "developerName": "bettersoftware-io",
+    "category": "Developer Tools",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "defaultPrompt": [
+      "Start a new project from the inward starter.",
+      "Review this change against the architecture."
+    ],
+    "websiteURL": "https://github.com/bettersoftware-io/bettersoftware-skills"
+  }
+}

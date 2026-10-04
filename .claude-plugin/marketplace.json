@@ -1,0 +1,15 @@
+{
+  "name": "bettersoftware",
+  "description": "Plugins that encode one way of building TypeScript applications: clean architecture, a streaming UI on RxJS, and tests that are proven able to fail.",
+  "owner": {
+    "name": "bettersoftware-io",
+    "url": "https://github.com/bettersoftware-io"
+  },
+  "plugins": [
+    {
+      "name": "inward",
+      "source": "./",
+      "description": "Clean architecture with a streaming UI for TypeScript monorepos: a tested starter project, deterministic architecture gates, and a review of what no gate can check."
+    }
+  ]
+}

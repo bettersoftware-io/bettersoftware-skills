@@ -1,0 +1,21 @@
+{
+  "name": "inward",
+  "description": "Clean architecture with a streaming UI for TypeScript monorepos: a tested starter project, deterministic architecture gates, and a review of what no gate can check.",
+  "author": {
+    "name": "bettersoftware-io",
+    "url": "https://github.com/bettersoftware-io"
+  },
+  "homepage": "https://github.com/bettersoftware-io/bettersoftware-skills",
+  "repository": "https://github.com/bettersoftware-io/bettersoftware-skills",
+  "license": "MIT",
+  "keywords": [
+    "clean-architecture",
+    "ports-and-adapters",
+    "rxjs",
+    "streaming-ui",
+    "typescript",
+    "monorepo",
+    "architecture-gates",
+    "code-review"
+  ]
+}
