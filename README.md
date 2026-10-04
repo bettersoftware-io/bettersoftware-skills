@@ -16,14 +16,14 @@ One plugin exists so far, `bettersoftware-skills`, in a marketplace called
 Claude Code:
 
 ```
-/plugin marketplace add bettersoftware-io/bettersoftware-skills
+/plugin marketplace add bettersoftware-io/skills
 /plugin install bettersoftware-skills@bettersoftware
 ```
 
 Codex:
 
 ```bash
-codex plugin marketplace add bettersoftware-io/bettersoftware-skills
+codex plugin marketplace add bettersoftware-io/skills
 codex plugin add bettersoftware-skills@bettersoftware
 ```
 

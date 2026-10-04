@@ -45,7 +45,7 @@ node <plugin root>/scripts/create-project.mts <target> --scope @acme --name my-a
 ```
 
 If the script is not there (the skill was copied on its own), clone
-`https://github.com/bettersoftware-io/bettersoftware-skills` into a temporary
+`https://github.com/bettersoftware-io/skills` into a temporary
 folder and run the script from the clone.
 
 ## 4. Prove the project before changing it

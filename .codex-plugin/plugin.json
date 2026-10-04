@@ -6,8 +6,8 @@
     "name": "bettersoftware-io",
     "url": "https://github.com/bettersoftware-io"
   },
-  "homepage": "https://github.com/bettersoftware-io/bettersoftware-skills",
-  "repository": "https://github.com/bettersoftware-io/bettersoftware-skills",
+  "homepage": "https://github.com/bettersoftware-io/skills",
+  "repository": "https://github.com/bettersoftware-io/skills",
   "license": "MIT",
   "keywords": [
     "clean-architecture",
@@ -31,6 +31,6 @@
       "Start a new project from the starter.",
       "Review this change against the architecture."
     ],
-    "websiteURL": "https://github.com/bettersoftware-io/bettersoftware-skills"
+    "websiteURL": "https://github.com/bettersoftware-io/skills"
   }
 }

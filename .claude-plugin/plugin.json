@@ -5,8 +5,8 @@
     "name": "bettersoftware-io",
     "url": "https://github.com/bettersoftware-io"
   },
-  "homepage": "https://github.com/bettersoftware-io/bettersoftware-skills",
-  "repository": "https://github.com/bettersoftware-io/bettersoftware-skills",
+  "homepage": "https://github.com/bettersoftware-io/skills",
+  "repository": "https://github.com/bettersoftware-io/skills",
   "license": "MIT",
   "keywords": [
     "clean-architecture",
