@@ -1,0 +1,46 @@
+name: Motion audit
+
+# The runtime half of the performance checks. The static half, `pnpm
+# perf:check`, already runs in CI through `gate:fast`. This one needs a
+# browser, so it has a workflow of its own.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  # pnpm comes from Corepack; without this its first run can stop to ask.
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+jobs:
+  motion-audit:
+    name: motion audit (Chromium, simulator)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The official Playwright image holds the Chromium build that this
+    # Playwright version drives, so nothing is downloaded here. The tag must
+    # match the `playwright` version in package.json.
+    container: mcr.microsoft.com/playwright:v1.63.0-noble
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Enable Corepack (provisions the pnpm pinned by the packageManager field)
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Builds the client, serves it on a free port, takes the census, stops
+      # the server. Exit 1 is a finding; exit 2 means it could not run.
+      - name: Motion audit
+        run: pnpm perf:motion-audit

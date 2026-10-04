@@ -1,0 +1,36 @@
+.flash {
+  animation: flash 0.6s ease-out;
+}
+
+@keyframes flash {
+  from {
+    background-color: gold;
+  }
+
+  to {
+    background-color: transparent;
+  }
+}
+
+@keyframes grow {
+  from {
+    width: 0;
+    opacity: 0;
+  }
+}
+
+@keyframes drain {
+  from {
+    transform: scaleX(var(--from));
+  }
+
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes haze {
+  to {
+    filter: blur(4px);
+  }
+}

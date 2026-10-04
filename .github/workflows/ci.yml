@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  repository:
+    name: typecheck · tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Enable Corepack (provisions the pnpm pinned by the packageManager field)
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck the kit, the scripts and the add-ons' tools
+        run: pnpm typecheck
+
+      - name: Tests
+        run: pnpm test
+
+  project:
+    # The thing this repository ships is a project. So CI creates one the way
+    # a person would, with a scope of its own, and holds it to its own gate:
+    # first as created, then with each add-on in.
+    name: a created project passes its gate (${{ matrix.addon }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        addon: [none, coverage, visual, performance]
+    env:
+      PROJECT: ${{ runner.temp }}/project
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Enable Corepack (provisions the pnpm pinned by the packageManager field)
+        run: corepack enable
+
+      - name: Create a project from the starter
+        run: node scripts/create-project.mts "$PROJECT" --scope @ci
+
+      - name: Install it from the lockfile it was created with
+        working-directory: ${{ env.PROJECT }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Its gate, as created
+        working-directory: ${{ env.PROJECT }}
+        run: pnpm gate:full
+
+      - name: Add the add-on
+        if: matrix.addon != 'none'
+        run: node scripts/add-to-project.mts "$PROJECT" ${{ matrix.addon }}
+
+      - name: Install what the add-on needs
+        if: matrix.addon != 'none'
+        working-directory: ${{ env.PROJECT }}
+        run: pnpm install --no-frozen-lockfile
+
+      # The static checks of every add-on join gate:fast or gate:full, so the
+      # project's own gate is the proof. What needs a browser (the visual
+      # goldens, the runtime motion audit) is not run here.
+      - name: Its gate, with the add-on in
+        if: matrix.addon != 'none'
+        working-directory: ${{ env.PROJECT }}
+        run: pnpm gate:full

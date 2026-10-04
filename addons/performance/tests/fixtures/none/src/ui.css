@@ -1,0 +1,9 @@
+.row {
+  color: red;
+  transform: translateX(2px);
+}
+
+.quiet {
+  transition: none;
+  animation: none;
+}

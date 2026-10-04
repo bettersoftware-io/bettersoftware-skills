@@ -1,0 +1,25 @@
+{
+  "name": "performance",
+  "summary": "Rendering-performance checks for a UI that animates over live data: a static animation gate and a runtime motion audit.",
+  "packageJson": {
+    ".": {
+      "scripts": {
+        "perf:check": "node tools/perf/check-animations.mts",
+        "perf:motion-audit": "node tools/perf/motion-audit.mts"
+      },
+      "devDependencies": {
+        "playwright": "1.63.0"
+      }
+    }
+  },
+  "gates": {
+    "fast": [
+      "pnpm perf:check"
+    ],
+    "full": []
+  },
+  "startingFiles": [
+    "tools/perf/allowed.mts"
+  ],
+  "verify": "pnpm perf:check && pnpm perf:motion-audit"
+}

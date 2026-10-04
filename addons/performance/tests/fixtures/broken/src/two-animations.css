@@ -1,0 +1,29 @@
+.button {
+  animation: enter 0.3s ease-out, throb 2s infinite;
+}
+
+.dot {
+  animation: enter 0.3s, blink 1s infinite;
+}
+
+.late {
+  animation: defined-somewhere-else 1s;
+}
+
+@keyframes enter {
+  from {
+    transform: scale(0.8);
+  }
+}
+
+@keyframes throb {
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.3;
+  }
+}

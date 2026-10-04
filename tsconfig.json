@@ -16,6 +16,20 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["kit/**/*.mts", "scripts/**/*.mts", "vitest.config.mts"],
-  "exclude": ["kit/gates/fixtures", "kit/architecture.config.example.mts", "node_modules"]
+  "include": [
+    "kit/**/*.mts",
+    "scripts/**/*.mts",
+    "addons/*/tests/**/*.mts",
+    "addons/*/files/tools/**/*.mts",
+    "vitest.config.mts"
+  ],
+  // motion-audit.mts imports playwright, which this repository does not
+  // install. It is typechecked where it runs: in a project with the add-on.
+  "exclude": [
+    "kit/gates/fixtures",
+    "kit/architecture.config.example.mts",
+    "addons/*/tests/fixtures",
+    "addons/performance/files/tools/perf/motion-audit.mts",
+    "node_modules"
+  ]
 }

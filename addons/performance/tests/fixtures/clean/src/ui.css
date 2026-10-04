@@ -1,0 +1,42 @@
+/* Compositor-only motion. A comment that mentions transition: all is not code. */
+.row {
+  transition: opacity 0.2s ease-out, transform 0.2s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.bar {
+  transform-origin: left;
+  animation: drain var(--duration) linear var(--delay) forwards;
+}
+
+.badge {
+  animation: pop 0.3s ease-out, fade 2s infinite;
+}
+
+@keyframes drain {
+  from {
+    transform: scaleX(1);
+  }
+
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.8);
+  }
+}
+
+@keyframes fade {
+  50% {
+    opacity: 0.4;
+    animation-timing-function: ease-in;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row {
+    transition: none;
+  }
+}

@@ -1,0 +1,22 @@
+.card {
+  transition: all 0.3s;
+}
+
+.panel {
+  transition: 0.2s ease-in;
+}
+
+.bar {
+  transition: width 1s linear, opacity 0.2s;
+}
+
+.price {
+  transition-property: color, transform;
+  transition-duration: 0.3s;
+}
+
+.menu {
+  & .item:hover {
+    transition: box-shadow 0.15s;
+  }
+}
