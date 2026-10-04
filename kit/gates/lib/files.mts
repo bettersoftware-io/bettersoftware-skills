@@ -4,7 +4,21 @@ import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const SKIPPED_DIRECTORIES = new Set(["node_modules", "dist", "coverage", "reports", ".turbo", ".git"]);
+// Folders that hold only installed or generated files. This is a closed list on
+// purpose: skipping every dot-folder would let source in `.github/`,
+// `.storybook/` or a dot-named folder under `src/ui` slip past every gate.
+const SKIPPED_DIRECTORIES = new Set([
+  "node_modules",
+  "dist",
+  "coverage",
+  "reports",
+  ".git",
+  ".turbo",
+  ".vite",
+  ".next",
+  ".expo",
+  ".cache",
+]);
 const SOURCE_FILE = /\.(ts|tsx|mts|js|jsx|mjs|cjs)$/;
 const TEST_FILE = /(\.(test|spec)\.[cm]?[jt]sx?$|\/__tests__\/|\/__testUtils__\/)/;
 
@@ -17,7 +31,7 @@ export function listSourceFiles(root: string, directory: string): string[] {
       const path = relative === "" ? entry.name : `${relative}/${entry.name}`;
 
       if (entry.isDirectory()) {
-        if (!SKIPPED_DIRECTORIES.has(entry.name) && !entry.name.startsWith(".")) {
+        if (!SKIPPED_DIRECTORIES.has(entry.name)) {
           walk(path);
         }
       } else if (SOURCE_FILE.test(entry.name)) {

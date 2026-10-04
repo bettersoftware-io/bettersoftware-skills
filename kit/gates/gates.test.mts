@@ -70,7 +70,16 @@ describe("a project that breaks the rules", () => {
   it("names a JavaScript file, and leaves alone one a tool can only load as JavaScript", () => {
     expect(messages("typescript-only", "scripts/build.mjs")).toContain("A JavaScript file in a TypeScript project");
     expect(of("typescript-only", "stylelint.config.mjs")).toEqual([]);
-    expect(of("typescript-only").map((finding) => finding.file)).toEqual(["scripts/build.mjs"]);
+    expect(of("typescript-only").map((finding) => finding.file)).toEqual([
+      ".github/scripts/release.js",
+      "scripts/build.mjs",
+    ]);
+  });
+
+  it("judges source in a dot-folder, and skips only folders of generated files", () => {
+    expect(messages("typescript-only", ".github/scripts/release.js")).toContain("A JavaScript file");
+    expect(of("typescript-only", ".vite/deps/chunk.js")).toEqual([]);
+    expect(messages("dumb-ui", "packages/client-react/src/ui/.drafts/Hidden.tsx")).toContain("timer");
   });
 
   it("names every dumb-UI violation with its line", () => {
