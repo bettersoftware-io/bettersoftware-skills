@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
@@ -112,6 +113,33 @@ describe("adding the kit", () => {
     expect(result.created).toEqual([]);
     expect(result.notes).toEqual([]);
     expect(result.packageChanges).toEqual([]);
+  });
+
+  it("never deletes outside the project, whatever the project's record says", () => {
+    const { repository, project } = createWorld();
+    addToProject({ project, unit: "kit", repository });
+    write(project, "../outside.txt", "not the project's file\n");
+    const record = readJson(project, "tools/installed.json");
+    // A record that claims the kit installed a file outside the project, with
+    // that file's true hash, so it looks untouched and safe to remove.
+    record.kit.files["../outside.txt"] = createHash("sha256").update("not the project's file\n").digest("hex");
+    write(project, "tools/installed.json", JSON.stringify(record));
+
+    expect(() => addToProject({ project, unit: "kit", repository })).toThrow(/outside the project/);
+
+    expect(existsSync(join(project, "../outside.txt"))).toBe(true);
+  });
+
+  it("never writes through a link that leads out of the project", () => {
+    const { repository, project } = createWorld();
+    const elsewhere = join(project, "..", "elsewhere");
+    mkdirSync(elsewhere);
+    mkdirSync(join(project, "tools"));
+    symlinkSync(elsewhere, join(project, "tools", "arch"));
+
+    expect(() => addToProject({ project, unit: "kit", repository })).toThrow(/outside the project/);
+
+    expect(existsSync(join(elsewhere, "gates", "run.mts"))).toBe(false);
   });
 
   it("refuses a folder that is not a project", () => {

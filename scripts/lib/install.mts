@@ -10,7 +10,7 @@
 // Nothing is written until the whole change is known to be free of conflicts.
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 
 export class InstallError extends Error {}
@@ -86,6 +86,13 @@ export function installFiles(project: string, unit: string, files: FileSet, forc
   const conflicts: string[] = [];
   const outcome: InstallOutcome = { written: [], unchanged: [], removed: [], kept: [] };
 
+  // Both lists of paths are checked before anything is touched. The record is
+  // a file in the project, so it is input like any other: a path in it that
+  // leaves the project must never reach `rmSync`.
+  for (const path of [...files.keys(), ...Object.keys(before)]) {
+    assertInside(project, path);
+  }
+
   for (const [path, content] of files) {
     const target = join(project, path);
 
@@ -141,6 +148,26 @@ export function installFiles(project: string, unit: string, files: FileSet, forc
   writeRecord(project, record);
 
   return outcome;
+}
+
+/**
+ * Throws unless `path` names a place inside the project once every `..` and
+ * every symbolic link on the way has been followed.
+ */
+function assertInside(project: string, path: string): void {
+  // The file may not exist yet, so resolve the part of the path that does.
+  let existing = join(project, path);
+
+  while (!existsSync(existing)) {
+    existing = dirname(existing);
+  }
+
+  const root = realpathSync(project);
+  const real = realpathSync(existing);
+
+  if (real !== root && !real.startsWith(`${root}${sep}`)) {
+    throw new InstallError(`"${path}" is outside the project — nothing was changed`);
+  }
 }
 
 export function installedUnits(project: string): string[] {
