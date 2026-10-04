@@ -103,8 +103,7 @@ on Node 24 or later, or with `jiti` installed.
 scripts. Codex runs a hook only after it has been reviewed and trusted with
 `/hooks`.
 
-Both hooks have been run in Codex as well as in Claude Code
-([the Codex run](../docs/codex-test-2026-10-04.md)).
+Both hooks have been run in Codex as well as in Claude Code.
 
 The stop hook runs the project's `gate:fast` script, so "green" has one
 definition for the agent, a person and CI:

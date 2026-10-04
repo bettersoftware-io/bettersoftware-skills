@@ -76,6 +76,17 @@ No JavaScript source files. Scripts and tool configs are `.mts`, which Node runs
 directly. A file a tool can only load as JavaScript is listed in
 `architecture.config.mts` under `javascriptAllowed`, with the reason.
 
+## Reviewing a change
+
+A review in this project does two things first, whoever or whatever does it:
+
+1. Runs `pnpm gate:fast` and shows its output. Not run is not passed.
+2. Answers the seven questions in `tools/arch/docs/review.md`, each with its
+   evidence as `file:line` and a verdict, including the ones that pass.
+
+Anything else a review finds (robustness, security, performance) comes after
+those, never in place of them.
+
 ## When a gate fails
 
 Its message says what is wrong and where the code belongs. Fix the code. If you
