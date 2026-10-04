@@ -15,6 +15,9 @@ Early. No plugin is installable yet. What exists:
 - [`kit/`](kit/README.md): the deterministic checks (architecture gates, lint
   rules) and the agent hooks that run them. Tested, and proven against a
   baseline run.
+- [`skills/reviewing-architecture`](skills/reviewing-architecture/SKILL.md): the
+  review of what no gate can check, as seven judgement questions.
+  [How it was tested](docs/review-skill-test-2026-10-04.md).
 - [`docs/inventory.md`](docs/inventory.md): what is being extracted, and how it
   is sorted.
 - [`docs/baseline-2026-10-04.md`](docs/baseline-2026-10-04.md): what an agent
