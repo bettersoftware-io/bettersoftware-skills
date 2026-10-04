@@ -1,0 +1,20 @@
+{
+  "description": "Architecture gates: judge each written file, and refuse to finish on a red gate.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "apply_patch|Edit|Write",
+        "hooks": [
+          { "type": "command", "command": "node tools/arch/hooks/after-edit.mjs", "statusMessage": "Checking architecture rules", "timeout": 20 }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node tools/arch/hooks/before-stop.mjs", "statusMessage": "Running the fast gate", "timeout": 300 }
+        ]
+      }
+    ]
+  }
+}

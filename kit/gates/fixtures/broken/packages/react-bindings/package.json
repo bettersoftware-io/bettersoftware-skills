@@ -1,0 +1,9 @@
+{
+  "name": "@fx/react-bindings",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@fx/client-core": "workspace:*"
+  }
+}

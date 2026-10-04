@@ -1,0 +1,9 @@
+{
+  "name": "@fx/domain",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "rxjs": "^7.8"
+  }
+}

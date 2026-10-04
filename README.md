@@ -10,8 +10,15 @@ where each one exists because something went wrong without it.
 
 ## Status
 
-Early. Nothing is installable yet. The repository currently holds the
-[inventory](docs/inventory.md) of what will be extracted and how it is sorted.
+Early. No plugin is installable yet. What exists:
+
+- [`kit/`](kit/README.md): the deterministic checks (architecture gates, lint
+  rules) and the agent hooks that run them. Tested, and proven against a
+  baseline run.
+- [`docs/inventory.md`](docs/inventory.md): what is being extracted, and how it
+  is sorted.
+- [`docs/baseline-2026-10-04.md`](docs/baseline-2026-10-04.md): what an agent
+  built with no guidance, and what the kit says about it.
 
 ## Planned plugins
 
@@ -24,10 +31,16 @@ Early. Nothing is installable yet. The repository currently holds the
 
 ## Principles
 
-- **Enforcement over advice.** A skill explains a rule; a dependency-cruiser
-  rule, a lint rule or a CI gate is what keeps it true. Templates come first.
-- **Only what the model gets wrong.** Before a skill is written, the same task
-  is run without it. Anything the model already does reliably is left out.
+- **Everything checkable is checked.** A rule a machine can verify gets a
+  deterministic check, whether or not an agent tends to follow it unprompted.
+  One good run proves nothing about the next.
+- **Skills carry what a machine cannot check.** Judgement calls, reasons and
+  fix recipes. The baseline run decides what skill text is worth its context;
+  it never decides what gets enforced.
+- **The failure message does the teaching.** A check says what is wrong and
+  where the code belongs, at the moment the rule is broken.
+- **Nothing to judge is not a pass.** A check that could not run, or found
+  nothing to look at, says so.
 - **Every rule says when to skip it.** A rule without a stated exception gets
   applied where it does not belong.
 - **Keep the door open, don't build the room.** Replaceability comes from

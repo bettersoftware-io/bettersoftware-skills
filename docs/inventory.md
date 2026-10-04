@@ -6,7 +6,7 @@ What will be extracted from
 
 Sources surveyed on 2026-10-04: the 40 dependency-cruiser rules in
 `.dependency-cruiser.cjs`, the 46 numbered grep gates in
-`docs/architecture/12-architectural-gates.md` (four retired), the 10 custom
+`docs/architecture/12-architectural-gates.md` (four retired), the 11 custom
 ESLint rules in `eslint-rules/`, the `scripts/check-*` gates, ADR-004 and
 ADR-005, and the test-strategy and design-decision documents.
 

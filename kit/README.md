@@ -1,0 +1,102 @@
+# The kit
+
+Deterministic checks for the architecture, and the hooks that run them. The
+kit is copied into a project (as `tools/arch/`) by the scaffold; everything in
+it also runs from here against any folder, which is how it is tested.
+
+The checks do not depend on which model, or which person, wrote the code.
+
+## What is in it
+
+| Part | What it checks | Needs |
+|---|---|---|
+| `gates/run.mjs` | Structure, dumb UI, port contracts, dependency direction | Node; `dependency-cruiser` for the last gate |
+| `eslint.config.mts` + `eslint-rules/` | Twelve AST lint rules: naming, reading order, fixtures, page objects, no real sleeps in tests | `eslint`, `typescript-eslint` |
+| `hooks/after-edit.mjs` | Runs the per-file gates on the file an agent just wrote | Claude Code or Codex |
+| `hooks/before-stop.mjs` | Refuses to let an agent finish while `gate:fast` is red | Claude Code or Codex |
+
+## The gates
+
+A project declares its layers once, in `architecture.config.mjs`
+([example](architecture.config.example.mjs)). Every gate reads that file.
+
+| Gate | Fails when |
+|---|---|
+| `structure` | A workspace package has no declared role; a required role is missing; the domain has no ports folder; a package has a runtime dependency outside its closed list; a client holds source outside its composition root and its UI folder |
+| `dumb-ui` | A UI file imports the stream library, touches storage, reads configuration, opens a connection, or sets a timer |
+| `port-contracts` | A port has no contract test, or an adapter folder that implements a port does not run that port's contract |
+| `dependencies` | An import points outward; the domain uses a Node built-in; the core imports a UI framework; the UI imports the composition root or an adapter; there is a cycle |
+
+```bash
+node tools/arch/gates/run.mjs                 # every gate
+node tools/arch/gates/run.mjs --file src/ui/A.tsx   # per-file gates only
+node tools/arch/gates/run.mjs --json          # machine-readable
+```
+
+Exit `0` is no findings, `1` is findings, `2` is "could not run".
+
+### A gate that judged nothing has not passed
+
+Three cases are reported instead of being read as clean:
+
+- **No layers declared.** Without `architecture.config.mjs` the runner exits 2.
+- **Nothing to judge.** A gate that found no files to check prints `SKIP` with
+  the reason, never `PASS`.
+- **Blind dependency rules.** A workspace import that resolves to built output,
+  or does not resolve, never matches a source-path rule. The dependency gate
+  checks where every workspace import landed and fails if one missed its
+  package's `src`. The path mapping it needs is generated on each run from the
+  workspace, so there is no second file to keep in step.
+
+### Known limits
+
+- `ui-never-imports-adapters` sees a direct import of an adapter module. It does
+  not see an adapter re-exported through a package's index.
+- `port-contracts` works at the level of an adapter folder: it proves the folder
+  runs the port's contract, not that each adapter in it does.
+- `dumb-ui` matches text after stripping comments. A banned name inside a string
+  literal is reported.
+- `name-fixture-factories` sees a zero-parameter fixture. A factory that takes
+  arguments and has a bare-noun name is not caught.
+
+## Lint rules
+
+```js
+// eslint.config.mts
+import { architectureLint } from "./tools/arch/eslint.config.mts";
+
+export default [...architectureLint()];
+```
+
+ESLint loads a TypeScript config with `--flag unstable_native_nodejs_ts_config`
+on Node 24 or later, or with `jiti` installed.
+
+## Hooks
+
+`hooks/claude.settings.json` goes to `.claude/settings.json`, and
+`hooks/codex.hooks.json` to `.codex/hooks.json`. Both point at the same two
+scripts. Codex runs a hook only after it has been reviewed and trusted with
+`/hooks`.
+
+The Codex wiring follows the Codex documentation but has not been run against
+Codex yet.
+
+The stop hook runs the project's `gate:fast` script, so "green" has one
+definition for the agent, a person and CI:
+
+```json
+"gate:fast": "node tools/arch/gates/run.mjs && eslint . && pnpm typecheck"
+```
+
+It blocks once. If the gate is still red when the agent tries to stop a second
+time, the agent is let through to report the problem, so an unfixable finding
+ends in a message to you and never in a loop.
+
+## Tests
+
+```bash
+pnpm test
+```
+
+The gate and hook tests run against three fixture projects in `gates/fixtures/`
+(`clean`, `broken`, `dormant`).
