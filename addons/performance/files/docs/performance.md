@@ -262,7 +262,11 @@ than this one browser.
 | `transform` on an SVG `g`, `path` or `circle` | Yes |
 | `rotate` as its own property, on an SVG `circle` | No (524288) |
 
-Three rows disagree with the traps, and the rules stay as they are:
+Three rows disagree with the traps, and the rules stay as they are. That was
+decided on purpose (2026-10-04): a rule that holds in every browser is worth
+an occasional finding on code this one browser would have run cheaply. An
+animation the rule is wrong about for your case is accepted in
+`tools/perf/allowed.mts`, with the reason.
 
 - **`background-color`** was composited in a simple case. That is recent, has
   conditions, and not every browser engine does it. Both checks fail it.

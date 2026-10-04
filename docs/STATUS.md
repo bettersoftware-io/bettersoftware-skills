@@ -26,20 +26,16 @@ is meant to run.
   `ci.yml` runs.
 - **The `linux-x64` golden set does not exist.** Only `darwin-arm64` is
   shipped. A new project's first `visual.yml` run fails, with a message that
-  says to run the update workflow. CI's own noise floor is unmeasured, so the
-  tolerance rests on a macOS measurement.
+  says to run the update workflow.
+- **The visual tolerance is to be set from a measurement on CI.** The per-pixel
+  threshold stays at 0.01 until then: on macOS the noise was zero, and nobody
+  has measured GitHub's Linux runners. Once the Linux set exists, run the
+  update workflow a few times on one commit, compare the sets with
+  `pnpm visual:jitter`, and set the threshold just above what it reports (0 if
+  it reports nothing).
 
 ## Open decisions
 
-- **Two performance rules are stricter than Chromium 153 measured.** A
-  `background-color` keyframe and `var()` inside a transform keyframe were both
-  composited in a simple case, and both checks still fail them. The rules came
-  from a project where they cost real time. Keep them as failures, or relax
-  them to what the browser does today? The measurements are in the add-on's
-  guide, "What was measured".
-- **The visual per-pixel threshold is 0.01.** A colour that moves by 1 or 2 of
-  255 per channel is not seen. 0 would see it, and may flake on CI runners
-  nobody has measured.
 - **Coverage is measured per package, by that package's own tests.** A file
   only exercised from another package's test reads 0%. Merging across packages
   would credit it, and is not built.
