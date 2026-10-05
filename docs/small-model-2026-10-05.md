@@ -96,12 +96,47 @@ the same day: the adapter asking the wrong route, and the server's route gone.
 - **A small model does what the project says, and no more.** Told `gate:fast`,
   it stopped at `gate:fast`. Told `gate:full`, it got there honestly, in less
   time than the feature took.
-- **So the weak point is the bar, not the model's ability.** That is a decision
-  about the stop hook and one line of `AGENTS.md`, recorded in
-  [STATUS](STATUS.md). It is not made here, because holding every stop to
-  `gate:full` slows every session.
-- **One gap is checkable and not checked:** a port method that its contract
+- **So the weak point is the bar, not the model's ability.** That was a
+  decision about the stop hook and one line of `AGENTS.md`.
+- **One gap was checkable and not checked:** a port method that its contract
   never calls.
+
+Both were built the same day; the next section is the same prompt run again.
+
+## After the changes: the same prompt again
+
+The three decisions were built the same day: the stop hook runs `gate:full`
+on any tree that has not already passed it, `port-contracts` requires a
+contract to call every method of its port, and a `task-cache` gate reads
+`turbo.json`. Then the same prompt was given to a fresh Haiku session on the
+same starting point. The result is
+[bettersoftware-io/skills-demo#6](https://github.com/bettersoftware-io/skills-demo/pull/6).
+
+| | Before (hook on `gate:fast`) | After (hook on `gate:full`) |
+|---|---|---|
+| The model said "done" with `gate:full` red | yes | yes |
+| What happened then | the session ended, reporting green | **the stop hook refused**, and the model went on fixing |
+| How the first session ended | a false report | out of context after 172 turns ("Prompt is too long"), one UI test failing |
+| Reaching `gate:full` green | a second session, told the bar in its prompt | a second session, told only "finish it" (3 minutes, $0.43) |
+| Which gate the second session ran | `gate:full` | `gate:full` five times, `gate:fast` never |
+| Checks or configs edited, either session | none | none |
+
+On the way, the integration tests failed because the model had not yet built
+the server route: the first time that package caught a real mistake in work
+it was not written for.
+
+What this shows, and what it does not:
+
+- **The false report is gone.** The hook turned "done" into more work, and the
+  session that could not finish ended in an error instead of a claim.
+- **The smallest model cannot take this feature to the full bar in one
+  session.** It needed a second one both times. Its context filled with the
+  gate's output: it ran `gate:full` seventeen times.
+- **The second session's handoff said what was left** (one failing UI test, no
+  goldens redrawn), because the commit message of the first did. So this run
+  does not show that the model would have redrawn the goldens unprompted. The
+  hook does not run the visual tests.
+- One run each way. It is a before and after, not a measurement.
 
 ## Found on the way: stale results from the task cache
 

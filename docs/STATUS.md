@@ -63,6 +63,10 @@ on 2026-10-05, on pushes to main and on a pull request
   skill from the plugin is not.
 - **A model between the smallest and the frontier.** Claude Haiku 4.5 has been
   tried ([the record](small-model-2026-10-05.md)); Claude Sonnet has not.
+- **A way for a small model to finish in one session.** Held to `gate:full`,
+  Haiku ran out of context on a feature that crosses every layer, and a second
+  session finished it. Its context filled with the gate's output. A quieter
+  gate (failures only) might be enough; not tried.
 - **The kit in a real existing project.** The script sets up the files and says
   what is left. Declaring each package's role, and deciding what to do with the
   findings on code that was never held to these rules, is judgement nobody has
