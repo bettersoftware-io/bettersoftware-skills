@@ -119,12 +119,14 @@ in `tools/perf` was caught by the project's tooling typecheck (the second half
 of `pnpm typecheck`). After every run
 no server process and no temporary folder was left.
 
-Not tested: the workflow. It cannot be run locally, and Docker was not
-available to run the audit inside the image. Its steps, action pins and image
-tag are the ones the source project's CI uses with the same Playwright
-version. What is unknown is whether Chromium in that image gives the same
-`compositeFailed` verdicts as on macOS; the property rule does not depend on
-it. If a browser reports that it composites nothing at all, the audit says so
+The workflow ran on GitHub in
+[bettersoftware-io/skills-demo](https://github.com/bettersoftware-io/skills-demo)
+on 2026-10-05 ([the record](../../docs/github-run-2026-10-05.md)): it built the
+client, served it, took the census and reported the same skip as locally,
+since the starter has no animation. What is still unknown is whether Chromium
+in that image gives the same `compositeFailed` verdicts as on macOS, because
+no run there has had an animation to judge; the property rule does not depend
+on it. If a browser reports that it composites nothing at all, the audit says so
 and judges by property only.
 
 ## What was measured, and where it differs from the rules

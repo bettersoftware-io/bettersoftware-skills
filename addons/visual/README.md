@@ -63,16 +63,23 @@ system that runs it, and the contract keeps such checks out of `gate:fast` and
 
 ## The tolerance
 
-Set in `tolerance.ts`: `maxDiffPixelRatio: 0`, `threshold: 0.01`.
+Set in `tolerance.ts`: `maxDiffPixelRatio: 0`, `threshold: 0`.
 
-Measured on darwin-arm64 (Chromium build 1243, headless): the same commit
-captured 5 times, all pairs compared, 4 scenarios. Every image was
-byte-identical, so the noise floor is 0 for both knobs there.
+Measured twice, the same way: one commit captured 5 times, all pairs compared,
+4 scenarios.
+
+| Where | Result |
+|---|---|
+| darwin-arm64, one Mac, Chromium build 1243 headless (2026-10-04) | every image byte-identical |
+| linux-x64, five runs of the update workflow on GitHub's runners, in the pinned container (2026-10-05) | every image byte-identical |
+
+The noise floor is 0 for both knobs in both places, so both knobs are 0.
 
 The per-pixel `threshold` is the knob that is easy to miss. Playwright's
 default is 0.2. With the default, changing the starter's "up" colour from green
 `#1a8f4c` to blue `#1a4c8f` counts 0 different pixels, and the tier would pass
-with a zero pixel budget. At 0.01 it counts 83.
+with a zero pixel budget. At 0 it counts 83, and a move of 1 of 255 on each
+channel counts 82.
 
 `pnpm visual:jitter` reports a floor for each knob, using the comparison
 Playwright uses (pixelmatch: colour distance against the threshold, with
@@ -106,8 +113,7 @@ with the add-on installed by `add-to-project.mts`:
 | `pnpm visual` with the shipped `darwin-arm64` goldens | 5 of 5 pass (4 scenarios, 1 orphan check) |
 | `pnpm gate:full` with the add-on in | passes; `visual:check` reports `PASS playwright-pin` |
 | One colour changed clearly (`#1a8f4c` to `#1a4c8f`) | fails: 3 scenarios, 83 pixels each |
-| Low contrast, +3 on each channel (`#1d924f`) | fails: 74 pixels |
-| Low contrast, +2 on each channel (`#1c914e`) | **passes: not seen** at threshold 0.01 |
+| Low contrast, +1 on each channel (`#1b904d`) | fails: 82 pixels |
 | One golden deleted | fails with the how-to message; no file is written |
 | A golden with no scenario | fails, names the file |
 | The port already taken | Playwright refuses to start |
@@ -116,21 +122,27 @@ with the add-on installed by `add-to-project.mts`:
 | `pnpm visual:jitter --runs 5` | 0 differing pixels, exit 0 |
 | Scope rewrite | the installer rewrites `@app/` in the add-on's files; they ran as `@demo/` |
 
+On GitHub, in [bettersoftware-io/skills-demo](https://github.com/bettersoftware-io/skills-demo)
+(2026-10-05, [the record](../../docs/github-run-2026-10-05.md)):
+
+| Check | Result |
+|---|---|
+| `Visual goldens` with no Linux set committed | fails, with the missing-golden message |
+| `Update visual goldens`, five runs on one commit | five artifacts, byte-identical |
+| `Visual goldens` with that set committed | passes |
+
 The add-on's own scripts have 46 tests in `tests/`
 (`pnpm vitest run addons/visual` from this repository's root). Each was shown
 able to fail: 46 mutants, 46 killed.
 
 ## Limits
 
-- **The Linux set is not shipped.** It has to be drawn in the Playwright
-  container, and it was not available where this was built. The first run of
-  the `Visual goldens` workflow in a new project is expected to fail with the
-  missing-golden message, until the `Update visual goldens` workflow has been
-  run and its images committed.
-- **Neither workflow has been run.** They were written and read, not executed.
-- **CI's noise is not measured.** The tolerance stands on a macOS measurement.
-- **A colour move of 1 or 2 of 255 per channel is not seen.** That is what
-  `threshold: 0.01` hides, on purpose.
+- **A machine nobody measured may draw a pixel differently.** With both knobs
+  at 0 that fails a test with nothing changed. `tolerance.ts` says what to do:
+  measure, then set the number just above the floor.
+- **The shipped `linux-x64` goldens** were drawn on GitHub's runners in the
+  pinned container, for the starter's UI as shipped. Five runs agreed; a
+  different runner image or processor is not covered by that.
 - **`linux-x64` means the container.** A Linux desktop outside it uses the same
   folder name and may draw different pixels.
 - **One client package.** Paths assume `packages/client-react`.

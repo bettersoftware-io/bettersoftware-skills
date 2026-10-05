@@ -87,6 +87,7 @@ How each part was tested:
 | [`docs/starter-test-2026-10-04.md`](docs/starter-test-2026-10-04.md) | Three features built by an agent in a created project, one of them with nothing in the starter to copy |
 | [`docs/plugin-test-2026-10-04.md`](docs/plugin-test-2026-10-04.md) | Installing the plugin on both hosts, and the creation skill |
 | [`docs/codex-test-2026-10-04.md`](docs/codex-test-2026-10-04.md) | The project in Codex: a feature from `AGENTS.md` alone, and both hooks firing |
+| [`docs/github-run-2026-10-05.md`](docs/github-run-2026-10-05.md) | The add-ons' workflows on GitHub, the Linux goldens, and CI's visual noise |
 | [`docs/inventory.md`](docs/inventory.md) | What was extracted, and how it was sorted |
 
 No skill exists yet for placing logic, adding a port, streaming state or

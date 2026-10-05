@@ -13,26 +13,18 @@ the test records in this folder and the git log say what was done.
   is not on npm yet, and pnpm refuses a version younger than 24 hours, so this
   starts a day after it is published.
 
-## Never run on GitHub
+## Seen on GitHub only in part
 
-Everything below was written and checked locally. None of it has run where it
-is meant to run.
+The add-ons' workflows ran in
+[bettersoftware-io/skills-demo](https://github.com/bettersoftware-io/skills-demo)
+on 2026-10-05 ([the record](github-run-2026-10-05.md)). What that did not
+cover:
 
-- **The workflows the add-ons put in a project:** `coverage.yml` (including the
-  publish to GitHub Pages, which also needs a repository setting),
-  `visual.yml`, `update-visual-goldens.yml`, `perf.yml`. This repository's own
-  CI does run: it creates a project and holds it to `pnpm gate:full`, as
-  created and with each add-on in, which is also the one command the starter's
-  `ci.yml` runs.
-- **The `linux-x64` golden set does not exist.** Only `darwin-arm64` is
-  shipped. A new project's first `visual.yml` run fails, with a message that
-  says to run the update workflow.
-- **The visual tolerance is to be set from a measurement on CI.** The per-pixel
-  threshold stays at 0.01 until then: on macOS the noise was zero, and nobody
-  has measured GitHub's Linux runners. Once the Linux set exists, run the
-  update workflow a few times on one commit, compare the sets with
-  `pnpm visual:jitter`, and set the threshold just above what it reports (0 if
-  it reports nothing).
+- **Every run was a push to main.** No pull-request run, and no run where the
+  coverage gate fails, has been seen.
+- **The motion audit had nothing to judge.** The starter has no animation, so
+  the audit skipped, on GitHub as locally. Whether Chromium in the CI image
+  gives the same compositing verdicts as on macOS is still unknown.
 
 ## Dated
 

@@ -214,10 +214,15 @@ green.
 
 - **A file is judged by its own package's tests.** Coverage from another
   package's tests is not merged in.
-- **The CI workflow has not been run.** It parses as YAML, its actions are
-  pinned to commits looked up with `gh api`, and the tests check its
-  permissions and paths, but no run on GitHub has been seen. The Pages setting
-  and the push with `GITHUB_TOKEN` are untested.
+- **The CI workflow has run on a push to main only**, in
+  [bettersoftware-io/skills-demo](https://github.com/bettersoftware-io/skills-demo)
+  on 2026-10-05: the gate, the artifact, the push to `gh-pages` with
+  `GITHUB_TOKEN`, and the report served by Pages
+  ([the record](../../docs/github-run-2026-10-05.md)). Its pull-request run,
+  and a run where the gate fails, have not been seen.
+- **GitHub Pages is switched on by hand.** The workflow creates the `gh-pages`
+  branch; the repository setting that serves it (Settings, Pages, deploy from
+  the `gh-pages` branch) is not something the workflow can set.
 - **The publisher's retry is tested against a rejected push**, not against a
   remote that another producer moved in the meantime.
 - **`gh-pages` grows.** Every push to main that changes the report adds a
