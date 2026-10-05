@@ -214,12 +214,12 @@ green.
 
 - **A file is judged by its own package's tests.** Coverage from another
   package's tests is not merged in.
-- **The CI workflow has run on a push to main only**, in
+- **The CI workflow has run with the gate passing only**, in
   [bettersoftware-io/skills-demo](https://github.com/bettersoftware-io/skills-demo)
-  on 2026-10-05: the gate, the artifact, the push to `gh-pages` with
-  `GITHUB_TOKEN`, and the report served by Pages
-  ([the record](../../docs/github-run-2026-10-05.md)). Its pull-request run,
-  and a run where the gate fails, have not been seen.
+  on 2026-10-05: on a pull request, and on pushes to main with the artifact,
+  the push to `gh-pages` with `GITHUB_TOKEN` and the report served by Pages
+  ([the record](../../docs/github-run-2026-10-05.md)). A run where the gate
+  fails has not been seen.
 - **GitHub Pages is switched on by hand.** The workflow creates the `gh-pages`
   branch; the repository setting that serves it (Settings, Pages, deploy from
   the `gh-pages` branch) is not something the workflow can set.

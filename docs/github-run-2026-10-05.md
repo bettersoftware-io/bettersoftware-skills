@@ -60,7 +60,9 @@ After that <https://bettersoftware-io.github.io/skills-demo/coverage/> answered
 
 ## Not covered
 
-- A pull-request run of any of the four.
+A pull-request run of all four followed the same day, with a real change to
+the UI: see [the feature run](demo-feature-2026-10-05.md).
+
 - A `Coverage` run where the gate fails (the report is meant to publish then
   too).
 - A motion audit with an animation in the page, so the compositing verdicts of

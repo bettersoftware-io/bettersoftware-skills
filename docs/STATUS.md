@@ -17,11 +17,12 @@ the test records in this folder and the git log say what was done.
 
 The add-ons' workflows ran in
 [bettersoftware-io/skills-demo](https://github.com/bettersoftware-io/skills-demo)
-on 2026-10-05 ([the record](github-run-2026-10-05.md)). What that did not
-cover:
+on 2026-10-05, on pushes to main and on a pull request
+([the record](github-run-2026-10-05.md),
+[the feature run](demo-feature-2026-10-05.md)). What that did not cover:
 
-- **Every run was a push to main.** No pull-request run, and no run where the
-  coverage gate fails, has been seen.
+- **No run where the coverage gate fails has been seen.** The report is meant
+  to publish then too.
 - **The motion audit had nothing to judge.** The starter has no animation, so
   the audit skipped, on GitHub as locally. Whether Chromium in the CI image
   gives the same compositing verdicts as on macOS is still unknown.
@@ -39,6 +40,15 @@ cover:
 
 ## Open decisions
 
+- **Nothing asks an agent to add a new pattern to the `AGENTS.md` table.** The
+  REST feature added a request-and-response port and a form machine; the table
+  still points only at the price list. Either the table is a fixed set of
+  examples, or a rule should say when a row is added.
+- **Nothing runs a client adapter against the real server.** The layer rule
+  keeps the client from importing the server, so each side is tested against
+  the shared protocol alone and the route table can drift. A test tier that
+  may import both is the usual answer, and does not exist.
+
 - **Coverage is measured per package, by that package's own tests.** A file
   only exercised from another package's test reads 0%. Merging across packages
   would credit it, and is not built.
@@ -48,12 +58,14 @@ cover:
 
 ## Not tried
 
-- **A feature that touches more of the app:** sign-in, routing. The harder test
-  so far (a persistent watchlist) needed one new kind of adapter.
+- **A feature that touches more of the app:** sign-in, routing. The hardest
+  test so far (users and categories with create, edit and delete, over REST)
+  added a second transport and forms, but no navigation and no session.
 - **The plugin's skills in a Codex session.** Installing is checked, and the
   project's `AGENTS.md` and hooks are checked in Codex. A session that loads a
   skill from the plugin is not.
-- **A smaller model.** Every run used a frontier model.
+- **A smaller model.** Every run used a frontier model (Claude Fable 5.1, or
+  Claude Opus 5.5 for the REST feature).
 - **The kit in a real existing project.** The script sets up the files and says
   what is left. Declaring each package's role, and deciding what to do with the
   findings on code that was never held to these rules, is judgement nobody has
@@ -68,6 +80,8 @@ cover:
   re-exported through a package index. Closing it by reachability would forbid
   the UI every value import from an index that re-exports an adapter, which is
   a layout the source project relies on.
+- **A created project's README is still titled "Starter"** and describes the
+  starter. The script rewrites the package scope and name, not this file.
 - **Two links in `tools/arch/README.md` are dead inside a project**: they point
   at files that are not copied.
 - **The visual add-on has no theme matrix, no "which UI does no scenario
