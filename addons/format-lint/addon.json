@@ -23,5 +23,6 @@
   "startingFiles": [
     "biome.json"
   ],
+  "firstRun": "pnpm biome:fix",
   "verify": "pnpm biome:check"
 }

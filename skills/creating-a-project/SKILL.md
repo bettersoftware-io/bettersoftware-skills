@@ -87,8 +87,9 @@ For each one chosen, in the project:
 node <plugin root>/scripts/add-to-project.mts . <add-on>
 ```
 
-Then `pnpm install` and `pnpm gate:full` once more, and a second commit, so the
-add-ons are their own diff. If the gate fails now, report the output and stop,
+Then `pnpm install`, any command the script printed between `pnpm install`
+and `pnpm gate:full` under "Next" (an add-on's one-time fixer), `pnpm
+gate:full` once more, and a second commit, so the add-ons are their own diff. If the gate fails now, report the output and stop,
 as in step 4.
 
 When the choice is known before the project is created, `create-project.mts`

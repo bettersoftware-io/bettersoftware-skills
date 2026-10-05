@@ -58,6 +58,10 @@ addons/<name>/
   belongs to the add-on, and an update replaces it.
 - `verify` is the one command that proves the add-on works in a project that
   has just received it.
+- `firstRun` is a command to run once after installing, before `verify`. It
+  is for an add-on whose verdict depends on something the installer changes:
+  `format-lint` asks for its fixer, because a package scope of another length
+  moves where an import line wraps.
 
 ## Rules
 

@@ -1,5 +1,5 @@
 /** One connection the code under test opened, driven by hand. */
-export interface FakeSocket {
+interface FakeSocket {
   url: string;
   /** True once the code under test has closed it. */
   closed: boolean;

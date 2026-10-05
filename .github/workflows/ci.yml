@@ -42,7 +42,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        addon: [none, coverage, visual, performance, format-lint, ci-security, repo-hygiene]
+        addon: [none, coverage, visual, performance, format-lint, ci-security, repo-hygiene, strict-lint]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -60,8 +60,11 @@ jobs:
       - name: Choose where the project goes
         run: echo "PROJECT=$RUNNER_TEMP/project" >> "$GITHUB_ENV"
 
+      # A long scope on purpose: the starter is written with `@app`, and a
+      # longer name moves where a line wraps and how a name sorts. Anything
+      # that only holds for a short scope fails here.
       - name: Create a project from the starter
-        run: node scripts/create-project.mts "$PROJECT" --scope @ci
+        run: node scripts/create-project.mts "$PROJECT" --scope @ci-organisation-with-a-long-name
 
       - name: Install it from the lockfile it was created with
         working-directory: ${{ env.PROJECT }}
@@ -85,6 +88,20 @@ jobs:
         if: matrix.addon != 'none'
         working-directory: ${{ env.PROJECT }}
         run: pnpm install --no-frozen-lockfile
+
+      # An add-on may ask for one command to be run once (format-lint: its
+      # fixer). The installer prints it under "Next"; this runs it the same way.
+      - name: Run what the add-on asks to be run once
+        if: matrix.addon != 'none'
+        working-directory: ${{ env.PROJECT }}
+        env:
+          MANIFEST: ${{ github.workspace }}/addons/${{ matrix.addon }}/addon.json
+        run: |
+          first_run="$(node -p "require(process.env.MANIFEST).firstRun ?? ''")"
+          if [ -n "$first_run" ]; then
+            echo "$ $first_run"
+            sh -c "$first_run"
+          fi
 
       # The static checks of every add-on join gate:fast or gate:full, so the
       # project's own gate is the proof. What needs a browser (the visual

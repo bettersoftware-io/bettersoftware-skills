@@ -51,6 +51,8 @@ export interface CreatedProject {
   destination: string;
   /** The add-ons that were added, by name. */
   addons: string[];
+  /** Commands the add-ons ask to be run once, after `pnpm install` and before the gate. */
+  firstRuns: string[];
   /** What is left for a person to do by hand. Empty after a normal run. */
   notes: string[];
 }
@@ -59,7 +61,7 @@ export interface CreatedProject {
 export interface ProjectSteps {
   installKit: (project: string) => { notes: string[] };
   listAddons: () => ListedAddon[];
-  addAddon: (project: string, name: string, scope: string) => void;
+  addAddon: (project: string, name: string, scope: string) => { firstRun?: string };
 }
 
 const STEPS: ProjectSteps = {
@@ -68,9 +70,7 @@ const STEPS: ProjectSteps = {
   // tell an untouched file from an edited one.
   installKit: (project) => addToProject({ project, unit: KIT }),
   listAddons: () => listAddons(),
-  addAddon: (project, name, scope) => {
-    addToProject({ project, unit: name, scope });
-  },
+  addAddon: (project, name, scope) => addToProject({ project, unit: name, scope }),
 };
 
 export function createProject(
@@ -100,11 +100,9 @@ export function createProject(
   try {
     const notes = writeProject(destination, scope, projectName, steps);
 
-    for (const addon of chosen) {
-      steps.addAddon(destination, addon, scope);
-    }
+    const firstRuns = chosen.flatMap((addon) => steps.addAddon(destination, addon, scope).firstRun ?? []);
 
-    return { destination, addons: chosen, notes };
+    return { destination, addons: chosen, firstRuns, notes };
   } catch (error) {
     // Half a project looks like a project. The folder was empty or absent, so
     // everything in it now is ours to take away again.
@@ -203,11 +201,12 @@ export function parseArguments(argv: string[]): ProjectOptions {
 
 if (isMainModule(import.meta.url)) {
   try {
-    const { destination, addons, notes } = createProject(parseArguments(process.argv.slice(2)));
+    const { destination, addons, firstRuns, notes } = createProject(parseArguments(process.argv.slice(2)));
+    const once = firstRuns.map((command) => `\n  ${command}`).join("");
     const added = addons.length === 0 ? "" : `\nWith: ${addons.join(", ")}`;
     const byHand = notes.length === 0 ? "" : `\n\nStill to do by hand:\n${notes.map((note) => `  - ${note}`).join("\n")}`;
 
-    console.log(`Created ${destination}${added}${byHand}\n\nNext:\n  cd ${destination}\n  git init\n  pnpm install\n  pnpm gate:full`);
+    console.log(`Created ${destination}${added}${byHand}\n\nNext:\n  cd ${destination}\n  git init\n  pnpm install${once}\n  pnpm gate:full`);
   } catch (error) {
     console.error(error instanceof ProjectError ? error.message : error);
     process.exit(1);

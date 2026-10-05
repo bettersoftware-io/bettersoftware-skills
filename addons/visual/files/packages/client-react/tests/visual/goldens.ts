@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
  * each has a set of its own. CI's set is `linux-x64`, drawn in the pinned
  * Playwright container.
  */
-export const PLATFORM = `${os.platform()}-${os.arch()}`;
+const PLATFORM = `${os.platform()}-${os.arch()}`;
 
 /**
  * Where this run reads and writes its goldens. `pnpm visual:jitter` points it

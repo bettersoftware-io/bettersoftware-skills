@@ -48,9 +48,6 @@ on 2026-10-05, on pushes to main and on a pull request
 
 ## Next, each small
 
-- **A `strict-lint` add-on:** type-aware ESLint (unhandled promises and the
-  like) and knip for dead code and unused dependencies. The fourth of the
-  portable tools from the source project; the other three are in.
 - **The mutation check accepts a test command that runs no test.** A `-t`
   filter that matches nothing exits 0, so the baseline reads green and the
   mutant reads SURVIVED; with a runner that exits non-zero on no match it would
@@ -100,6 +97,18 @@ on 2026-10-05, on pushes to main and on a pull request
   watched an agent do.
 
 ## Known limits
+
+- **A new project's formatting depends on its scope's length.** The starter is
+  written with `@app`; a longer scope pushes some import lines past the
+  formatter's width. So `format-lint` asks for its fixer to be run once after
+  installing (`firstRun`), and the scripts print it under "Next". Until it is
+  run, `biome:check` fails on a project with a long scope.
+- **`strict-lint`'s knip settings are held by local runs, not by CI, for
+  combinations of add-ons.** One finding appeared only with `visual` and
+  without `performance`. CI adds each add-on alone.
+- **A file with no export inside a library package is never reported as
+  unused** by `strict-lint`: the package's exports map makes every source file
+  an entry.
 
 - **Where a port cannot be opened, the tests that need one are skipped, not
   run.** The gate is green there with a `SKIP` line, and the coverage of those

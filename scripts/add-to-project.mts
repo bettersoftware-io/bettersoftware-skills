@@ -57,6 +57,8 @@ export interface AddResult {
   created: string[];
   /** What is still to be done by hand. */
   notes: string[];
+  /** A command the add-on asks to be run once, after installing and before anything is checked. */
+  firstRun?: string;
   verify?: string;
 }
 
@@ -78,6 +80,12 @@ interface AddonManifest {
    */
   startingFiles?: string[];
   verify?: string;
+  /**
+   * A command to run once after the add-on is installed, before its check: a
+   * fixer, for an add-on whose verdict depends on something the installer
+   * changes (a package scope of another length moves where a line wraps).
+   */
+  firstRun?: string;
   /** True for an add-on a new project should take unless it has a reason not to. */
   recommended?: boolean;
 }
@@ -153,7 +161,7 @@ export function addToProject({ project, unit, force = false, scope, repository =
     ? writeAgentsSection(destination, unit, readFileSync(section, "utf8").replaceAll(`${STARTER_SCOPE}/`, `${projectScope}/`))
     : "none";
 
-  return { unit, files: outcome, packageChanges: packagePlan.changes, agents, created, notes: [], verify: manifest.verify };
+  return { unit, files: outcome, packageChanges: packagePlan.changes, agents, created, notes: [], firstRun: manifest.firstRun, verify: manifest.verify };
 }
 
 /**
@@ -468,8 +476,10 @@ function describe(result: AddResult, project: string): string {
 
   lines.push("", "Next:", `  cd ${project}`, "  pnpm install");
 
-  if (result.verify !== undefined) {
-    lines.push(`  ${result.verify}`);
+  for (const command of [result.firstRun, result.verify]) {
+    if (command !== undefined) {
+      lines.push(`  ${command}`);
+    }
   }
 
   lines.push("  pnpm gate:full");

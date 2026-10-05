@@ -7,7 +7,8 @@ import "./host.css";
 import FakeTimers from "@sinonjs/fake-timers";
 import { createRoot } from "react-dom/client";
 
-import { type App as Application, STALE_AFTER_MS } from "@app/client-core";
+import type { App as Application } from "@app/client-core";
+import { STALE_AFTER_MS } from "@app/client-core/presenters/pricesPresenter.ts";
 import { type AppHarness, createAppHarness } from "@app/client-core/testing/appHarness.ts";
 import { createViewModel, ViewModelProvider } from "@app/react-bindings";
 

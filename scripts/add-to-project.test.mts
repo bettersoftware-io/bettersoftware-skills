@@ -357,6 +357,18 @@ describe("adding an add-on", () => {
     expect(() => addToProject({ project, unit: "demo", repository })).toThrow(/does not have the kit/);
   });
 
+  it("passes on the command an add-on asks to be run once it is installed", () => {
+    const { repository, project } = createWorldWithKit();
+    const manifest = readJson(repository, "addons/demo/addon.json");
+
+    expect(addToProject({ project, unit: "demo", repository }).firstRun).toBeUndefined();
+
+    manifest.firstRun = "pnpm demo:fix";
+    write(repository, "addons/demo/addon.json", JSON.stringify(manifest));
+
+    expect(addToProject({ project, unit: "demo", repository }).firstRun).toBe("pnpm demo:fix");
+  });
+
   it("says which add-ons are recommended, from each one's own manifest", () => {
     const { repository } = createWorld();
     const manifest = readJson(repository, "addons/demo/addon.json");

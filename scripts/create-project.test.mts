@@ -73,6 +73,15 @@ describe("creating a project from the starter", () => {
     expect(added).toEqual(["coverage", "format-lint"]);
   });
 
+  it("lists what each add-on asks to be run once, in order, for the person to run after installing", () => {
+    const { firstRuns } = createProject(
+      { target: createTarget("price-desk"), addons: ["coverage", "format-lint"] },
+      { ...createStepsThatRecord([]), addAddon: (_project, name) => (name === "format-lint" ? { firstRun: "pnpm biome:fix" } : {}) },
+    );
+
+    expect(firstRuns).toEqual(["pnpm biome:fix"]);
+  });
+
   it("adds none unless asked", () => {
     const added: string[] = [];
 
@@ -135,6 +144,8 @@ function createStepsThatRecord(added: string[]): Partial<ProjectSteps> {
     ],
     addAddon: (_project, name) => {
       added.push(name);
+
+      return {};
     },
   };
 }

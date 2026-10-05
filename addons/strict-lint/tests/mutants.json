@@ -1,0 +1,450 @@
+[
+  {
+    "name": "addon: joins gate:fast with both checks",
+    "file": "addons/strict-lint/addon.json",
+    "find": "\"full\": []",
+    "replace": "\"full\": [\"pnpm lint:dead\"]",
+    "test": "pnpm vitest run addons/strict-lint/tests/addon.test.mts -t \"joins gate:fast with both checks\""
+  },
+  {
+    "name": "addon: adds one script for each check",
+    "file": "addons/strict-lint/addon.json",
+    "find": "\"lint:dead\": \"node tools/strict-lint/check-dead.mts\"",
+    "replace": "\"lint:dead\": \"knip\"",
+    "test": "pnpm vitest run addons/strict-lint/tests/addon.test.mts -t \"adds one script for each check\""
+  },
+  {
+    "name": "addon: adds knip and nothing else",
+    "file": "addons/strict-lint/addon.json",
+    "find": "\"knip\": \"^6.17.1\"",
+    "replace": "\"knip\": \"^6.0.0\"",
+    "test": "pnpm vitest run addons/strict-lint/tests/addon.test.mts -t \"adds knip and nothing else\""
+  },
+  {
+    "name": "addon: gives the project the two configs to keep",
+    "file": "addons/strict-lint/addon.json",
+    "find": "    \"tools/strict-lint/eslint.config.mts\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/strict-lint/tests/addon.test.mts -t \"gives the project the two configs to keep\""
+  },
+  {
+    "name": "addon: has every TypeScript file of the starter in a tsconfig.json",
+    "file": "starter/packages/server/tsconfig.json",
+    "find": "\"include\": [\"src\", \"vitest.config.ts\"]",
+    "replace": "\"include\": [\"src\"]",
+    "test": "pnpm vitest run addons/strict-lint/tests/addon.test.mts -t \"has every TypeScript file of the starter in a tsconfig.json\""
+  },
+  {
+    "name": "addon: has every TypeScript file the visual add-on puts in a package",
+    "file": "addons/visual/files/packages/client-react/tests/visual/tsconfig.json",
+    "find": "\"include\": [\".\"]",
+    "replace": "\"include\": [\"host\"]",
+    "test": "pnpm vitest run addons/strict-lint/tests/addon.test.mts -t \"has every TypeScript file the visual add-on puts in a package\""
+  },
+  {
+    "name": "check-dead: gives knip the project's config and asks for a plain report",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-dead.mts",
+    "find": "\"--no-progress\", ",
+    "replace": "",
+    "test": "pnpm vitest run addons/strict-lint/tests/check-dead.test.mts -t \"gives knip the project's config and asks for a plain report\""
+  },
+  {
+    "name": "check-dead: passes when knip finds nothing",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-dead.mts",
+    "find": "const files = listSourceFiles(project).length;",
+    "replace": "const files = listSourceFiles(project).length + 1;",
+    "test": "pnpm vitest run addons/strict-lint/tests/check-dead.test.mts -t \"passes when knip finds nothing\""
+  },
+  {
+    "name": "check-dead: fails with knip's own report",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-dead.mts",
+    "find": "failed: status === 1, report",
+    "replace": "failed: false, report",
+    "test": "pnpm vitest run addons/strict-lint/tests/check-dead.test.mts -t \"fails with knip's own report\""
+  },
+  {
+    "name": "check-dead: is skipped without running knip",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-dead.mts",
+    "find": "if (files === 0) {",
+    "replace": "if (files === -1) {",
+    "test": "pnpm vitest run addons/strict-lint/tests/check-dead.test.mts -t \"is skipped without running knip\""
+  },
+  {
+    "name": "check-dead: could not run when knip stops with exit 2",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-dead.mts",
+    "find": "if (status !== 0 && status !== 1) {",
+    "replace": "if (status !== 0 && status !== 1 && status !== 2) {",
+    "test": "pnpm vitest run addons/strict-lint/tests/check-dead.test.mts -t \"could not run when knip stops with exit 2\""
+  },
+  {
+    "name": "check-dead: could not run when the project's config is gone",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-dead.mts",
+    "find": "if (!existsSync(join(project, CONFIG))) {",
+    "replace": "if (false) {",
+    "test": "pnpm vitest run addons/strict-lint/tests/check-dead.test.mts -t \"could not run when the project's config is gone\""
+  },
+  {
+    "name": "check-dead: could not run when knip fails and names no finding",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-dead.mts",
+    "find": "if (status === 1 && report === \"\") {",
+    "replace": "if (false) {",
+    "test": "pnpm vitest run addons/strict-lint/tests/check-dead.test.mts -t \"could not run when knip fails and names no finding\""
+  },
+  {
+    "name": "check-types: gives ESLint the project's config",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-types.mts",
+    "find": "\"--max-warnings\",\n  \"0\",",
+    "replace": "\"--max-warnings\",\n  \"9\",",
+    "test": "pnpm vitest run addons/strict-lint/tests/check-types.test.mts -t \"gives ESLint the project's config\""
+  },
+  {
+    "name": "check-types: passes, and says how many files ESLint judged",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-types.mts",
+    "find": "findings, files: results.length }",
+    "replace": "findings, files: findings.length }",
+    "test": "pnpm vitest run addons/strict-lint/tests/check-types.test.mts -t \"passes, and says how many files ESLint judged\""
+  },
+  {
+    "name": "check-types: fails with the file, the place, the rule and the message",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-types.mts",
+    "find": "`${file}:${line}:${column}  ${rule}  ${message}`",
+    "replace": "`${file}:${column}:${line}  ${rule}  ${message}`",
+    "test": "pnpm vitest run addons/strict-lint/tests/check-types.test.mts -t \"fails with the file, the place, the rule and the message\""
+  },
+  {
+    "name": "check-types: says in plain words that no tsconfig.json includes a file",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-types.mts",
+    "find": "const NOT_IN_A_PROJECT = /was not found by the project service/;",
+    "replace": "const NOT_IN_A_PROJECT = /was never found/;",
+    "test": "pnpm vitest run addons/strict-lint/tests/check-types.test.mts -t \"says in plain words that no tsconfig.json includes a file\""
+  },
+  {
+    "name": "check-types: gives the advice for each rule that fired, once",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-types.mts",
+    "find": "ADVICE.filter(([rule]) => rules.has(rule))",
+    "replace": "ADVICE.filter(([rule]) => rule !== \"\")",
+    "test": "pnpm vitest run addons/strict-lint/tests/check-types.test.mts -t \"gives the advice for each rule that fired, once\""
+  },
+  {
+    "name": "check-types: ends with the findings when no rule that fired has advice",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-types.mts",
+    "find": "...(advice.length > 0 ? [\"\", ...advice] : []),",
+    "replace": "\"\", ...advice,",
+    "test": "pnpm vitest run addons/strict-lint/tests/check-types.test.mts -t \"ends with the findings when no rule that fired has advice\""
+  },
+  {
+    "name": "check-types: keeps the words of any other parsing error",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-types.mts",
+    "find": "NOT_IN_A_PROJECT.test(message) ?",
+    "replace": "ruleId === null ?",
+    "test": "pnpm vitest run addons/strict-lint/tests/check-types.test.mts -t \"keeps the words of any other parsing error\""
+  },
+  {
+    "name": "check-types: is skipped without running ESLint when it has no TypeScript file",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-types.mts",
+    "find": "if (listSourceFiles(project).length === 0) {",
+    "replace": "if (listSourceFiles(project).length === -1) {",
+    "test": "pnpm vitest run addons/strict-lint/tests/check-types.test.mts -t \"is skipped without running ESLint when it has no TypeScript file\""
+  },
+  {
+    "name": "check-types: is skipped when ESLint ran and judged no file",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-types.mts",
+    "find": "if (results.length === 0) {",
+    "replace": "if (results.length === -1) {",
+    "test": "pnpm vitest run addons/strict-lint/tests/check-types.test.mts -t \"is skipped when ESLint ran and judged no file\""
+  },
+  {
+    "name": "check-types: could not run when ESLint stops with exit 2",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-types.mts",
+    "find": "if (status !== 0 && status !== 1) {",
+    "replace": "if (status !== 0 && status !== 1 && status !== 2) {",
+    "test": "pnpm vitest run addons/strict-lint/tests/check-types.test.mts -t \"could not run when ESLint stops with exit 2\""
+  },
+  {
+    "name": "check-types: could not run when the project's config is gone",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-types.mts",
+    "find": "if (!existsSync(join(project, CONFIG))) {",
+    "replace": "if (false) {",
+    "test": "pnpm vitest run addons/strict-lint/tests/check-types.test.mts -t \"could not run when the project's config is gone\""
+  },
+  {
+    "name": "check-types: could not run when ESLint fails and names no finding",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-types.mts",
+    "find": "if (status === 1 && findings.length === 0) {",
+    "replace": "if (false) {",
+    "test": "pnpm vitest run addons/strict-lint/tests/check-types.test.mts -t \"could not run when ESLint fails and names no finding\""
+  },
+  {
+    "name": "check-types: could not run when ESLint prints something that is not its report",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-types.mts",
+    "find": "  throw new CouldNotRun(`eslint did not print its JSON report: ${firstLine(stdout)}`);",
+    "replace": "  return [];",
+    "test": "pnpm vitest run addons/strict-lint/tests/check-types.test.mts -t \"could not run when ESLint prints something that is not its report\""
+  },
+  {
+    "name": "dead: finds an export of a library package that nothing imports",
+    "file": "addons/strict-lint/files/tools/strict-lint/knip.jsonc",
+    "find": "\"includeEntryExports\": true",
+    "replace": "\"includeEntryExports\": false",
+    "test": "pnpm vitest run addons/strict-lint/tests/dead.test.mts -t \"finds an export of a library package that nothing imports\""
+  },
+  {
+    "name": "dead: finds a line of a package's index that nothing imports",
+    "file": "addons/strict-lint/files/tools/strict-lint/knip.jsonc",
+    "find": "\"includeEntryExports\": true",
+    "replace": "\"includeEntryExports\": false",
+    "test": "pnpm vitest run addons/strict-lint/tests/dead.test.mts -t \"finds a line of a package's index that nothing imports\""
+  },
+  {
+    "name": "dead: finds a file nothing imports, in a package with no exports map",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-dead.mts",
+    "find": "\"--no-config-hints\"]",
+    "replace": "\"--no-config-hints\", \"--exclude\", \"files\"]",
+    "test": "pnpm vitest run addons/strict-lint/tests/dead.test.mts -t \"finds a file nothing imports, in a package with no exports map\""
+  },
+  {
+    "name": "dead: finds a dependency in a package.json that no file of the package imports",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-dead.mts",
+    "find": "\"--no-config-hints\"]",
+    "replace": "\"--no-config-hints\", \"--exclude\", \"dependencies\"]",
+    "test": "pnpm vitest run addons/strict-lint/tests/dead.test.mts -t \"finds a dependency in a package.json that no file of the package imports\""
+  },
+  {
+    "name": "dead: finds nothing in a project with the starter's shapes",
+    "file": "addons/strict-lint/files/tools/strict-lint/knip.jsonc",
+    "find": "\"entry\": [\"architecture.config.mts\", \"tools/**/*.mts\"]",
+    "replace": "\"entry\": [\"architecture.config.mts\", \"tools/arch/gates/run.mts\"]",
+    "test": "pnpm vitest run addons/strict-lint/tests/dead.test.mts -t \"finds nothing in a project with the starter's shapes\""
+  },
+  {
+    "name": "dead: counts an export that only a test imports as used",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-dead.mts",
+    "find": "\"--no-config-hints\"]",
+    "replace": "\"--no-config-hints\", \"--production\"]",
+    "test": "pnpm vitest run addons/strict-lint/tests/dead.test.mts -t \"counts an export that only a test imports as used\""
+  },
+  {
+    "name": "dead: does not report architecture.config.mts",
+    "file": "addons/strict-lint/files/tools/strict-lint/knip.jsonc",
+    "find": "\"entry\": [\"architecture.config.mts\", ",
+    "replace": "\"entry\": [",
+    "test": "pnpm vitest run addons/strict-lint/tests/dead.test.mts -t \"does not report architecture.config.mts\""
+  },
+  {
+    "name": "dead: does not report a file or an export under tools/",
+    "file": "addons/strict-lint/files/tools/strict-lint/knip.jsonc",
+    "find": "\"entry\": [\"architecture.config.mts\", \"tools/**/*.mts\"]",
+    "replace": "\"entry\": [\"architecture.config.mts\", \"tools/arch/gates/run.mts\"]",
+    "test": "pnpm vitest run addons/strict-lint/tests/dead.test.mts -t \"does not report a file or an export under tools/\""
+  },
+  {
+    "name": "dead: does not report dependency-cruiser, which",
+    "file": "addons/strict-lint/files/tools/strict-lint/knip.jsonc",
+    "find": "\"ignoreDependencies\": [\"dependency-cruiser\", ",
+    "replace": "\"ignoreDependencies\": [",
+    "test": "pnpm vitest run addons/strict-lint/tests/dead.test.mts -t \"does not report dependency-cruiser, which\""
+  },
+  {
+    "name": "dead: does not report @manypkg/cli, which",
+    "file": "addons/strict-lint/files/tools/strict-lint/knip.jsonc",
+    "find": "\"@manypkg/cli\", ",
+    "replace": "",
+    "test": "pnpm vitest run addons/strict-lint/tests/dead.test.mts -t \"does not report @manypkg/cli, which\""
+  },
+  {
+    "name": "dead: does not report stylelint, which",
+    "file": "addons/strict-lint/files/tools/strict-lint/knip.jsonc",
+    "find": "\"stylelint\", \"syncpack\"]",
+    "replace": "\"syncpack\"]",
+    "test": "pnpm vitest run addons/strict-lint/tests/dead.test.mts -t \"does not report stylelint, which\""
+  },
+  {
+    "name": "dead: does not report syncpack, which",
+    "file": "addons/strict-lint/files/tools/strict-lint/knip.jsonc",
+    "find": ", \"syncpack\"]",
+    "replace": "]",
+    "test": "pnpm vitest run addons/strict-lint/tests/dead.test.mts -t \"does not report syncpack, which\""
+  },
+  {
+    "name": "dead: reads the stylelint rules the repo-hygiene add-on keeps under tools/",
+    "file": "addons/strict-lint/files/tools/strict-lint/knip.jsonc",
+    "find": "      \"stylelint\": { \"config\": [\"tools/repo-hygiene/stylelint.json\"] },\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/strict-lint/tests/dead.test.mts -t \"reads the stylelint rules the repo-hygiene add-on keeps under tools/\""
+  },
+  {
+    "name": "dead: follows a Playwright config kept under tests/",
+    "file": "addons/strict-lint/files/tools/strict-lint/knip.jsonc",
+    "find": "\"tests/**/playwright.config.ts\"",
+    "replace": "\"e2e/**/playwright.config.ts\"",
+    "test": "pnpm vitest run addons/strict-lint/tests/dead.test.mts -t \"follows a Playwright config kept under tests/\""
+  },
+  {
+    "name": "dead: does not report Playwright as missing at the root",
+    "file": "addons/strict-lint/files/tools/strict-lint/knip.jsonc",
+    "find": "\"ignoreBinaries\": [\"playwright\"]",
+    "replace": "\"ignoreBinaries\": []",
+    "test": "pnpm vitest run addons/strict-lint/tests/dead.test.mts -t \"does not report Playwright as missing at the root\""
+  },
+  {
+    "name": "dead: follows a Vite config kept under tests/",
+    "file": "addons/strict-lint/files/tools/strict-lint/knip.jsonc",
+    "find": "\"tests/**/vite.config.ts\"",
+    "replace": "\"e2e/**/vite.config.ts\"",
+    "test": "pnpm vitest run addons/strict-lint/tests/dead.test.mts -t \"follows a Vite config kept under tests/\""
+  },
+  {
+    "name": "files: are the .ts, .tsx and .mts files, in order",
+    "file": "addons/strict-lint/files/tools/strict-lint/lib/files.mts",
+    "find": "/\\.(ts|tsx|mts)$/",
+    "replace": "/\\.(ts|tsx)$/",
+    "test": "pnpm vitest run addons/strict-lint/tests/files.test.mts -t \"are the .ts, .tsx and .mts files, in order\""
+  },
+  {
+    "name": "files: leave out installed and generated folders at any depth",
+    "file": "addons/strict-lint/files/tools/strict-lint/lib/files.mts",
+    "find": "\"coverage\", \"reports\"",
+    "replace": "\"reports\"",
+    "test": "pnpm vitest run addons/strict-lint/tests/files.test.mts -t \"leave out installed and generated folders at any depth\""
+  },
+  {
+    "name": "files: leave out tools/ at the root, and keep a package's own folder called tools",
+    "file": "addons/strict-lint/files/tools/strict-lint/lib/files.mts",
+    "find": "path !== INSTALLED_TOOLING",
+    "replace": "entry.name !== INSTALLED_TOOLING",
+    "test": "pnpm vitest run addons/strict-lint/tests/files.test.mts -t \"leave out tools/ at the root, and keep a package's own folder called tools\""
+  },
+  {
+    "name": "files: are none in a folder that does not exist",
+    "file": "addons/strict-lint/files/tools/strict-lint/lib/files.mts",
+    "find": "if (existsSync(root)) {",
+    "replace": "if (true) {",
+    "test": "pnpm vitest run addons/strict-lint/tests/files.test.mts -t \"are none in a folder that does not exist\""
+  },
+  {
+    "name": "run: could not run when the tool is not installed",
+    "file": "addons/strict-lint/files/tools/strict-lint/lib/run.mts",
+    "find": "if (!existsSync(command)) {",
+    "replace": "if (false) {",
+    "test": "pnpm vitest run addons/strict-lint/tests/files.test.mts -t \"could not run when the tool is not installed\""
+  },
+  {
+    "name": "run: gives the first line that says anything for a tool that stopped",
+    "file": "addons/strict-lint/files/tools/strict-lint/lib/run.mts",
+    "find": "return line.trim();",
+    "replace": "return line;",
+    "test": "pnpm vitest run addons/strict-lint/tests/files.test.mts -t \"gives the first line that says anything for a tool that stopped\""
+  },
+  {
+    "name": "run: says so when the tool printed nothing",
+    "file": "addons/strict-lint/files/tools/strict-lint/lib/run.mts",
+    "find": "return \"it printed nothing\";",
+    "replace": "return \"\";",
+    "test": "pnpm vitest run addons/strict-lint/tests/files.test.mts -t \"says so when the tool printed nothing\""
+  },
+  {
+    "name": "rules: no-floating-promises: fails on a file that breaks it",
+    "file": "addons/strict-lint/files/tools/strict-lint/eslint.typed.base.mts",
+    "find": "\"@typescript-eslint/no-floating-promises\": \"error\"",
+    "replace": "\"@typescript-eslint/no-floating-promises\": \"off\"",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"no-floating-promises: fails on a file that breaks it\""
+  },
+  {
+    "name": "rules: no-misused-promises: fails on a file that breaks it",
+    "file": "addons/strict-lint/files/tools/strict-lint/eslint.typed.base.mts",
+    "find": "\"@typescript-eslint/no-misused-promises\": \"error\"",
+    "replace": "\"@typescript-eslint/no-misused-promises\": \"off\"",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"no-misused-promises: fails on a file that breaks it\""
+  },
+  {
+    "name": "rules: switch-exhaustiveness-check: fails on a file that breaks it",
+    "file": "addons/strict-lint/files/tools/strict-lint/eslint.typed.base.mts",
+    "find": "\"@typescript-eslint/switch-exhaustiveness-check\": [\"error\",",
+    "replace": "\"@typescript-eslint/switch-exhaustiveness-check\": [\"off\",",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"switch-exhaustiveness-check: fails on a file that breaks it\""
+  },
+  {
+    "name": "rules: accepts a promise marked void",
+    "file": "addons/strict-lint/files/tools/strict-lint/eslint.typed.base.mts",
+    "find": "\"@typescript-eslint/no-floating-promises\": \"error\"",
+    "replace": "\"@typescript-eslint/no-floating-promises\": [\"error\", { ignoreVoid: false }]",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"accepts a promise marked void\""
+  },
+  {
+    "name": "rules: accepts a switch whose default branch stands for the rest of a union",
+    "file": "addons/strict-lint/files/tools/strict-lint/eslint.typed.base.mts",
+    "find": "considerDefaultExhaustiveForUnions: true",
+    "replace": "considerDefaultExhaustiveForUnions: false",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"accepts a switch whose default branch stands for the rest of a union\""
+  },
+  {
+    "name": "rules: does not judge tools/probe.mts",
+    "file": "addons/strict-lint/files/tools/strict-lint/eslint.typed.base.mts",
+    "find": "  \"tools/**\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"does not judge tools/probe.mts\""
+  },
+  {
+    "name": "rules: does not judge packages/app/dist/probe.ts",
+    "file": "addons/strict-lint/files/tools/strict-lint/eslint.typed.base.mts",
+    "find": "  \"**/dist/**\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"does not judge packages/app/dist/probe.ts\""
+  },
+  {
+    "name": "rules: does not judge packages/app/coverage/probe.ts",
+    "file": "addons/strict-lint/files/tools/strict-lint/eslint.typed.base.mts",
+    "find": "  \"**/coverage/**\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"does not judge packages/app/coverage/probe.ts\""
+  },
+  {
+    "name": "rules: does not judge packages/app/reports/probe.ts",
+    "file": "addons/strict-lint/files/tools/strict-lint/eslint.typed.base.mts",
+    "find": "  \"**/reports/**\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"does not judge packages/app/reports/probe.ts\""
+  },
+  {
+    "name": "rules: does not judge packages/app/.turbo/probe.ts",
+    "file": "addons/strict-lint/files/tools/strict-lint/eslint.typed.base.mts",
+    "find": "  \"**/.turbo/**\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"does not judge packages/app/.turbo/probe.ts\""
+  },
+  {
+    "name": "rules: still judges a package's own folder called tools",
+    "file": "addons/strict-lint/files/tools/strict-lint/eslint.typed.base.mts",
+    "find": "  \"tools/**\",\n",
+    "replace": "  \"**/tools/**\",\n",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"still judges a package's own folder called tools\""
+  },
+  {
+    "name": "rules: reports a file no tsconfig.json includes, and does not pass it",
+    "file": "addons/strict-lint/files/tools/strict-lint/eslint.typed.base.mts",
+    "find": "allowDefaultProject: [\"*.mts\"]",
+    "replace": "allowDefaultProject: [\"*.mts\", \"packages/*/*.ts\"]",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"reports a file no tsconfig.json includes, and does not pass it\""
+  },
+  {
+    "name": "rules: judges a .mts file at the project root, with tsconfig.tooling.json",
+    "file": "addons/strict-lint/files/tools/strict-lint/eslint.typed.base.mts",
+    "find": "allowDefaultProject: [\"*.mts\"]",
+    "replace": "allowDefaultProject: []",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"judges a .mts file at the project root, with tsconfig.tooling.json\""
+  },
+  {
+    "name": "rules: runs the project's other ESLint rules in the same run",
+    "file": "addons/strict-lint/files/tools/strict-lint/eslint.config.mts",
+    "find": "[...base, ...typedLint()]",
+    "replace": "[...typedLint()]",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"runs the project's other ESLint rules in the same run\""
+  },
+  {
+    "name": "rules: fails on a warning too",
+    "file": "addons/strict-lint/files/tools/strict-lint/check-types.mts",
+    "find": "messages.map(",
+    "replace": "messages.filter((entry) => (entry as { severity?: number }).severity === 2).map(",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"fails on a warning too\""
+  }
+]

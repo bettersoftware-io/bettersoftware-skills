@@ -25,11 +25,14 @@
   ],
   // motion-audit.mts imports playwright, which this repository does not
   // install. It is typechecked where it runs: in a project with the add-on.
+  // strict-lint's eslint.config.mts imports the project's own eslint.config.mts,
+  // which is not here either; the same holds for it.
   "exclude": [
     "kit/gates/fixtures",
     "kit/architecture.config.example.mts",
     "addons/*/tests/fixtures",
     "addons/performance/files/tools/perf/motion-audit.mts",
+    "addons/strict-lint/files/tools/strict-lint/eslint.config.mts",
     "node_modules"
   ]
 }

@@ -1,0 +1,37 @@
+{
+  // What knip reads in this project. This file is the project's: when a package
+  // gets an entry knip cannot see, name it here.
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      // The root package is tooling. `tools/` holds installed copies (the kit,
+      // the add-ons), so every script there is an entry: nothing in it is
+      // reported, and what it imports counts as used.
+      "entry": ["architecture.config.mts", "tools/**/*.mts"],
+      "project": ["*.mts", "tools/**/*.mts"],
+      // The repo-hygiene add-on keeps its stylelint rules here, not at the root.
+      "stylelint": { "config": ["tools/repo-hygiene/stylelint.json"] },
+      // Run as a program by a script in tools/, which starts it by its name in
+      // a string. knip follows imports and package.json scripts, not that.
+      // dependency-cruiser: the kit's dependencies gate. The other three: the
+      // repo-hygiene add-on's checks.
+      "ignoreDependencies": ["dependency-cruiser", "@manypkg/cli", "stylelint", "syncpack"],
+      // The visual add-on's scripts here run Playwright in the package that
+      // installs it (`pnpm --dir packages/client-react exec playwright`). knip
+      // reads them as run at the root, where Playwright is not a dependency.
+      "ignoreBinaries": ["playwright"]
+    },
+    "packages/*": {
+      // A package's `exports` map (`./*` to `./src/*`) makes every file under
+      // src/ an entry, and knip does not judge the exports of an entry unless
+      // told to. Without this line no export of a library package is ever
+      // reported. With it, every export needs an importer: a file in the
+      // package, a test, or another package.
+      "includeEntryExports": true,
+      // A Playwright tier and the Vite host it serves keep their configs under
+      // tests/ (the visual add-on does), where knip does not look by default.
+      "playwright": { "config": ["playwright.config.ts", "tests/**/playwright.config.ts"] },
+      "vite": { "config": ["vite.config.ts", "tests/**/vite.config.ts"] }
+    }
+  }
+}

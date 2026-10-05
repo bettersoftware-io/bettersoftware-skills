@@ -1,0 +1,28 @@
+{
+  "name": "strict-lint",
+  "summary": "Two checks in gate:fast: the ESLint rules that need types (a promise nobody waits for, a switch that misses a case), and knip for unused files, exports and dependencies.",
+  "recommended": true,
+  "packageJson": {
+    ".": {
+      "scripts": {
+        "lint:types": "node tools/strict-lint/check-types.mts",
+        "lint:dead": "node tools/strict-lint/check-dead.mts"
+      },
+      "devDependencies": {
+        "knip": "^6.17.1"
+      }
+    }
+  },
+  "gates": {
+    "fast": [
+      "pnpm lint:types",
+      "pnpm lint:dead"
+    ],
+    "full": []
+  },
+  "startingFiles": [
+    "tools/strict-lint/eslint.config.mts",
+    "tools/strict-lint/knip.jsonc"
+  ],
+  "verify": "pnpm lint:types && pnpm lint:dead"
+}

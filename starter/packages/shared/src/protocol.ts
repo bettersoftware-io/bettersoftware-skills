@@ -3,7 +3,7 @@ import type { Price } from "@app/domain";
 /** The path the server listens on. */
 export const WS_PATH = "/ws";
 
-export const SERVER_MSG = {
+const SERVER_MSG = {
   PRICE: "price",
 } as const;
 
