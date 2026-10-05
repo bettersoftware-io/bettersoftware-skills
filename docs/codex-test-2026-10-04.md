@@ -62,6 +62,28 @@ the moment of the edit, the second does not let a red gate be the end.
   packages' tests and said which it could not run. `pnpm gate:full` has to be
   run outside the sandbox, or in CI.
 
+## The next day: the stop hook on `gate:full`
+
+On 2026-10-05 the stop hook was changed to run `gate:full`, the script CI
+runs, on any tree that has not already passed it
+([why](small-model-2026-10-05.md)). Since `gate:full` includes the server's
+tests, and those cannot listen on a port inside Codex's sandbox, the question
+was whether the hook would now be red in Codex for a reason the agent cannot
+fix. Two runs in a fresh project, same setup as above.
+
+| Run | What Codex did | What the stop hook did |
+|---|---|---|
+| A small feature in the client (a count above the price list), 46 seconds | Built it with tests through the page object, and ran `pnpm gate:full` itself, calling it "the required full gate" | Ran `gate:full`, passed, stored the tree |
+| One comment reworded in the server package, nothing else | Made the edit and ran no gate | Ran `gate:full` again, since the tree had changed. The server's and the integration tests really ran this time, and passed |
+
+So the hook is not held to the sandbox's ban on listening: its own run of the
+server's tests passes in Codex. An agent that runs those tests itself, inside
+the sandbox, still cannot.
+
+In the first run turbo replayed the server's and the integration tests from
+cache, correctly: Codex had changed only the client, and they do not read it.
+That is why the second run was needed.
+
 ## Not checked
 
 - **The plugin's skills in a Codex session.** Installing the plugin in Codex is

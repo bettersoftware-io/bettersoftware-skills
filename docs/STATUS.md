@@ -114,8 +114,9 @@ on 2026-10-05, on pushes to main and on a pull request
   both by the integration tests and by that side's own tests. It is there as
   the pattern to copy; the case it exists for is a client adapter and server
   routes that are each tested against a fake of the other.
-- **The integration example opens a real port**, so it cannot run in Codex's
-  sandbox, like the server's own tests.
+- **The integration example opens a real port**, so an agent cannot run it
+  inside Codex's sandbox, like the server's own tests. The stop hook's run of
+  them does pass in Codex ([the record](codex-test-2026-10-04.md)).
 
 - **The `typescript-only` gate does not look inside `tools/coverage/`.** The
   kit's file walker skips every folder called `coverage`, since that is where
