@@ -155,6 +155,26 @@ export function addToProject({ project, unit, force = false, scope, repository =
 }
 
 /**
+ * Writes a host's own settings file, unless the host forbids it. Codex's
+ * sandbox keeps `.codex` read-only so that an agent cannot install hooks for
+ * itself; that is the host's rule to make, so the answer is to say what is
+ * left to do, not to fail and not to find another way in.
+ */
+export function writeUnlessProtected(project: string, path: string, content: string): boolean {
+  try {
+    writeProjectFile(project, path, content);
+
+    return true;
+  } catch (error) {
+    if (["EPERM", "EACCES", "EROFS"].includes((error as NodeJS.ErrnoException).code ?? "")) {
+      return false;
+    }
+
+    throw error;
+  }
+}
+
+/**
  * What the kit needs around it. A project created from the starter has all of
  * it already, so this does nothing there. In any other project it creates the
  * files that are missing, never touches one that exists, and says what is left
@@ -183,8 +203,13 @@ function setUpKit(project: string, repository: string): Pick<AddResult, "created
     }
 
     if (!existsSync(file)) {
-      writeProjectFile(project, target, readFileSync(source, "utf8"));
-      created.push(target);
+      if (writeUnlessProtected(project, target, readFileSync(source, "utf8"))) {
+        created.push(target);
+      } else {
+        notes.push(
+          `${target} could not be written: the host this ran under keeps that folder read-only. Outside it, copy tools/arch/hooks/${template} to ${target}; until then the hooks do not run there`,
+        );
+      }
     } else if (!readFileSync(file, "utf8").includes("tools/arch/hooks/")) {
       notes.push(`${target} exists and does not run the hooks: merge in the two entries from tools/arch/hooks/${template}`);
     }

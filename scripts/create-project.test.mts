@@ -7,7 +7,7 @@ import { createProject, ProjectError } from "./create-project.mts";
 
 describe("creating a project from the starter", () => {
   it("copies the starter and names the root package after the target folder", () => {
-    const project = createProject({ target: createTarget("price-desk") });
+    const { destination: project } = createProject({ target: createTarget("price-desk") });
 
     expect(JSON.parse(readFileSync(join(project, "package.json"), "utf8")).name).toBe("price-desk");
     expect(existsSync(join(project, "packages/domain/src/ports/pricePort.ts"))).toBe(true);
@@ -17,7 +17,7 @@ describe("creating a project from the starter", () => {
   });
 
   it("puts a real copy of the kit at tools/arch, without the kit's own tests and fixtures", () => {
-    const project = createProject({ target: createTarget("price-desk") });
+    const { destination: project } = createProject({ target: createTarget("price-desk") });
     const kit = join(project, "tools/arch");
 
     expect(lstatSync(kit).isSymbolicLink()).toBe(false);
@@ -29,13 +29,13 @@ describe("creating a project from the starter", () => {
   });
 
   it("leaves out anything installed or generated", () => {
-    const project = createProject({ target: createTarget("price-desk") });
+    const { destination: project } = createProject({ target: createTarget("price-desk") });
 
     expect(listFiles(project).filter((file) => /\/(node_modules|dist|\.turbo)\//.test(file))).toEqual([]);
   });
 
   it("renames the package scope everywhere, the lockfile included", () => {
-    const project = createProject({ target: createTarget("price-desk"), scope: "@acme" });
+    const { destination: project } = createProject({ target: createTarget("price-desk"), scope: "@acme" });
     const withOldScope = listFiles(project)
       .filter((file) => !file.includes("/tools/"))
       .filter((file) => readFileSync(file, "utf8").includes("@app/"));
@@ -54,11 +54,39 @@ describe("creating a project from the starter", () => {
     expect(readdirSync(target)).toEqual(["notes.txt"]);
   });
 
+  it("has nothing left for a person to do after a normal run", () => {
+    expect(createProject({ target: createTarget("price-desk") }).notes).toEqual([]);
+  });
+
+  it("passes on what the kit's setup could not do", () => {
+    const { notes } = createProject({ target: createTarget("price-desk") }, { installKit: () => ({ notes: ["copy the hook file yourself"] }) });
+
+    expect(notes).toEqual(["copy the hook file yourself"]);
+  });
+
+  it("leaves nothing behind in a folder that was empty, when a step fails", () => {
+    const target = createTarget("half-made");
+
+    expect(() => createProject({ target }, { installKit: failToInstall })).toThrow(/removed what it had written.*disk full/s);
+    expect(readdirSync(target)).toEqual([]);
+  });
+
+  it("removes a folder it made itself, when a step fails", () => {
+    const target = join(createTarget("parent"), "half-made");
+
+    expect(() => createProject({ target }, { installKit: failToInstall })).toThrow(ProjectError);
+    expect(existsSync(target)).toBe(false);
+  });
+
   it("refuses a scope or a name that is not a valid package name", () => {
     expect(() => createProject({ target: createTarget("ok"), scope: "acme" })).toThrow(/not a package scope/);
     expect(() => createProject({ target: createTarget("ok"), name: "My App" })).toThrow(/not a package name/);
   });
 });
+
+function failToInstall(): never {
+  throw new Error("disk full");
+}
 
 /** An empty folder with the given name, inside a fresh temporary folder. */
 function createTarget(name: string): string {

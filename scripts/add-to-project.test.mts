@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
 
-import { addToProject, listAddons } from "./add-to-project.mts";
+import { addToProject, listAddons, writeUnlessProtected } from "./add-to-project.mts";
 import { InstallError, writeProjectFile } from "./lib/install.mts";
 
 describe("adding the kit", () => {
@@ -99,6 +99,22 @@ describe("adding the kit", () => {
     expect(result.notes.join("\n")).toMatch(/\.claude\/settings\.json exists and does not run the hooks/);
   });
 
+  it("goes on, and says so, when the host does not let it write a hook file", () => {
+    const { repository, project } = createWorld();
+
+    // Codex's sandbox keeps `.codex` read-only, so an agent cannot install its own hooks.
+    mkdirSync(join(project, ".codex"));
+    chmodSync(join(project, ".codex"), 0o555);
+
+    const result = addToProject({ project, unit: "kit", repository });
+
+    expect(result.created).toEqual(["architecture.config.mts", ".claude/settings.json"]);
+    expect(existsSync(join(project, "tools/arch/gates/run.mts"))).toBe(true);
+    expect(result.notes.join("\n")).toMatch(
+      /\.codex\/hooks\.json could not be written.*copy tools\/arch\/hooks\/codex\.hooks\.json/s,
+    );
+  });
+
   it("has nothing left to say once the project is set up", () => {
     const { repository, project } = createWorld();
     const manifest = readJson(project, "package.json");
@@ -190,6 +206,21 @@ describe("writing a project file", () => {
 
     writeProjectFile(project, "plain/file.txt", "content\n");
     expect(read(project, "plain/file.txt")).toBe("content\n");
+  });
+});
+
+describe("writing a host's settings file", () => {
+  it("gives way to the host's refusal, and to nothing else: a link out of the project is still an error", () => {
+    const { project } = createWorld();
+    const outside = mkdtempSync(join(tmpdir(), "outside-"));
+
+    onTestFinished(() => {
+      rmSync(outside, { recursive: true, force: true });
+    });
+    symlinkSync(outside, join(project, ".codex"));
+
+    expect(() => writeUnlessProtected(project, ".codex/hooks.json", "{}")).toThrow(InstallError);
+    expect(existsSync(join(outside, "hooks.json"))).toBe(false);
   });
 });
 
