@@ -1,0 +1,5 @@
+{
+  // The port tests here are skipped where a port cannot be opened, so a result is never replayed.
+  "extends": ["//"],
+  "tasks": { "test": { "cache": false } }
+}

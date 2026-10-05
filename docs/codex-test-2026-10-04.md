@@ -100,8 +100,29 @@ The paragraph changed who the report blames. It did not change what Codex
 ran: it still ran `gate:full` and not the narrower commands the paragraph
 suggests, and it did not mention the stop hook. Turbo also stops at the first
 failing package, so inside the sandbox the steps after the server's tests (the
-build) never run for the agent. The paragraph is in the starter's `AGENTS.md`;
-the rest is in [STATUS](STATUS.md).
+build) never ran for the agent.
+
+### The fix: tests that need a port are left out there, and said to be
+
+The same evening the tests that open a real port were renamed
+`*.port.test.ts`, their packages were given a vitest config that leaves those
+files out where a port cannot be opened (never in CI), and the coverage gate
+was taught not to measure a package in that state
+([how](../kit/README.md#tests-that-need-a-port-where-none-can-be-opened)).
+The same request again, in a fresh project with the coverage add-on:
+
+| | |
+|---|---|
+| Codex's first `gate:full` | **red, for a real reason**: a test it had just written was wrong. The gate reached it because the server's tests no longer stopped the run |
+| Its second | green: `SKIP tests that need a port` for the server and the integration package, every other test run, the build run, coverage `SKIP` for those two packages and `PASS` for the rest |
+| Its report | "`pnpm gate:full` passed. Port-dependent server and integration tests were skipped in this sandbox, as noted by the gate." |
+| The stop hook, outside the sandbox | ran the gate again and passed |
+| The same tree, run by hand outside the sandbox | the server's 4 tests and the integration package's 2 ran, uncached, and passed; the server's coverage was judged |
+
+One trap on the way: turbo would have cached the run that left the tests out
+and replayed it to the stop hook, which would then have passed without running
+them. Those packages no longer cache their `test` task, and the `task-cache`
+gate fails a package that has port tests and does.
 
 ## The plugin's skills in a Codex session
 

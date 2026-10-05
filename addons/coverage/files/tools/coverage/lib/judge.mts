@@ -104,6 +104,20 @@ export function judgePackage(
   return { ...result, verdict: "PASS", reason: `${count(result.measured.length, "file")} at or above the bar` };
 }
 
+/** The result for a package that was not measured at all, with the reason. */
+export function skipPackage(directory: string, reason: string): PackageResult {
+  return {
+    directory,
+    verdict: "SKIP",
+    reason,
+    measured: [],
+    emptyFiles: 0,
+    underTheBar: [],
+    unexplainedIgnores: [],
+    failedTests: [],
+  };
+}
+
 /**
  * 0 when every package passed or had nothing to measure and at least one
  * passed; 1 when one failed; 2 when one could not be read, or nothing at all

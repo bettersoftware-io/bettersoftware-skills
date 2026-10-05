@@ -30,7 +30,7 @@
   {
     "name": "workspace: says so when the folder has no workspace file",
     "file": "addons/coverage/files/tools/coverage/lib/workspace.mts",
-    "find": "throw new CoverageError(`${WORKSPACE_FILE} not found in ${root} — run this from the project root`);",
+    "find": "throw new CoverageError(`${WORKSPACE_FILE} not found in ${root} \u2014 run this from the project root`);",
     "replace": "return [];",
     "test": "pnpm vitest run addons/coverage/tests/workspace.test.mts -t \"says so when the folder has no workspace file\""
   },
@@ -534,8 +534,8 @@
   {
     "name": "site: lists the ignore comments without a reason",
     "file": "addons/coverage/files/tools/coverage/lib/site.mts",
-    "find": "<li><code>${escapeHtml(file)}:${line}</code> — an ignore comment",
-    "replace": "<li><code>${escapeHtml(file)}</code> — an ignore comment",
+    "find": "<li><code>${escapeHtml(file)}:${line}</code> \u2014 an ignore comment",
+    "replace": "<li><code>${escapeHtml(file)}</code> \u2014 an ignore comment",
     "test": "pnpm vitest run addons/coverage/tests/site.test.mts -t \"lists the ignore comments without a reason\""
   },
   {
@@ -1034,5 +1034,61 @@
     "find": "          persist-credentials: false",
     "replace": "          persist-credentials: true",
     "test": "pnpm vitest run addons/coverage/tests/addon.test.mts -t \"keeps the token out of the job that installs\""
+  },
+  {
+    "name": "listening: skipped in CI too",
+    "file": "addons/coverage/files/tools/coverage/lib/listening.mts",
+    "find": "return !environment.CI && !(await probe());",
+    "replace": "return !(await probe());",
+    "test": "pnpm vitest run addons/coverage/tests/listening.test.mts"
+  },
+  {
+    "name": "listening: skipped where a port can be opened",
+    "file": "addons/coverage/files/tools/coverage/lib/listening.mts",
+    "find": "return !environment.CI && !(await probe());",
+    "replace": "return !environment.CI;",
+    "test": "pnpm vitest run addons/coverage/tests/listening.test.mts"
+  },
+  {
+    "name": "listening: looks in node_modules",
+    "file": "addons/coverage/files/tools/coverage/lib/listening.mts",
+    "find": "? !NOT_SOURCE.has(entry.name) && hasPortTests",
+    "replace": "? hasPortTests",
+    "test": "pnpm vitest run addons/coverage/tests/listening.test.mts"
+  },
+  {
+    "name": "listening: only the package's top folder is searched",
+    "file": "addons/coverage/files/tools/coverage/lib/listening.mts",
+    "find": "? !NOT_SOURCE.has(entry.name) && hasPortTests(root, `${directory}/${entry.name}`)",
+    "replace": "? false",
+    "test": "pnpm vitest run addons/coverage/tests/listening.test.mts"
+  },
+  {
+    "name": "listening: any failure to listen is a refusal",
+    "file": "addons/coverage/files/tools/coverage/lib/listening.mts",
+    "find": "if (error.code === \"EPERM\" || error.code === \"EACCES\") {",
+    "replace": "if (error.code !== undefined) {",
+    "test": "pnpm vitest run addons/coverage/tests/listening.test.mts"
+  },
+  {
+    "name": "run: a package with port tests is always skipped",
+    "file": "addons/coverage/files/tools/coverage/run.mts",
+    "find": "    if (portTestsSkipped && hasPortTests(root, directory)) {",
+    "replace": "    if (hasPortTests(root, directory)) {",
+    "test": "pnpm vitest run addons/coverage/tests/run.test.mts"
+  },
+  {
+    "name": "run: every package is skipped where no port opens",
+    "file": "addons/coverage/files/tools/coverage/run.mts",
+    "find": "    if (portTestsSkipped && hasPortTests(root, directory)) {",
+    "replace": "    if (portTestsSkipped) {",
+    "test": "pnpm vitest run addons/coverage/tests/run.test.mts"
+  },
+  {
+    "name": "run: a package with port tests is measured anyway",
+    "file": "addons/coverage/files/tools/coverage/run.mts",
+    "find": "    if (portTestsSkipped && hasPortTests(root, directory)) {",
+    "replace": "    if (false) {",
+    "test": "pnpm vitest run addons/coverage/tests/run.test.mts"
   }
 ]

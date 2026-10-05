@@ -19,12 +19,11 @@ no test. The stop hook runs `gate:full` for you whenever a file has changed
 since it last passed.
 
 Some sandboxes do not let a process listen on a port; Codex's default one does
-not. There the tests in `packages/server` and `packages/integration` fail with
-`listen EPERM`, and `pnpm gate:full` fails with them. That is the sandbox, not
-your change: do not try to fix it or work round it. Run `pnpm gate:fast` and
-the tests of the packages you changed, and say in your report which tests
-could not run where you are. The stop hook runs `gate:full` outside the
-sandbox, so the whole gate is still checked before you finish.
+not. There the tests that open a real port (the files named `*.port.test.ts`)
+are left out, and the run prints a `SKIP` line that says so. That is the
+sandbox, not your change: say in your report that those tests were not run
+where you are. The stop hook runs `gate:full` outside the sandbox, and CI
+never skips them.
 
 ## The layers
 
@@ -72,7 +71,7 @@ The price list is a worked example of every one of these. Copy its shape:
 | State machine (per-component state) | `packages/client-core/src/machines/selectionMachine.ts` |
 | View model | `packages/react-bindings/src/createViewModel.ts` |
 | Composition root | `packages/client-react/src/app/startApp.tsx` |
-| Client adapter against the real server | `packages/integration/src/priceOverWebSocket.test.ts` |
+| Client adapter against the real server | `packages/integration/src/priceOverWebSocket.port.test.ts` |
 | Dumb component | `packages/client-react/src/ui/PriceList.tsx` |
 | Page object and its test | `packages/client-react/src/ui/PriceList.page.tsx`, `PriceList.test.tsx` |
 
@@ -82,6 +81,8 @@ The price list is a worked example of every one of these. Copy its shape:
   A test never sleeps.
 - A UI test talks to a page object. Only the page object touches the testing
   library.
+- A test that opens a real port is named `*.port.test.ts`, so it can be left
+  out, and said to be left out, where a port cannot be opened.
 - A fixture factory is named `create…`.
 - Tests come first in a test file; helpers go below them.
 

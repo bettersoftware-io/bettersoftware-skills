@@ -36,6 +36,35 @@ describe("the coverage gate", () => {
     expect(results.map(({ directory }) => directory)).toEqual(["packages/weak"]);
   });
 
+  it("neither measures nor judges a package whose port tests cannot run here", () => {
+    const root = createWorkspace(["packages/server", "packages/strong"], { "packages/server/src/startServer.port.test.ts": "" });
+    const measured: string[] = [];
+    const results = checkCoverage({
+      root,
+      config: createConfig(),
+      portTestsSkipped: true,
+      run: (directory, ...rest) => {
+        measured.push(basename(directory));
+
+        return createVitestRun(root)(directory, ...rest);
+      },
+    });
+
+    expect(results.map(({ directory, verdict }) => ({ directory, verdict }))).toEqual([
+      { directory: "packages/server", verdict: "SKIP" },
+      { directory: "packages/strong", verdict: "PASS" },
+    ]);
+    expect(results[0]?.reason).toContain("need a port");
+    expect(measured).toEqual(["strong"]);
+  });
+
+  it("measures that package like any other where a port can be opened", () => {
+    const root = createWorkspace(["packages/server"], { "packages/server/src/startServer.port.test.ts": "" });
+    const results = checkCoverage({ root, config: createConfig(), portTestsSkipped: false, run: createVitestRun(root) });
+
+    expect(results.map(({ directory, verdict }) => ({ directory, verdict }))).toEqual([{ directory: "packages/server", verdict: "PASS" }]);
+  });
+
   it("refuses a folder that is not a workspace package", () => {
     const root = createWorkspace(["packages/strong"]);
     const check = (): unknown => checkCoverage({ root, config: createConfig(), packages: ["packages/strnog"], run: createVitestRun(root) });

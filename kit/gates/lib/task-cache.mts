@@ -7,17 +7,20 @@
 // nothing, on a developer's machine and in the agent's stop hook. CI starts
 // with an empty cache, so it never shows there.
 //
-// Two things are read, both from files, so the gate needs no turbo to run:
+// Three things are read, all from files, so the gate needs no turbo to run:
 //   - turbo.json: every cached task must depend, directly or through another
 //     task, on a task in the packages it imports (a `^` dependency);
 //   - each package's tsconfig: a file it extends outside the package must be a
-//     global dependency, since no package's files include it.
+//     global dependency, since no package's files include it;
+//   - each package with tests that need a port (`*.port.test.ts`): its `test`
+//     task must not be cached. Those tests are skipped where a port cannot be
+//     opened, and a result cached there would be replayed where they can run.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, normalize } from "node:path";
 
 import type { Finding, Project } from "./config.mts";
-import { parseJsonWithComments } from "./files.mts";
+import { listSourceFiles, parseJsonWithComments } from "./files.mts";
 
 const GATE = "task-cache";
 const TURBO = "turbo.json";
@@ -52,7 +55,11 @@ export function checkTaskCache(project: Project): Finding[] {
     return [{ gate: GATE, file: TURBO, message: `${TURBO} could not be read as JSON, so the task cache was not checked. That is no verdict, not a pass.` }];
   }
 
-  return [...checkTasksSeeUpstream(project, turbo), ...checkSharedConfigIsGlobal(project, turbo)];
+  return [
+    ...checkTasksSeeUpstream(project, turbo),
+    ...checkSharedConfigIsGlobal(project, turbo),
+    ...checkPortTestsAreNotCached(project, turbo),
+  ];
 }
 
 function checkTasksSeeUpstream({ config }: Project, turbo: TurboConfig): Finding[] {
@@ -106,6 +113,40 @@ function checkSharedConfigIsGlobal({ root, workspace }: Project, turbo: TurboCon
   }
 
   return findings;
+}
+
+const PORT_TEST = /\.port\.test\.[cm]?tsx?$/;
+const TEST_TASK = "test";
+
+function checkPortTestsAreNotCached({ root, workspace }: Project, turbo: TurboConfig): Finding[] {
+  const rootTask = (turbo.tasks ?? turbo.pipeline ?? {})[TEST_TASK];
+
+  // No such task, or one that is never cached: nothing can be replayed.
+  if (rootTask === undefined || rootTask.cache === false) {
+    return [];
+  }
+
+  return workspace
+    .filter(({ path }) => listSourceFiles(root, path).some((file) => PORT_TEST.test(file)))
+    .filter(({ path }) => readPackageTask(root, path)?.cache !== false)
+    .map(({ path }) => ({
+      gate: GATE,
+      file: existsSync(join(root, path, TURBO)) ? `${path}/${TURBO}` : path,
+      message: `${path} has tests that need a port (*.port.test.ts), and its "${TEST_TASK}" task is cached. Where a port cannot be opened those tests are skipped, and a result cached there would be replayed where they can run, so nobody would run them. Give the package a ${TURBO} with { "extends": ["//"], "tasks": { "${TEST_TASK}": { "cache": false } } }.`,
+    }));
+}
+
+/** The package's own definition of the test task, if it has a turbo.json that gives one. */
+function readPackageTask(root: string, path: string): TaskDefinition | undefined {
+  const file = join(root, path, TURBO);
+
+  if (!existsSync(file)) {
+    return undefined;
+  }
+
+  const own = parseJsonWithComments(readFileSync(file, "utf8")) as TurboConfig | undefined;
+
+  return (own?.tasks ?? own?.pipeline)?.[TEST_TASK];
 }
 
 function listTsconfigs(directory: string): string[] {

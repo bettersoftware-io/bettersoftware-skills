@@ -33,7 +33,7 @@ A project declares its layers once, in `architecture.config.mts`
 | `port-contracts` | A port has no contract test; the contract never calls one of the port's methods; an adapter folder that implements a port does not run that port's contract |
 | `dependencies` | An import points outward; the domain uses a Node built-in; the core imports a UI framework; the UI imports the composition root or an adapter; anything imports an integration package; there is a cycle |
 | `agent-docs` | `AGENTS.md` or `CLAUDE.md` names a file or folder that does not exist |
-| `task-cache` | A cached task in `turbo.json` has a key that leaves out the packages a package imports; a package's tsconfig extends a file outside the package that is not a global dependency |
+| `task-cache` | A cached task in `turbo.json` has a key that leaves out the packages a package imports; a package's tsconfig extends a file outside the package that is not a global dependency; a package with tests that need a port caches its `test` task |
 
 ```bash
 node tools/arch/gates/run.mts                 # every gate
@@ -131,6 +131,45 @@ tasksThatReadNothingUpstream: {
 ```
 
 Not judged: a task with `"cache": false`, and a root task (`//#name`).
+
+### Tests that need a port, where none can be opened
+
+Some sandboxes do not let a process listen on a port; Codex's default one does
+not. A test that starts a real server fails there with `listen EPERM`, the
+project's gate goes red on correct work, and the steps after the failing
+package never run. Seen in Codex: a correct change to the domain was reported
+as "`pnpm gate:full` did not pass".
+
+So a test that opens a real port says so in its name, `*.port.test.ts`, and
+the package's vitest config asks `testing/portTests.mts` which files to leave
+out:
+
+```ts
+import { configDefaults, defineConfig } from "vitest/config";
+import { portTestsToSkip } from "../../tools/arch/testing/portTests.mts";
+
+export default defineConfig(async () => {
+  const skipped = await portTestsToSkip();
+
+  return { test: { exclude: [...configDefaults.exclude, ...skipped], passWithNoTests: skipped.length > 0 } };
+});
+```
+
+- Where a port can be opened nothing is left out.
+- Where none can, those files are left out and the run prints one `SKIP` line
+  that says they were not verified.
+- **In CI nothing is ever left out.** There a test that cannot run fails, so a
+  skip is never how a change reaches the main branch.
+- The stop hook runs the gate outside the sandbox, where they do run.
+
+A package with such tests must not cache its `test` task, or a run that left
+them out inside a sandbox would be replayed as the result outside it. The
+`task-cache` gate fails on that; the package's own `turbo.json` turns the
+cache off for that one task.
+
+A skip is weaker than a failure, and the name is a convention no gate can
+check: a test that opens a port under another name simply fails in the
+sandbox, as before.
 
 ### A gate that judged nothing has not passed
 

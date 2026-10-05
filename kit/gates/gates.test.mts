@@ -140,6 +140,13 @@ describe("a project that breaks the rules", () => {
     expect(blind.join("\n")).not.toContain('The task "dev"');
   });
 
+  it("names a package whose port tests have a cached result, which a sandbox's skip would be replayed from", () => {
+    const cached = of("task-cache").filter((finding) => finding.message.includes("need a port"));
+
+    expect(cached.map((finding) => finding.file)).toEqual(["packages/checks/turbo.json", "packages/client-core"]);
+    expect(cached[0]?.message).toContain('"cache": false');
+  });
+
   it("names a shared tsconfig that no task's cache key includes", () => {
     expect(messages("task-cache", "turbo.json")).toContain(
       "packages/domain/tsconfig.json extends tsconfig.base.json",

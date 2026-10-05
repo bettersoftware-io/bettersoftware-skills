@@ -154,7 +154,7 @@ on every push to main, and the page says which commit that was.
 
 ## How it was tested
 
-**The tools.** 148 tests in `tests/`, run with `pnpm vitest run addons/coverage`
+**The tools.** 159 tests in `tests/`, run with `pnpm vitest run addons/coverage`
 from this repository's root. The gate's tests use a stand-in for vitest; the
 mutation-check tests change real files and run real commands; the publisher's
 tests push to a bare git repository in a temporary folder.
@@ -164,7 +164,7 @@ add-on's own tool ran them:
 
 ```bash
 node addons/coverage/files/tools/coverage/mutation-check.mts addons/coverage/tests/mutants.json
-# 148 of 148 killed.
+# 156 of 156 killed.
 ```
 
 The first run had one survivor. The mutant moved the merged report to
@@ -209,6 +209,20 @@ What the gate found that was worth finding:
 
 A fresh project with this add-on: every package `PASS`, 55 tests, `gate:full`
 green.
+
+## Where the tests that need a port cannot run
+
+Some sandboxes do not let a process listen on a port (Codex's default one). A
+project's packages leave their `*.port.test.ts` files out there. Measured
+without them a package would read lower than it is and fail the bar for a
+reason that is not in the code, so the gate does not measure it there:
+
+```
+SKIP packages/server — its tests that need a port cannot run here, so its numbers would be wrong; it is measured where a port can be opened, and always in CI
+```
+
+A `SKIP` is not a pass, and in CI nothing is skipped: the package is measured
+there, and by anyone who runs the gate outside the sandbox.
 
 ## Limits
 

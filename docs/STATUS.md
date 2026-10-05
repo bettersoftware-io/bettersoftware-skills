@@ -56,15 +56,6 @@ on 2026-10-05, on pushes to main and on a pull request
 
 ## Open decisions
 
-- **Inside Codex's sandbox an agent's own `gate:full` is red on correct work.**
-  The server's and the integration tests cannot listen there, turbo stops at
-  them, and the agent reports that the gate did not pass, though the stop
-  hook's run outside the sandbox does. A paragraph in `AGENTS.md` makes the
-  report blame the sandbox; it does not make the gate green. The stronger fix
-  is for tests that need a port to be skipped, loudly and never in CI, where
-  listening is impossible. It is not built: with the coverage add-on a package
-  whose tests were skipped reads 0%, so the skip has to reach that gate too.
-
 - **Nothing says when a new pattern earns a row in the `AGENTS.md` table.** The
   `agent-docs` gate fails on a row that points at a file that is gone; it
   cannot know that a row is missing. In the REST run the agent built a new
@@ -93,6 +84,12 @@ on 2026-10-05, on pushes to main and on a pull request
   watched an agent do.
 
 ## Known limits
+
+- **Where a port cannot be opened, the tests that need one are skipped, not
+  run.** The gate is green there with a `SKIP` line, and the coverage of those
+  packages is not judged. The stop hook and CI do run them. A test that opens a
+  port and is not named `*.port.test.ts` still fails in such a sandbox, and no
+  gate can tell that it should have been named so.
 
 - **In Codex's default sandbox a project is created and not proven.** No
   network, and `.git` and `.codex` are read-only there, so `git init`,

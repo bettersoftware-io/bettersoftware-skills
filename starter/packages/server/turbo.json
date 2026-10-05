@@ -1,0 +1,11 @@
+{
+  // This package's tests open a real port, and are skipped where one cannot be
+  // opened. A cached result from there must never be replayed where they can
+  // run, so the test task is not cached.
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "cache": false
+    }
+  }
+}

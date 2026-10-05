@@ -15,6 +15,7 @@ import type { Metric } from "./lib/config.mts";
 import { CoverageError, loadConfig } from "./lib/config.mts";
 import type { PackageResult } from "./lib/judge.mts";
 import { uncovered } from "./lib/judge.mts";
+import { portTestsAreSkipped } from "./lib/listening.mts";
 import { isMainModule } from "./lib/main.mts";
 import { formatPercent } from "./lib/report.mts";
 import { checkCoverage } from "./run.mts";
@@ -154,6 +155,7 @@ if (isMainModule(import.meta.url)) {
       root,
       config: await loadConfig(root),
       packages,
+      portTestsSkipped: await portTestsAreSkipped(),
       quiet: true,
       announce: (directory) => {
         console.error(`measuring ${directory} …`);

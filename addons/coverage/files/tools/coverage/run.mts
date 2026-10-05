@@ -20,7 +20,8 @@ import { appendFileSync } from "node:fs";
 import type { CoverageConfig } from "./lib/config.mts";
 import { CoverageError, loadConfig, PROJECT_CONFIG } from "./lib/config.mts";
 import type { PackageResult } from "./lib/judge.mts";
-import { exitCodeFor, judgePackage } from "./lib/judge.mts";
+import { exitCodeFor, judgePackage, skipPackage } from "./lib/judge.mts";
+import { hasPortTests, portTestsAreSkipped } from "./lib/listening.mts";
 import { isMainModule } from "./lib/main.mts";
 import type { RunVitest } from "./lib/measure.mts";
 import { findMisplacedExclusions, measurePackage } from "./lib/measure.mts";
@@ -40,10 +41,20 @@ export interface CheckOptions {
   announce?: (directory: string) => void;
   /** Runs vitest. Replaced in tests. */
   run?: RunVitest;
+  /** True where no port can be opened, so the packages leave their port tests out. */
+  portTestsSkipped?: boolean;
 }
 
 /** Measures and judges each package, one after the other. */
-export function checkCoverage({ root, config, packages, quiet = false, announce, run }: CheckOptions): PackageResult[] {
+export function checkCoverage({
+  root,
+  config,
+  packages,
+  quiet = false,
+  announce,
+  run,
+  portTestsSkipped = false,
+}: CheckOptions): PackageResult[] {
   const inWorkspace = listPackages(root);
   const unknown = (packages ?? []).filter((directory) => !inWorkspace.includes(directory));
 
@@ -61,6 +72,15 @@ export function checkCoverage({ root, config, packages, quiet = false, announce,
 
   return (packages?.length ? packages : inWorkspace).map((directory) => {
     announce?.(directory);
+
+    // Measured without the tests that need a port, the package would read
+    // lower than it is. Not judging it is not passing it: the verdict is SKIP.
+    if (portTestsSkipped && hasPortTests(root, directory)) {
+      return skipPackage(
+        directory,
+        "its tests that need a port cannot run here, so its numbers would be wrong; it is measured where a port can be opened, and always in CI",
+      );
+    }
 
     return judgePackage(measurePackage(root, directory, config, quiet, run), config.thresholds);
   });
@@ -132,6 +152,7 @@ if (isMainModule(import.meta.url)) {
       root,
       config,
       packages,
+      portTestsSkipped: await portTestsAreSkipped(),
       quiet: json,
       announce: (directory) => {
         console.error(`\n── coverage: ${directory}`);
