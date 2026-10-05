@@ -15,10 +15,10 @@ directly by stripping the types, which needs Node 22.18 or later, and
 
 | Part | What it checks | Needs |
 |---|---|---|
-| `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction, the paths the agent instructions name | Node; `dependency-cruiser` for the dependency gate |
+| `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction, the paths the agent instructions name, the task cache | Node; `dependency-cruiser` for the dependency gate |
 | `eslint.config.mts` + `eslint-rules/` | Twelve AST lint rules: naming, reading order, fixtures, page objects, no real sleeps in tests | `eslint`, `typescript-eslint` |
 | `hooks/after-edit.mts` | Runs the per-file gates on the file an agent just wrote | Claude Code or Codex |
-| `hooks/before-stop.mts` | Refuses to let an agent finish while `gate:fast` is red | Claude Code or Codex |
+| `hooks/before-stop.mts` | Refuses to let an agent finish while `gate:full` is red, on any tree that has not already passed it | Claude Code or Codex; git |
 
 ## The gates
 
@@ -30,9 +30,10 @@ A project declares its layers once, in `architecture.config.mts`
 | `structure` | A workspace package has no declared role; a required role is missing; the domain has no ports folder; a package has a runtime dependency outside its closed list; a client holds source outside its composition root and its UI folder; an integration package holds anything but tests |
 | `typescript-only` | The project holds a `.js`, `.jsx`, `.mjs` or `.cjs` source file that is not listed as an exception |
 | `dumb-ui` | A UI file imports the stream library, touches storage, reads configuration, opens a connection, or sets a timer |
-| `port-contracts` | A port has no contract test, or an adapter folder that implements a port does not run that port's contract |
+| `port-contracts` | A port has no contract test; the contract never calls one of the port's methods; an adapter folder that implements a port does not run that port's contract |
 | `dependencies` | An import points outward; the domain uses a Node built-in; the core imports a UI framework; the UI imports the composition root or an adapter; anything imports an integration package; there is a cycle |
 | `agent-docs` | `AGENTS.md` or `CLAUDE.md` names a file or folder that does not exist |
+| `task-cache` | A cached task in `turbo.json` has a key that leaves out the packages a package imports; a package's tsconfig extends a file outside the package that is not a global dependency |
 
 ```bash
 node tools/arch/gates/run.mts                 # every gate
@@ -92,6 +93,45 @@ It does not know when a new pattern deserves a row: that is judgement. The
 files it reads are `instructionFiles` in the config (default `AGENTS.md` and
 `CLAUDE.md`).
 
+### A contract calls every method of its port
+
+A port gains a method, both implementations gain it, and the contract is left
+as it was. Every test stays green and nothing holds the two implementations to
+the same behaviour. The gate reads the methods of `interface <Name>Port` and
+fails for each one the contract file never calls. Comments are blanked first,
+so a mention in prose is not a call. A member typed as a function
+(`latest: (symbol: string) => …`) counts; a member typed with a name
+(`latest: Fetcher`) cannot be read as one and is not judged. A port that is
+not declared as an interface of that name fails, because its methods cannot be
+read at all.
+
+### A cached result that ignores what it read
+
+When packages import each other's source, a package's typecheck and tests read
+the packages it imports. Turbo keys a task on that package's own files unless
+the task graph says otherwise, so a change upstream replays "passed" for every
+dependent. CI starts with an empty cache and never shows it; a developer's
+machine and the stop hook do.
+
+The gate reads `turbo.json` and needs no turbo to run:
+
+- every cached task must depend on the packages a package imports, directly
+  (`^build`) or through another task. Turbo's own remedy keeps tasks parallel:
+  `"transit": { "dependsOn": ["^transit"] }`, a task that matches no script,
+  and `dependsOn: ["transit"]` on `typecheck` and `test`;
+- a file a package's tsconfig extends from outside the package (the shared
+  `tsconfig.base.json`) must be under `globalDependencies`.
+
+A task that reads nothing outside its own package is listed with the reason:
+
+```ts
+tasksThatReadNothingUpstream: {
+  format: "the formatter reads one file at a time and resolves no import",
+},
+```
+
+Not judged: a task with `"cache": false`, and a root task (`//#name`).
+
 ### A gate that judged nothing has not passed
 
 Four cases are reported instead of being read as clean:
@@ -140,16 +180,32 @@ scripts. Codex runs a hook only after it has been reviewed and trusted with
 
 Both hooks have been run in Codex as well as in Claude Code.
 
-The stop hook runs the project's `gate:fast` script, so "green" has one
-definition for the agent, a person and CI:
+The stop hook runs the project's `gate:full` script, the one CI runs, so
+"green" has one definition for the agent, a person and CI. A project with no
+`gate:full` is held to `gate:fast`.
 
 ```json
-"gate:fast": "node tools/arch/gates/run.mts && eslint . && pnpm typecheck"
+"gate:fast": "node tools/arch/gates/run.mts && eslint . && pnpm typecheck",
+"gate:full": "pnpm gate:fast && pnpm test && pnpm build"
 ```
 
-It blocks once. If the gate is still red when the agent tries to stop a second
-time, the agent is let through to report the problem, so an unfixable finding
-ends in a message to you and never in a loop.
+The full gate takes minutes, so the hook does not run it on a tree that has
+already passed. After a green run it stores a hash of every file git does not
+ignore, in `node_modules/.cache/arch/`. While the hash is unchanged the agent
+finishes at once; after any edit it is held to the whole gate.
+
+- Outside a git repository there is nothing to hash, and the gate runs every
+  time.
+- A gate that does not finish in nine minutes is reported as "nothing is
+  verified", never as a pass. The hook's own timeout in the host's settings is
+  ten minutes.
+- It blocks once. If the gate is still red when the agent tries to stop a
+  second time, the agent is let through to report the problem, so an
+  unfixable finding ends in a message to you and never in a loop.
+
+It was `gate:fast` until a run with the smallest model stopped there with
+`gate:full` red and reported green
+([the record](../docs/small-model-2026-10-05.md)).
 
 ## Tests
 

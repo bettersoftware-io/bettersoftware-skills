@@ -114,3 +114,48 @@ export function readCodeLines(root: string, path: string): string[] {
     return code;
   });
 }
+
+/**
+ * Parses JSON that may hold comments, as `turbo.json` and `tsconfig.json` may.
+ * Returns undefined when it is not JSON even without them.
+ */
+export function parseJsonWithComments(text: string): unknown {
+  let json = "";
+  let index = 0;
+  let inString = false;
+
+  while (index < text.length) {
+    const character = text[index];
+
+    if (inString) {
+      json += character;
+
+      if (character === "\\") {
+        json += text[index + 1] ?? "";
+        index += 1;
+      } else if (character === '"') {
+        inString = false;
+      }
+
+      index += 1;
+    } else if (text.startsWith("//", index)) {
+      const end = text.indexOf("\n", index);
+
+      index = end === -1 ? text.length : end;
+    } else if (text.startsWith("/*", index)) {
+      const end = text.indexOf("*/", index);
+
+      index = end === -1 ? text.length : end + 2;
+    } else {
+      inString = character === '"';
+      json += character;
+      index += 1;
+    }
+  }
+
+  try {
+    return JSON.parse(json) as unknown;
+  } catch {
+    return undefined;
+  }
+}

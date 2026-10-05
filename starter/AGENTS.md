@@ -8,13 +8,15 @@ The rules below are enforced by checks, not by convention.
 ```bash
 pnpm dev          # the React client on the in-browser simulator (no server)
 pnpm dev:fs       # the server and the client together
-pnpm gate:fast    # architecture gates, lint, typecheck
-pnpm gate:full    # gate:fast, then tests and the build (what CI runs)
+pnpm gate:fast    # architecture gates, lint, typecheck: seconds, for while you work
+pnpm gate:full    # gate:fast, then tests and the build: what CI runs
 pnpm test
 ```
 
-Run `pnpm gate:fast` before you say work is finished. A red gate means the
-work is not finished.
+Run `pnpm gate:full` before you say work is finished. A red gate means the
+work is not finished, and `gate:fast` alone does not show that it is: it runs
+no test. The stop hook runs `gate:full` for you whenever a file has changed
+since it last passed.
 
 ## The layers
 

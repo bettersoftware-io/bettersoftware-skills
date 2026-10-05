@@ -1,12 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { editedFilesOf, judgeEdit } from "./after-edit.mts";
-import { judgeStop } from "./before-stop.mts";
+import { type GateRun, judgeStop } from "./before-stop.mts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const broken = join(here, "..", "gates", "fixtures", "broken");
@@ -99,27 +99,184 @@ describe("before the agent stops", () => {
     expect(judgeStop({ cwd: createProject({ "gate:fast": "false" }), stop_hook_active: true }, red)).toBeUndefined();
   });
 
-  it("runs the project's own script and reads its exit code", () => {
-    expect(judgeStop({ cwd: createProject({ "gate:fast": "node -e \"process.exit(0)\"" }) })).toBeUndefined();
-
-    const reason = judgeStop({
-      cwd: createProject({ "gate:fast": "node -e \"console.log('FAIL dumb-ui (1)'); process.exit(1)\"" }),
-    });
-
-    expect(reason).toContain("`gate:fast` is red");
-    expect(reason).toContain("FAIL dumb-ui (1)");
-  });
-
-  it("stays out of a project that has no fast gate", () => {
-    let ran = false;
-    const reason = judgeStop({ cwd: createProject({ test: "vitest" }) }, () => {
-      ran = true;
+  it("holds the agent to the full gate, the one CI runs, when the project has one", () => {
+    const asked: string[] = [];
+    const reason = judgeStop({ cwd: createProject({ "gate:fast": "true", "gate:full": "false" }) }, (_root, script) => {
+      asked.push(script);
 
       return red();
     });
 
+    expect(asked).toEqual(["gate:full"]);
+    expect(reason).toContain("`gate:full` is red");
+  });
+
+  it("runs the project's own script and reads its exit code", () => {
+    expect(judgeStop({ cwd: createProject({ "gate:full": "node -e \"process.exit(0)\"" }) })).toBeUndefined();
+
+    const reason = judgeStop({
+      cwd: createProject({ "gate:full": "node -e \"console.log('FAIL dumb-ui (1)'); process.exit(1)\"" }),
+    });
+
+    expect(reason).toContain("`gate:full` is red");
+    expect(reason).toContain("FAIL dumb-ui (1)");
+  });
+
+  it("stays out of a project that has no gate", () => {
+    const gate = createCountedGate(red);
+    const reason = judgeStop({ cwd: createProject({ test: "vitest" }) }, gate.run);
+
     expect(reason).toBeUndefined();
-    expect(ran).toBe(false);
+    expect(gate.runs()).toBe(0);
+  });
+
+  it("says a gate that did not finish verified nothing, and does not let the agent finish on it", () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const gate = createCountedGate(() => ({ status: 1, output: "", timedOut: true }));
+
+    expect(judgeStop({ cwd: project }, gate.run)).toContain("did not finish");
+    expect(judgeStop({ cwd: project }, gate.run)).toContain("did not finish");
+    expect(gate.runs()).toBe(2);
+  });
+});
+
+describe("a tree that has already passed", () => {
+  const green = () => ({ status: 0, output: "all gates passed." });
+
+  it("is not judged a second time, so an agent that changed nothing does not wait", () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const gate = createCountedGate(green);
+
+    judgeStop({ cwd: project }, gate.run);
+    judgeStop({ cwd: project }, gate.run);
+
+    expect(gate.runs()).toBe(1);
+  });
+
+  it("is judged again after a tracked file changes", () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const gate = createCountedGate(green);
+
+    judgeStop({ cwd: project }, gate.run);
+    writeFileSync(join(project, "src.ts"), "export const a = 2;\n");
+    judgeStop({ cwd: project }, gate.run);
+
+    expect(gate.runs()).toBe(2);
+  });
+
+  it("is judged again after a new file appears, and after one is deleted", () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const gate = createCountedGate(green);
+
+    judgeStop({ cwd: project }, gate.run);
+    writeFileSync(join(project, "new.ts"), "export const b = 1;\n");
+    judgeStop({ cwd: project }, gate.run);
+    rmSync(join(project, "src.ts"));
+    judgeStop({ cwd: project }, gate.run);
+
+    expect(gate.runs()).toBe(3);
+  });
+
+  it("is judged again after a file is renamed with its content unchanged", () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const gate = createCountedGate(green);
+
+    writeFileSync(join(project, "draft.ts"), "export const d = 1;\n");
+    judgeStop({ cwd: project }, gate.run);
+    renameSync(join(project, "draft.ts"), join(project, "moved.ts"));
+    judgeStop({ cwd: project }, gate.run);
+
+    expect(gate.runs()).toBe(2);
+  });
+
+  it("is judged again when an empty file is deleted, though no content changed", () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const gate = createCountedGate(green);
+
+    writeFileSync(join(project, "src.ts"), "");
+    judgeStop({ cwd: project }, gate.run);
+    rmSync(join(project, "src.ts"));
+    judgeStop({ cwd: project }, gate.run);
+
+    expect(gate.runs()).toBe(2);
+  });
+
+  it("is judged again when a link is pointed somewhere else", () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const gate = createCountedGate(green);
+
+    symlinkSync("src.ts", join(project, "link.ts"));
+    judgeStop({ cwd: project }, gate.run);
+    rmSync(join(project, "link.ts"));
+    symlinkSync("package.json", join(project, "link.ts"));
+    judgeStop({ cwd: project }, gate.run);
+
+    expect(gate.runs()).toBe(2);
+  });
+
+  it("is not judged again when a file is only staged", () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const gate = createCountedGate(green);
+
+    writeFileSync(join(project, "added.ts"), "export const c = 1;\n");
+    judgeStop({ cwd: project }, gate.run);
+    spawnSync("git", ["add", "added.ts"], { cwd: project });
+    judgeStop({ cwd: project }, gate.run);
+
+    expect(gate.runs()).toBe(1);
+  });
+
+  it("is not judged again for a change git ignores, such as a build's output", () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const gate = createCountedGate(green);
+
+    judgeStop({ cwd: project }, gate.run);
+    mkdirSync(join(project, "dist"));
+    writeFileSync(join(project, "dist", "out.js"), "built");
+    judgeStop({ cwd: project }, gate.run);
+
+    expect(gate.runs()).toBe(1);
+  });
+
+  it("is not remembered when the gate was red", () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const gate = createCountedGate(() => ({ status: 1, output: "FAIL" }));
+
+    judgeStop({ cwd: project }, gate.run);
+    judgeStop({ cwd: project }, gate.run);
+
+    expect(gate.runs()).toBe(2);
+  });
+
+  it("is judged again when the gate itself rewrote a file, since the tree is now another one", () => {
+    const project = createGitProject({ "gate:full": "true" });
+    let runs = 0;
+    const rewriteThenPass = (): GateRun => {
+      runs += 1;
+
+      if (runs === 1) {
+        writeFileSync(join(project, "src.ts"), "export const a = 3;\n");
+      }
+
+      return green();
+    };
+
+    judgeStop({ cwd: project }, rewriteThenPass);
+    judgeStop({ cwd: project }, rewriteThenPass);
+    judgeStop({ cwd: project }, rewriteThenPass);
+
+    expect(runs).toBe(2);
+  });
+
+  it("is judged every time where there is no git to say what changed", () => {
+    const project = createProject({ "gate:full": "true" });
+    const gate = createCountedGate(green);
+
+    judgeStop({ cwd: project }, gate.run);
+    judgeStop({ cwd: project }, gate.run);
+
+    expect(gate.runs()).toBe(2);
+    expect(existsSync(join(project, "node_modules"))).toBe(false);
   });
 });
 
@@ -143,4 +300,29 @@ function createProject(scripts: Record<string, string>): string {
   writeFileSync(join(root, "package.json"), JSON.stringify({ name: "p", scripts }));
 
   return root;
+}
+
+/** A project git knows about: one tracked source file, and a build folder it ignores. */
+function createGitProject(scripts: Record<string, string>): string {
+  const root = createProject(scripts);
+
+  writeFileSync(join(root, "src.ts"), "export const a = 1;\n");
+  writeFileSync(join(root, ".gitignore"), "node_modules/\ndist/\n");
+  spawnSync("git", ["init", "--quiet"], { cwd: root });
+  spawnSync("git", ["add", "src.ts", "package.json", ".gitignore"], { cwd: root });
+
+  return root;
+}
+
+function createCountedGate(result: () => GateRun): { run: () => GateRun; runs: () => number } {
+  let count = 0;
+
+  return {
+    run: (): GateRun => {
+      count += 1;
+
+      return result();
+    },
+    runs: (): number => count,
+  };
 }

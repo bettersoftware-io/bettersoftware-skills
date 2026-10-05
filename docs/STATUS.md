@@ -40,22 +40,6 @@ on 2026-10-05, on pushes to main and on a pull request
 
 ## Open decisions
 
-- **What the stop hook holds an agent to.** Today it is `gate:fast`, and
-  `AGENTS.md` says the same. The smallest model stopped exactly there, with
-  `gate:full` red, and reported green; told the full bar, it reached it. The
-  choices: the hook runs `gate:full` (every stop then waits for the tests, the
-  build and coverage); it runs `gate:full` only when files changed since the
-  last green run (needs a record of that); or only the sentence in `AGENTS.md`
-  changes (text, which a model may not follow).
-- **A contract may leave out a method of its port.** The `port-contracts` gate
-  checks that an adapter runs the contract, not that the contract calls each
-  method. A new method passed with no case. This is decidable from source and
-  is not built.
-- **The task-cache check is not in the kit.** `scripts/check-task-cache.mts`
-  runs in this repository's CI against a created project. A project that edits
-  its `turbo.json` can bring the stale results back, and nothing in the
-  project would say so.
-
 - **Nothing says when a new pattern earns a row in the `AGENTS.md` table.** The
   `agent-docs` gate fails on a row that points at a file that is gone; it
   cannot know that a row is missing. In the REST run the agent built a new
@@ -85,6 +69,22 @@ on 2026-10-05, on pushes to main and on a pull request
   watched an agent do.
 
 ## Known limits
+
+- **The stop hook does not run the visual tests.** `pnpm visual` is outside
+  `gate:full` on purpose, so an agent can still finish with stale goldens. CI's
+  `Visual goldens` job is what catches that.
+- **The stop hook reads every file git does not ignore, on every stop,** to
+  know whether the tree changed. Not measured on a large repository.
+- **A stop-hook gate that is cut off at nine minutes may leave its child
+  processes running.** The hook stops the command it started, not what that
+  command started.
+- **"The contract calls the method" is not "the contract tests it".** The gate
+  finds a method the contract never calls. A call with no assertion passes.
+  A port member typed with a name (`latest: Fetcher`) is not read as a method.
+- **The `task-cache` gate reads `turbo.json`; it does not ask turbo.**
+  `scripts/check-task-cache.mts`, which does ask, runs only in this
+  repository's CI, as the proof that the rule the gate applies is the right
+  one.
 
 - **In the starter, the integration example catches nothing its neighbours
   miss.** Eight mutants in the server and the client adapter were each caught

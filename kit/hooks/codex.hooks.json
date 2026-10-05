@@ -12,7 +12,7 @@
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "node tools/arch/hooks/before-stop.mts", "statusMessage": "Running the fast gate", "timeout": 300 }
+          { "type": "command", "command": "node tools/arch/hooks/before-stop.mts", "statusMessage": "Running the gate", "timeout": 600 }
         ]
       }
     ]

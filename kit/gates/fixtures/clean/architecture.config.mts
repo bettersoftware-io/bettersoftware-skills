@@ -7,4 +7,7 @@ export default {
     "packages/integration": { role: "integration" },
   },
   adapters: ["packages/domain/src/simulators", "packages/client-core/src/adapters"],
+  tasksThatReadNothingUpstream: {
+    format: "the formatter reads one file at a time and resolves no import",
+  },
 };

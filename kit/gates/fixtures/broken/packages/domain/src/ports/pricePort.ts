@@ -7,4 +7,6 @@ export interface Price {
 
 export interface PricePort {
   prices(): Observable<Price>;
+  history(symbol: string): Observable<Price[]>;
+  latest: (symbol: string) => Observable<Price>;
 }

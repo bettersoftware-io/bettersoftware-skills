@@ -44,6 +44,8 @@ export interface ArchitectureConfig {
   javascriptAllowed?: Record<string, string>;
   /** The files that tell an agent how to work here. Every path they name must exist. */
   instructionFiles?: string[];
+  /** Cached task → the reason its result cannot depend on another package's source. */
+  tasksThatReadNothingUpstream?: Record<string, string>;
 }
 
 export type ResolvedConfig = Required<ArchitectureConfig>;
@@ -124,6 +126,7 @@ const DEFAULTS: Omit<ResolvedConfig, "packages"> = {
   language: "typescript",
   javascriptAllowed: {},
   instructionFiles: ["AGENTS.md", "CLAUDE.md"],
+  tasksThatReadNothingUpstream: {},
 };
 
 const CLIENT_DEFAULTS = {

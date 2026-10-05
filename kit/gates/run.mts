@@ -20,6 +20,7 @@ import { isMainModule } from "./lib/files.mts";
 import { checkInstructionPaths, instructionsSkipReason } from "./lib/instructions.mts";
 import { checkLanguage, languageSkipReason } from "./lib/language.mts";
 import { checkStructure, checkStructureOfFiles } from "./lib/structure.mts";
+import { checkTaskCache, taskCacheSkipReason } from "./lib/task-cache.mts";
 import { checkDumbUi, dumbUiSkipReason } from "./lib/ui-bans.mts";
 
 export interface GateOptions {
@@ -56,12 +57,13 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
   }
 
   return {
-    gates: ["structure", "typescript-only", "dumb-ui", "port-contracts", "dependencies", "agent-docs"],
+    gates: ["structure", "typescript-only", "dumb-ui", "port-contracts", "dependencies", "agent-docs", "task-cache"],
     skipped: dropUndefined({
       "typescript-only": languageSkipReason(project),
       "dumb-ui": dumbUiSkipReason(project),
       "port-contracts": portContractsSkipReason(project),
       "agent-docs": instructionsSkipReason(project),
+      "task-cache": taskCacheSkipReason(project),
     }),
     findings: [
       ...checkStructure(project),
@@ -70,6 +72,7 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
       ...checkPortContracts(project),
       ...checkDependencies(project),
       ...checkInstructionPaths(project),
+      ...checkTaskCache(project),
     ],
   };
 }

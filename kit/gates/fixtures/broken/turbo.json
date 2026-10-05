@@ -1,0 +1,24 @@
+{
+  "tasks": {
+    "build": {
+      "outputs": [
+        "dist/**"
+      ]
+    },
+    "typecheck": {
+      "dependsOn": [
+        "build"
+      ]
+    },
+    "test": {},
+    "lint": {
+      "dependsOn": [
+        "lint"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

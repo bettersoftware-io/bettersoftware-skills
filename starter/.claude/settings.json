@@ -18,7 +18,7 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/tools/arch/hooks/before-stop.mts\"",
-            "timeout": 300
+            "timeout": 600
           }
         ]
       }

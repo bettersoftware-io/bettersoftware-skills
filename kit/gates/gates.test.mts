@@ -27,6 +27,7 @@ describe("a project that follows the rules", () => {
       "port-contracts",
       "dependencies",
       "agent-docs",
+      "task-cache",
     ]);
     expect(result.skipped).toEqual({});
     expect(formatFindings(result)).toContain("all gates passed.");
@@ -112,6 +113,40 @@ describe("a project that breaks the rules", () => {
     expect(messages("port-contracts", "packages/domain/src/ports/orderPort.ts")).toContain("OrderPort has no contract test");
     expect(messages("port-contracts", "packages/client-core/src/adapters/wsPrice.ts")).toContain("describePricePortContract");
     expect(of("port-contracts", "packages/domain/src/simulators/priceSimulator.ts")).toEqual([]);
+  });
+
+  it("names a port method its contract never calls, and is not fooled by a comment", () => {
+    const uncalled = messages("port-contracts", "packages/domain/src/ports/__contracts__/PricePortContract.ts");
+
+    expect(uncalled).toContain("never calls history(");
+    expect(uncalled).toContain("never calls latest(");
+    expect(uncalled).not.toContain("never calls prices(");
+  });
+
+  it("names a port that is not declared as an interface, since its methods cannot be read", () => {
+    expect(messages("port-contracts", "packages/domain/src/ports/quotePort.ts")).toContain(
+      "does not declare `interface QuotePort`",
+    );
+  });
+
+  it("names every cached task whose key ignores the packages it imports", () => {
+    const blind = of("task-cache", "turbo.json").map((finding) => finding.message);
+
+    expect(blind.filter((message) => message.startsWith("The task"))).toHaveLength(4);
+    expect(blind.join("\n")).toContain('The task "build"');
+    expect(blind.join("\n")).toContain('The task "typecheck"');
+    expect(blind.join("\n")).toContain('The task "test"');
+    expect(blind.join("\n")).toContain('The task "lint"');
+    expect(blind.join("\n")).not.toContain('The task "dev"');
+  });
+
+  it("names a shared tsconfig that no task's cache key includes", () => {
+    expect(messages("task-cache", "turbo.json")).toContain(
+      "packages/domain/tsconfig.json extends tsconfig.base.json",
+    );
+    expect(messages("task-cache", "turbo.json")).toContain(
+      "packages/client-core/tsconfig.json extends tsconfig.base.json",
+    );
   });
 
   it("names an import that points outward", () => {
@@ -232,6 +267,7 @@ describe("a gate with nothing to judge", () => {
       "dumb-ui": "no UI files were found, so there was nothing to check",
       "port-contracts": "no port interfaces were found, so there was nothing to check",
       "agent-docs": "no AGENTS.md or CLAUDE.md was found, so there was nothing to check",
+      "task-cache": "no turbo.json was found, so there was nothing to check",
     });
     expect(report).toContain("SKIP dumb-ui");
     expect(report).toContain("SKIP port-contracts");

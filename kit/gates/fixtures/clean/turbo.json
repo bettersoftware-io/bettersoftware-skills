@@ -1,0 +1,13 @@
+{
+  // Comments are allowed in this file.
+  "globalDependencies": ["tsconfig.base.json"],
+  "tasks": {
+    "build": { "dependsOn": ["^build"], "outputs": ["dist/**"] },
+    "transit": { "dependsOn": ["^transit"] },
+    "typecheck": { "dependsOn": ["transit"] },
+    "test": { "dependsOn": ["typecheck"] },
+    "format": {},
+    "dev": { "cache": false, "persistent": true },
+    "//#lint": {}
+  }
+}

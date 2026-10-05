@@ -11,7 +11,7 @@
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/tools/arch/hooks/before-stop.mts\"", "timeout": 300 }
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/tools/arch/hooks/before-stop.mts\"", "timeout": 600 }
         ]
       }
     ]
