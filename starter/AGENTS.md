@@ -29,6 +29,7 @@ the gates read; a package that is not listed there fails.
 | `packages/react-bindings` | bindings | The view model: the only place RxJS meets React | core, domain |
 | `packages/client-react` | client | `src/app` (composition root) and `src/ui` (dumb components) | bindings, core, domain |
 | `packages/server` | server | The WebSocket server | domain, shared |
+| `packages/integration` | integration | Tests that run a client adapter against the real server. Tests only | every package above; nothing imports it |
 
 ## Where a thing goes
 
@@ -42,6 +43,9 @@ the gates read; a package that is not listed there fails.
   adapter sees a wire message.
 - **It reads configuration or picks an adapter**: the composition root,
   `client-react/src/app`. Nowhere else.
+- **It checks that the client and the server agree**: a test in
+  `packages/integration`, the only package that may import both. Each side's
+  own tests stay where they are; this is for what neither can see alone.
 - **It is drawn on screen**: a component in `client-react/src/ui`, reading from
   the view model. No RxJS, storage, `fetch`, environment or timers there.
 
@@ -58,6 +62,7 @@ The price list is a worked example of every one of these. Copy its shape:
 | State machine (per-component state) | `packages/client-core/src/machines/selectionMachine.ts` |
 | View model | `packages/react-bindings/src/createViewModel.ts` |
 | Composition root | `packages/client-react/src/app/startApp.tsx` |
+| Client adapter against the real server | `packages/integration/src/priceOverWebSocket.test.ts` |
 | Dumb component | `packages/client-react/src/ui/PriceList.tsx` |
 | Page object and its test | `packages/client-react/src/ui/PriceList.page.tsx`, `PriceList.test.tsx` |
 

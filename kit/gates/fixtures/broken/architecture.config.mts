@@ -4,6 +4,7 @@ export default {
     "packages/client-core": { role: "core" },
     "packages/react-bindings": { role: "bindings" },
     "packages/client-react": { role: "client" },
+    "packages/checks": { role: "integration" },
   },
   adapters: ["packages/domain/src/simulators", "packages/client-core/src/adapters"],
   javascriptAllowed: {

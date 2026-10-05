@@ -12,6 +12,7 @@
 // bindings         core, domain, leaf
 // client           bindings, core, domain, leaf
 // server           domain, shared, leaf
+// integration      every role above. Nothing may import it; it holds only tests
 
 import type { ArchitectureConfig } from "./tools/arch/gates/lib/config.mts";
 
@@ -36,6 +37,10 @@ const config: ArchitectureConfig = {
     "packages/client-react": { role: "client" },
 
     "packages/server": { role: "server" },
+
+    // Tests that run two sides against each other, such as a client adapter
+    // against the real server. The one package that may import every layer.
+    "packages/integration": { role: "integration" },
   },
 
   // Folders whose modules implement ports. Each one that implements a port

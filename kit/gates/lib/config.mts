@@ -6,7 +6,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-export type Role = "domain" | "shared" | "core" | "bindings" | "client" | "server" | "leaf";
+export type Role = "domain" | "shared" | "core" | "bindings" | "client" | "server" | "leaf" | "integration";
 
 export interface PackageDeclaration {
   role: Role;
@@ -42,6 +42,8 @@ export interface ArchitectureConfig {
   language?: "typescript" | "javascript";
   /** JavaScript file → the reason its loader cannot read TypeScript. */
   javascriptAllowed?: Record<string, string>;
+  /** The files that tell an agent how to work here. Every path they name must exist. */
+  instructionFiles?: string[];
 }
 
 export type ResolvedConfig = Required<ArchitectureConfig>;
@@ -79,9 +81,26 @@ export interface Finding {
   message: string;
 }
 
-export const ROLES: readonly Role[] = ["domain", "shared", "core", "bindings", "client", "server", "leaf"];
+export const ROLES: readonly Role[] = [
+  "domain",
+  "shared",
+  "core",
+  "bindings",
+  "client",
+  "server",
+  "leaf",
+  "integration",
+];
 
-/** Which roles a package of each role may import. Anything else is forbidden. */
+/**
+ * Which roles a package of each role may import. Anything else is forbidden.
+ *
+ * `integration` is the one role that may import every other: it holds the
+ * tests that run two sides against each other (a client adapter against the
+ * real server), which no package inside the layers is allowed to do. No role
+ * lists it, so nothing can import it, and the structure gate holds it to
+ * tests only.
+ */
 export const ROLE_MAY_IMPORT: Record<Role, readonly Role[]> = {
   domain: [],
   leaf: [],
@@ -90,6 +109,7 @@ export const ROLE_MAY_IMPORT: Record<Role, readonly Role[]> = {
   bindings: ["core", "domain", "leaf"],
   client: ["bindings", "core", "domain", "leaf"],
   server: ["domain", "shared", "leaf"],
+  integration: ["domain", "shared", "core", "bindings", "client", "server", "leaf"],
 };
 
 /** Tried in order. A TypeScript project declares its layers in TypeScript. */
@@ -103,6 +123,7 @@ const DEFAULTS: Omit<ResolvedConfig, "packages"> = {
   contractExempt: {},
   language: "typescript",
   javascriptAllowed: {},
+  instructionFiles: ["AGENTS.md", "CLAUDE.md"],
 };
 
 const CLIENT_DEFAULTS = {

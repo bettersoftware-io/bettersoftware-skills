@@ -19,6 +19,12 @@ const SKIPPED_DIRECTORIES = new Set([
   ".expo",
   ".cache",
 ]);
+
+/** True when the path goes through a folder of installed or generated files. */
+export function isGeneratedPath(path: string): boolean {
+  return path.split("/").some((segment) => SKIPPED_DIRECTORIES.has(segment));
+}
+
 const SOURCE_FILE = /\.(ts|tsx|mts|js|jsx|mjs|cjs)$/;
 const TEST_FILE = /(\.(test|spec)\.[cm]?[jt]sx?$|\/__tests__\/|\/__testUtils__\/)/;
 

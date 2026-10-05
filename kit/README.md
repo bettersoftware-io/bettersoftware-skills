@@ -15,7 +15,7 @@ directly by stripping the types, which needs Node 22.18 or later, and
 
 | Part | What it checks | Needs |
 |---|---|---|
-| `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction | Node; `dependency-cruiser` for the last gate |
+| `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction, the paths the agent instructions name | Node; `dependency-cruiser` for the dependency gate |
 | `eslint.config.mts` + `eslint-rules/` | Twelve AST lint rules: naming, reading order, fixtures, page objects, no real sleeps in tests | `eslint`, `typescript-eslint` |
 | `hooks/after-edit.mts` | Runs the per-file gates on the file an agent just wrote | Claude Code or Codex |
 | `hooks/before-stop.mts` | Refuses to let an agent finish while `gate:fast` is red | Claude Code or Codex |
@@ -27,11 +27,12 @@ A project declares its layers once, in `architecture.config.mts`
 
 | Gate | Fails when |
 |---|---|
-| `structure` | A workspace package has no declared role; a required role is missing; the domain has no ports folder; a package has a runtime dependency outside its closed list; a client holds source outside its composition root and its UI folder |
+| `structure` | A workspace package has no declared role; a required role is missing; the domain has no ports folder; a package has a runtime dependency outside its closed list; a client holds source outside its composition root and its UI folder; an integration package holds anything but tests |
 | `typescript-only` | The project holds a `.js`, `.jsx`, `.mjs` or `.cjs` source file that is not listed as an exception |
 | `dumb-ui` | A UI file imports the stream library, touches storage, reads configuration, opens a connection, or sets a timer |
 | `port-contracts` | A port has no contract test, or an adapter folder that implements a port does not run that port's contract |
-| `dependencies` | An import points outward; the domain uses a Node built-in; the core imports a UI framework; the UI imports the composition root or an adapter; there is a cycle |
+| `dependencies` | An import points outward; the domain uses a Node built-in; the core imports a UI framework; the UI imports the composition root or an adapter; anything imports an integration package; there is a cycle |
+| `agent-docs` | `AGENTS.md` or `CLAUDE.md` names a file or folder that does not exist |
 
 ```bash
 node tools/arch/gates/run.mts                 # every gate
@@ -56,6 +57,40 @@ javascriptAllowed: {
 A project on a runtime too old to run `.mts` declares `language: "javascript"`
 (in an `architecture.config.mjs`). The gate then reports `SKIP` with that
 reason; it does not quietly pass.
+
+### The integration role: where the two sides meet
+
+The layer rules keep the client from importing the server, so each side is
+tested against the shared protocol alone. Nothing inside the layers can show
+that the two agree. A package with the role `integration` is the one place
+that may import every other package, so it can run a client adapter against
+the real server.
+
+Two rules keep that from becoming a way round the layers:
+
+- nothing may import an integration package (`dependencies`);
+- it holds only tests: files named `*.test.ts`, and helpers in a
+  `__testUtils__` folder (`structure`).
+
+### The paths the agent instructions name
+
+`AGENTS.md` says which file shows each pattern. When such a file is renamed or
+deleted, the line still reads well, and an agent told to copy a file that is
+gone invents one. The `agent-docs` gate fails on a path that does not exist.
+
+It judges only what it can judge without guessing:
+
+| Judged | Not judged |
+|---|---|
+| A path in backticks whose first part exists at the repository root (`packages/…`, `tools/…`); a `:line` suffix is ignored | A path that starts somewhere else (`src/app`, `client-core/src`) |
+| The target of a relative link | A web link, a link out of the repository |
+| | Anything with a placeholder or a wildcard, a command, a fenced code block |
+| | A folder of generated files (`dist`, `coverage`, `reports`, `node_modules`) |
+| | A block a tool manages, from `<!-- BEGIN:name -->` to `<!-- END:name -->` |
+
+It does not know when a new pattern deserves a row: that is judgement. The
+files it reads are `instructionFiles` in the config (default `AGENTS.md` and
+`CLAUDE.md`).
 
 ### A gate that judged nothing has not passed
 

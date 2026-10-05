@@ -12,6 +12,7 @@ import type { ArchitectureConfig } from "./tools/arch/gates/lib/config.mts";
 // bindings   core, domain, leaf
 // client     bindings, core, domain, leaf
 // server     domain, shared, leaf
+// integration  every role above; nothing may import it, and it holds only tests
 const config: ArchitectureConfig = {
   packages: {
     "packages/domain": { role: "domain", npm: ["rxjs"] },
@@ -20,6 +21,7 @@ const config: ArchitectureConfig = {
     "packages/react-bindings": { role: "bindings" },
     "packages/client-react": { role: "client", entry: ["main.tsx", "index.css", "*.d.ts"] },
     "packages/server": { role: "server" },
+    "packages/integration": { role: "integration" },
   },
 
   // Folders whose modules implement ports. Each must run the contract test of

@@ -1,0 +1,9 @@
+{
+  "name": "@fx/integration",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@fx/client-core": "workspace:*",
+    "@fx/domain": "workspace:*"
+  }
+}

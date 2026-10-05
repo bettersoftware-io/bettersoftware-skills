@@ -1,0 +1,11 @@
+{
+  "name": "@fx/checks",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*"
+  },
+  "devDependencies": {
+    "@fx/client-core": "workspace:*"
+  }
+}

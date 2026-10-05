@@ -258,6 +258,24 @@ importers:
         specifier: ^7.8.2
         version: 7.8.2
 
+  packages/integration:
+    devDependencies:
+      '@app/client-core':
+        specifier: workspace:*
+        version: link:../client-core
+      '@app/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@app/server':
+        specifier: workspace:*
+        version: link:../server
+      '@app/shared':
+        specifier: workspace:*
+        version: link:../shared
+      rxjs:
+        specifier: ^7.8.2
+        version: 7.8.2
+
   packages/react-bindings:
     dependencies:
       '@app/client-core':

@@ -40,18 +40,15 @@ on 2026-10-05, on pushes to main and on a pull request
 
 ## Open decisions
 
-- **Nothing asks an agent to add a new pattern to the `AGENTS.md` table.** The
-  REST feature added a request-and-response port and a form machine; the table
-  still points only at the price list. Either the table is a fixed set of
-  examples, or a rule should say when a row is added.
-- **Nothing runs a client adapter against the real server.** The layer rule
-  keeps the client from importing the server, so each side is tested against
-  the shared protocol alone and the route table can drift. A test tier that
-  may import both is the usual answer, and does not exist.
-
+- **Nothing says when a new pattern earns a row in the `AGENTS.md` table.** The
+  `agent-docs` gate fails on a row that points at a file that is gone; it
+  cannot know that a row is missing. In the REST run the agent built a new
+  kind of port with no row to copy and nothing went wrong, so no rule is
+  written yet.
 - **Coverage is measured per package, by that package's own tests.** A file
-  only exercised from another package's test reads 0%. Merging across packages
-  would credit it, and is not built.
+  only exercised from another package's test reads 0%, and the tests in an
+  integration package credit nothing (it reads `SKIP`: no file to measure).
+  Merging across packages would credit them, and is not built.
 - **Nothing checks that the core reaches the clock through a port.** In the
   Codex run a presenter read `new Date()` directly. A check for `Date` in the
   domain and the core is decidable from source, and does not exist.
@@ -72,6 +69,14 @@ on 2026-10-05, on pushes to main and on a pull request
   watched an agent do.
 
 ## Known limits
+
+- **In the starter, the integration example catches nothing its neighbours
+  miss.** Eight mutants in the server and the client adapter were each caught
+  both by the integration tests and by that side's own tests. It is there as
+  the pattern to copy; the case it exists for is a client adapter and server
+  routes that are each tested against a fake of the other.
+- **The integration example opens a real port**, so it cannot run in Codex's
+  sandbox, like the server's own tests.
 
 - **The `typescript-only` gate does not look inside `tools/coverage/`.** The
   kit's file walker skips every folder called `coverage`, since that is where

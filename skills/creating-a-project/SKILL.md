@@ -6,7 +6,7 @@ description: Use when starting a new TypeScript application or monorepo that sho
 # Creating a project
 
 A project is created by a script, never written by hand. The script copies
-files that were tested together: six packages holding one feature built the
+files that were tested together: seven packages holding one feature built the
 way every feature is meant to be built, the architecture gates, the lint
 rules, the agent hooks, the CI workflow and the lockfile. A project written
 from scratch has none of the checks, and the checks are the point.

@@ -5,7 +5,14 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
-import type { ClientPackage, Finding, Project, ResolvedConfig, WorkspacePackage } from "./config.mts";
+import type {
+  ClientPackage,
+  DeclaredPackage,
+  Finding,
+  Project,
+  ResolvedConfig,
+  WorkspacePackage,
+} from "./config.mts";
 import { packagesWithRole } from "./config.mts";
 import { isInside, isTestFile, listSourceFiles, matchesName } from "./files.mts";
 
@@ -19,14 +26,20 @@ export function checkStructure({ root, config, workspace }: Project): Finding[] 
     ...checkPortsFolder(root, config),
     ...checkNpmAllowlists(root, config, workspace),
     ...packagesWithRole(config, "client").flatMap((client) => checkClientLayout(root, client)),
+    ...packagesWithRole(config, "integration").flatMap((integration) => checkHoldsOnlyTests(root, integration)),
   ];
 }
 
 /** Layout findings for some files only — the after-edit path. */
 export function checkStructureOfFiles({ root, config }: Project, files: string[]): Finding[] {
-  return packagesWithRole(config, "client").flatMap((client) =>
-    checkClientLayout(root, client, files.filter((file) => isInside(file, client.path))),
-  );
+  return [
+    ...packagesWithRole(config, "client").flatMap((client) =>
+      checkClientLayout(root, client, files.filter((file) => isInside(file, client.path))),
+    ),
+    ...packagesWithRole(config, "integration").flatMap((integration) =>
+      checkHoldsOnlyTests(root, integration, files.filter((file) => isInside(file, integration.path))),
+    ),
+  ];
 }
 
 function checkEveryPackageIsDeclared(config: ResolvedConfig, workspace: WorkspacePackage[]): Finding[] {
@@ -147,4 +160,21 @@ function checkClientLayout(root: string, client: ClientPackage, onlyFiles?: stri
   }
 
   return findings;
+}
+
+/**
+ * An integration package may import every layer, so it must not become a
+ * place to put code the layers forbid. It holds tests and their helpers only.
+ */
+function checkHoldsOnlyTests(root: string, integration: DeclaredPackage, onlyFiles?: string[]): Finding[] {
+  const source = `${integration.path}/src`;
+
+  return (onlyFiles ?? listSourceFiles(root, source))
+    .filter((file) => isInside(file, source) && !isTestFile(file))
+    .map((file) => ({
+      gate: GATE,
+      file,
+      message:
+        "An integration package holds only tests: files named *.test.ts, and helpers in a __testUtils__ folder. This package may import every layer, so production code here would escape every dependency rule. Move the code to the package whose layer it belongs to.",
+    }));
 }

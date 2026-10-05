@@ -20,7 +20,14 @@ describe("a project that follows the rules", () => {
     const result = await runGates({ root: clean });
 
     expect(result.findings).toEqual([]);
-    expect(result.gates).toEqual(["structure", "typescript-only", "dumb-ui", "port-contracts", "dependencies"]);
+    expect(result.gates).toEqual([
+      "structure",
+      "typescript-only",
+      "dumb-ui",
+      "port-contracts",
+      "dependencies",
+      "agent-docs",
+    ]);
     expect(result.skipped).toEqual({});
     expect(formatFindings(result)).toContain("all gates passed.");
   });
@@ -114,6 +121,31 @@ describe("a project that breaks the rules", () => {
     expect(outward).toContain("domain-no-node-builtins");
   });
 
+  it("names production code in an integration package, and leaves its tests alone", () => {
+    expect(messages("structure", "packages/checks/src/retryPolicy.ts")).toContain("holds only tests");
+    expect(of("structure", "packages/checks/src/priceAgreement.test.ts")).toEqual([]);
+  });
+
+  it("names a package that imports the integration tier", () => {
+    expect(messages("dependencies", "packages/client-core/src/usesTheChecks.ts")).toContain(
+      "client-core-imports-inward-only",
+    );
+  });
+
+  it("names every path in the agent instructions that does not exist, with its line", () => {
+    expect(of("agent-docs").map(({ file, line }) => `${file}:${line}`)).toEqual([
+      "AGENTS.md:7",
+      "AGENTS.md:8",
+      "AGENTS.md:10",
+      "AGENTS.md:16",
+      "CLAUDE.md:1",
+    ]);
+    expect(messages("agent-docs", "AGENTS.md")).toContain("packages/client-core/src/presenters/pricesPresenter.ts");
+    expect(messages("agent-docs", "AGENTS.md")).toContain("packages/client-react/src/ui/PriceList.page.tsx");
+    expect(messages("agent-docs", "AGENTS.md")).toContain("tools/arch/docs/review.md");
+    expect(messages("agent-docs", "AGENTS.md")).not.toContain("pricePort.ts");
+  });
+
   it("names the UI importing the composition root and an adapter", () => {
     const edges = messages("dependencies", UI);
 
@@ -130,6 +162,15 @@ describe("the per-file path the editor hook uses", () => {
     expect(new Set(result.findings.map((finding) => finding.file))).toEqual(
       new Set([UI, "packages/client-react/src/feed.ts"]),
     );
+  });
+
+  it("judges a file in an integration package", async () => {
+    const result = await runGates({
+      root: broken,
+      files: ["packages/checks/src/retryPolicy.ts", "packages/checks/src/priceAgreement.test.ts"],
+    });
+
+    expect(result.findings.map((finding) => finding.file)).toEqual(["packages/checks/src/retryPolicy.ts"]);
   });
 
   it("ignores a file outside the project and a file that no longer exists", async () => {
@@ -190,6 +231,7 @@ describe("a gate with nothing to judge", () => {
     expect(result.skipped).toEqual({
       "dumb-ui": "no UI files were found, so there was nothing to check",
       "port-contracts": "no port interfaces were found, so there was nothing to check",
+      "agent-docs": "no AGENTS.md or CLAUDE.md was found, so there was nothing to check",
     });
     expect(report).toContain("SKIP dumb-ui");
     expect(report).toContain("SKIP port-contracts");

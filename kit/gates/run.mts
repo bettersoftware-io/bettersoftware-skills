@@ -17,6 +17,7 @@ import { ConfigError, loadConfig } from "./lib/config.mts";
 import { checkPortContracts, portContractsSkipReason } from "./lib/contracts.mts";
 import { checkDependencies } from "./lib/depcruise.mts";
 import { isMainModule } from "./lib/files.mts";
+import { checkInstructionPaths, instructionsSkipReason } from "./lib/instructions.mts";
 import { checkLanguage, languageSkipReason } from "./lib/language.mts";
 import { checkStructure, checkStructureOfFiles } from "./lib/structure.mts";
 import { checkDumbUi, dumbUiSkipReason } from "./lib/ui-bans.mts";
@@ -55,11 +56,12 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
   }
 
   return {
-    gates: ["structure", "typescript-only", "dumb-ui", "port-contracts", "dependencies"],
+    gates: ["structure", "typescript-only", "dumb-ui", "port-contracts", "dependencies", "agent-docs"],
     skipped: dropUndefined({
       "typescript-only": languageSkipReason(project),
       "dumb-ui": dumbUiSkipReason(project),
       "port-contracts": portContractsSkipReason(project),
+      "agent-docs": instructionsSkipReason(project),
     }),
     findings: [
       ...checkStructure(project),
@@ -67,6 +69,7 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
       ...checkDumbUi(project),
       ...checkPortContracts(project),
       ...checkDependencies(project),
+      ...checkInstructionPaths(project),
     ],
   };
 }
