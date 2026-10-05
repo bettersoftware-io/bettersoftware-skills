@@ -1,0 +1,78 @@
+name: CI security
+
+# The supply-chain checks that need the network, which is why they are here
+# and not in `pnpm gate:full`:
+#
+#   workflow lint  actionlint asks whether each workflow is valid, zizmor
+#                  whether it is safe (injection, kept credentials, wide
+#                  permissions, an action that is not pinned)
+#   audit          known advisories in the production dependencies
+#
+# The weekly run is for the day an advisory is published and nothing is
+# pushed: the lockfile has not changed, but what is known about it has.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * 1"
+
+# A newer push to the same branch cancels the run in flight: only the newest
+# commit's verdict is of use.
+concurrency:
+  group: ci-security-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # No dependency is installed in this job, so no code from a package runs
+  # where the token is. The tool is plain Node. It downloads each linter as a
+  # pinned release and checks its sha256 before it runs it.
+  workflow-lint:
+    name: workflow lint (actionlint · zizmor)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Workflow lint (actionlint)
+        run: node tools/ci-security/lint-workflows.mts actionlint
+
+      # With a token zizmor also asks GitHub about each action: a known
+      # advisory, a commit that is not in the repository it names. Without
+      # one, as on a laptop, it runs only the checks that need no network, so
+      # this run is the complete one. The token can read and nothing else.
+      - name: Workflow security lint (zizmor)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/ci-security/lint-workflows.mts zizmor
+
+  # Reads the lockfile and asks the registry. Nothing is installed, so no
+  # package's install script runs.
+  audit:
+    name: pnpm audit (production dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Enable Corepack (provisions the pnpm pinned by the packageManager field)
+        run: corepack enable
+
+      # Development dependencies are not judged here. Dependency Review
+      # judges them, on the pull request that brings them in.
+      - name: Known advisories in the production dependencies
+        run: pnpm audit --prod

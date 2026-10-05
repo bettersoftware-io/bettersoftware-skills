@@ -1,0 +1,49 @@
+name: Dependency Review
+
+# Judges what a pull request changes in the dependencies: it fails one that
+# brings in, or moves to, a version with a known advisory, or a package under a
+# strong-copyleft licence. No other check looks at this:
+#
+#   - `pnpm audit --prod` reads the whole tree, but only production
+#     dependencies. Build tools and test runners are the code that runs in CI.
+#   - Dependabot's cooldown is about how new a release is, not what is known
+#     about it, and its security updates act after the version is on main.
+#   - Nothing else reads licences.
+#
+# It asks GitHub for the difference between the two dependency graphs, so it
+# needs no checkout and no install. The repository must have the dependency
+# graph switched on; without it this job fails and says so.
+
+on:
+  pull_request:
+
+# A newer push to the same pull request cancels the run in flight.
+concurrency:
+  group: dependency-review-${{ github.ref }}
+  cancel-in-progress: true
+
+# Read only: the verdict goes to the job summary, not to a comment.
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    name: dependency review (advisories · licences)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          # Any known advisory blocks. The policy is none, not a budget.
+          fail-on-severity: low
+          # The action's default is `runtime` only. `development` is the scope
+          # `pnpm audit --prod` cannot see, so it is the reason this is here.
+          fail-on-scopes: runtime, development
+          # A list of what is refused, not of what is allowed. Strong copyleft
+          # is the class that changes what the project may do with its own
+          # code. A list of allowed licences would fail a pull request on
+          # every harmless one nobody thought to write down. A licence the
+          # action cannot read only warns.
+          deny-licenses: >-
+            AGPL-1.0-only, AGPL-1.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later,
+            GPL-2.0-only, GPL-2.0-or-later, GPL-3.0-only, GPL-3.0-or-later,
+            SSPL-1.0

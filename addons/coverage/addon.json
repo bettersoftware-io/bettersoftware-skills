@@ -1,6 +1,7 @@
 {
   "name": "coverage",
   "summary": "A per-file coverage gate for every package, a ranked list of the gaps, a check that proves a test can fail, and a published coverage report.",
+  "recommended": true,
   "packageJson": {
     ".": {
       "scripts": {

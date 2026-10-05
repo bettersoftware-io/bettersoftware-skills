@@ -1,6 +1,7 @@
-import { type Movement, type PricePort, type PriceTick, trackMovement } from "@app/domain";
 import { type DefaultedStateObservable, state } from "@rx-state/core";
 import { concat, groupBy, map, mergeMap, type Observable, of, scan, switchMap, timer } from "rxjs";
+
+import { type Movement, type PricePort, type PriceTick, trackMovement } from "@app/domain";
 
 /** How long a symbol can go without a price before its row is shown as stale. */
 export const STALE_AFTER_MS = 5000;

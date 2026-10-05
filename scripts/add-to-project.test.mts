@@ -246,6 +246,21 @@ describe("adding an add-on", () => {
     expect(readJson(project, "packages/api/package.json").scripts["test:demo"]).toBe("demo --filter @acme/web");
   });
 
+  it("keeps a package's dependencies in order, as a person adding one by hand would", () => {
+    const { repository, project } = createWorldWithKit();
+    const manifest = readJson(project, "package.json");
+
+    manifest.devDependencies = { "a-tool": "^1.0.0", "z-tool": "^1.0.0" };
+    manifest.scripts = { ...manifest.scripts, zebra: "true" };
+    write(project, "package.json", `${JSON.stringify(manifest, null, 2)}\n`);
+
+    addToProject({ project, unit: "demo", repository });
+
+    expect(Object.keys(readJson(project, "package.json").devDependencies)).toEqual(["a-tool", "demo-tool", "z-tool"]);
+    // Scripts are in the order their author chose, and stay so.
+    expect(Object.keys(readJson(project, "package.json").scripts).at(-1)).toBe("demo");
+  });
+
   it("joins the project's gates once, however often it is added", () => {
     const { repository, project } = createWorldWithKit();
 
@@ -342,11 +357,23 @@ describe("adding an add-on", () => {
     expect(() => addToProject({ project, unit: "demo", repository })).toThrow(/does not have the kit/);
   });
 
+  it("says which add-ons are recommended, from each one's own manifest", () => {
+    const { repository } = createWorld();
+    const manifest = readJson(repository, "addons/demo/addon.json");
+
+    expect(listAddons(repository)).toEqual([{ name: "demo", summary: manifest.summary, recommended: false }]);
+
+    manifest.recommended = true;
+    write(repository, "addons/demo/addon.json", JSON.stringify(manifest));
+
+    expect(listAddons(repository)).toEqual([{ name: "demo", summary: manifest.summary, recommended: true }]);
+  });
+
   it("names the add-ons that exist when asked for one that does not", () => {
     const { repository, project } = createWorldWithKit();
 
     expect(() => addToProject({ project, unit: "nope", repository })).toThrow(/available: demo/);
-    expect(listAddons(repository)).toEqual([{ name: "demo", summary: "A demo add-on." }]);
+    expect(listAddons(repository)).toEqual([{ name: "demo", summary: "A demo add-on.", recommended: false }]);
   });
 
   it("asks for the scope when the project's packages do not share one", () => {

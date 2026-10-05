@@ -1,0 +1,62 @@
+name: Scorecard
+
+# OpenSSF Scorecard: a scheduled look at how the repository itself is kept.
+# Are actions pinned, are tokens narrow, is main protected, are there binary
+# files or dangerous workflow patterns. Findings go to Security → Code
+# scanning.
+#
+# It reports and gates nothing. zizmor judges the workflow files on every pull
+# request; this sees the half no file shows, the repository settings, and it
+# notices the day one of them is loosened. Several checks cannot score well in
+# a small project for reasons that are decisions (one maintainer, no releases,
+# no fuzzing), so read each finding and not the total.
+#
+# It needs a public repository, or one with code scanning: the last step
+# uploads to it. It needs no secret.
+
+on:
+  # Score again when what it reads changes…
+  branch_protection_rule:
+  push:
+    branches: [main]
+    paths:
+      - ".github/**"
+  # …and every week, because the checks change and so do settings, with no push.
+  schedule:
+    - cron: "47 6 * * 1"
+  workflow_dispatch:
+
+# One analysis at a time; a newer one replaces the one in flight.
+concurrency:
+  group: scorecard
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analysis:
+    name: scorecard analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # to upload the findings to code scanning; the only write in this add-on
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Run the analysis
+        uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc # v2.4.4
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          # false: the findings stay in this repository. true publishes the
+          # score to scorecard.dev, which a README badge reads, and needs
+          # `id-token: write` on this job. That is a choice for a person.
+          publish_results: false
+
+      - name: Upload the findings to code scanning
+        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          sarif_file: results.sarif

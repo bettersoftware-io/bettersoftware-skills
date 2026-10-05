@@ -28,6 +28,7 @@ addons/<name>/
 {
   "name": "coverage",
   "summary": "One line: what the project gains.",
+  "recommended": false,
   "packageJson": {
     ".": { "scripts": { "coverage": "…" }, "devDependencies": { "…": "…" } },
     "packages/*": { "scripts": { "test:coverage": "…" } },
@@ -39,6 +40,9 @@ addons/<name>/
 }
 ```
 
+- `recommended` is true for an add-on a new project should take unless it has
+  a reason not to. It decides what is selected to begin with when a person is
+  offered the list, and what `create-project.mts --with recommended` adds.
 - A `packageJson` key is a path from the project root. `packages/*` means every
   workspace package.
 - `gates` joins commands to the project's own gates, so the agent's stop hook

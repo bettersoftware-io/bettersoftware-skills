@@ -1,6 +1,7 @@
-import type { Machine } from "@app/client-core";
 import { act, render } from "@testing-library/react";
 import { type ReactElement, StrictMode } from "react";
+
+import type { Machine } from "@app/client-core";
 
 import { type MachineView, useMachine } from "./useMachine.ts";
 
@@ -27,7 +28,15 @@ export function mountMachine<TState, TIntents extends object>(
     return <output />;
   }
 
-  const rendered = render(strict ? <StrictMode><Holder /></StrictMode> : <Holder />);
+  const rendered = render(
+    strict ? (
+      <StrictMode>
+        <Holder />
+      </StrictMode>
+    ) : (
+      <Holder />
+    ),
+  );
 
   function currentView(): MachineView<TState, TIntents> {
     if (view === undefined) {
@@ -39,7 +48,7 @@ export function mountMachine<TState, TIntents extends object>(
 
   return {
     state: (): TState => currentView().state,
-    send: async (use): Promise<void> => {
+    send: async (use: (intents: TIntents) => void): Promise<void> => {
       await act(async () => {
         use(currentView());
       });

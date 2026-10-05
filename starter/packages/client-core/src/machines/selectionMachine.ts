@@ -1,5 +1,5 @@
 import { state } from "@rx-state/core";
-import { map, merge, scan, Subject } from "rxjs";
+import { map, merge, Subject, scan } from "rxjs";
 
 import type { Machine } from "./machine.ts";
 

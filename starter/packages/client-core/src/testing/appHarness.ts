@@ -1,5 +1,6 @@
-import type { Price } from "@app/domain";
 import { Subject } from "rxjs";
+
+import type { Price } from "@app/domain";
 
 import { type App, createApp } from "../composition.ts";
 

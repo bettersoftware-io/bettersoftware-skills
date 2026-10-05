@@ -1,6 +1,7 @@
-import { type AppHarness, createAppHarness } from "@app/client-core/testing/appHarness.ts";
 import { act, render } from "@testing-library/react";
 import type { ReactElement } from "react";
+
+import { type AppHarness, createAppHarness } from "@app/client-core/testing/appHarness.ts";
 
 import { createViewModel } from "./createViewModel.ts";
 import { useViewModel } from "./useViewModel.ts";

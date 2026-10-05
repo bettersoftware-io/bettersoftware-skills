@@ -1,0 +1,597 @@
+[
+  {
+    "name": "slug: is four dashes",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/slug.mts",
+    "find": ".replace(/ /g, \"-\")",
+    "replace": ".replace(/ +/g, \"-\")",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/slug.test.mts -t \"is four dashes\""
+  },
+  {
+    "name": "slug: drops punctuation without leaving a dash",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/slug.mts",
+    "find": ".replace(DROPPED, \"\")",
+    "replace": ".replace(DROPPED, \"-\")",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/slug.test.mts -t \"drops punctuation without leaving a dash\""
+  },
+  {
+    "name": "slug: lowers the case",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/slug.mts",
+    "find": "text.toLowerCase().replace(DROPPED",
+    "replace": "text.replace(DROPPED",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/slug.test.mts -t \"lowers the case\""
+  },
+  {
+    "name": "slug: keeps underscores, dashes, digits",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/slug.mts",
+    "find": ".replace(DROPPED, \"\")",
+    "replace": ".replace(DROPPED, \"\").replace(/_/g, \"\")",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/slug.test.mts -t \"keeps underscores, dashes, digits\""
+  },
+  {
+    "name": "slug: drops an emoji and keeps the space",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/slug.mts",
+    "find": ".replace(/ /g, \"-\")",
+    "replace": ".replace(/ /g, \"-\").replace(/^-/, \"\")",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/slug.test.mts -t \"drops an emoji and keeps the space\""
+  },
+  {
+    "name": "slug: numbers a heading that repeats",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/slug.mts",
+    "find": "anchor = `${original}-${count}`",
+    "replace": "anchor = `${original}_${count}`",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/slug.test.mts -t \"numbers a heading that repeats\""
+  },
+  {
+    "name": "slug: an anchor a numbered heading already took",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/slug.mts",
+    "find": "given.set(anchor, 0);",
+    "replace": "given.set(original, 0);",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/slug.test.mts -t \"an anchor a numbered heading already took\""
+  },
+  {
+    "name": "slug: starts again for another document",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/slug.mts",
+    "find": "export function createSlugger(): (text: string) => string {\n  const given = new Map<string, number>();",
+    "replace": "const given = new Map<string, number>();\nexport function createSlugger(): (text: string) => string {",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/slug.test.mts -t \"starts again for another document\""
+  },
+  {
+    "name": "markdown: gives each link with the line it is on",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "links.push({ line: index + 1, target })",
+    "replace": "links.push({ line: index, target })",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"gives each link with the line it is on\""
+  },
+  {
+    "name": "markdown: leaves a title out of the target",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "(?:\\s+(?:\"[^\"]*\"|'[^']*'))?\\s*\\)/g;",
+    "replace": "\\s*\\)/g;",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"leaves a title out of the target\""
+  },
+  {
+    "name": "markdown: reads a target in angle brackets",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "\\]\\(\\s*(?:<([^>]*)>|(",
+    "replace": "\\]\\(\\s*(?:<([^>\\s]*)>|(",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"reads a target in angle brackets\""
+  },
+  {
+    "name": "markdown: keeps a pair of brackets that is part of the target",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "[^\\s()]|\\([^\\s()]*\\))+)",
+    "replace": "[^\\s()])+)",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"keeps a pair of brackets that is part of the target\""
+  },
+  {
+    "name": "markdown: reads an image as a link to its file",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "const INLINE_LINK = /\\]\\(",
+    "replace": "const INLINE_LINK = /(?<!!\\[[^\\]]*)\\]\\(",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"reads an image as a link to its file\""
+  },
+  {
+    "name": "markdown: reads a link definition, and not a footnote",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "\\[(?!\\^)[^\\]]+\\]:",
+    "replace": "\\[[^\\]]+\\]:",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"reads a link definition, and not a footnote\""
+  },
+  {
+    "name": "markdown: reads href and src written as HTML",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "(?:href|src)",
+    "replace": "(?:href)",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"reads href and src written as HTML\""
+  },
+  {
+    "name": "markdown: skips what a fenced block shows",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "proseLines(text).forEach((raw, index)",
+    "replace": "text.split(/\\r?\\n/).forEach((raw, index)",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"skips what a fenced block shows\""
+  },
+  {
+    "name": "markdown: skips a block fenced with tildes",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "|(~{3,}))/.exec(line)",
+    "replace": "|(~{4,}))/.exec(line)",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"skips a block fenced with tildes\""
+  },
+  {
+    "name": "markdown: does not let a shorter fence close a longer one",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "closing.length >= fence.length && ",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"does not let a shorter fence close a longer one\""
+  },
+  {
+    "name": "markdown: does not take a line of inline code for the start of a fence",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "(`{3,})[^`]*$|",
+    "replace": "(`{3,})|",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"does not take a line of inline code for the start of a fence\""
+  },
+  {
+    "name": "markdown: skips link syntax shown in a code span",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "const line = withoutCodeSpans(raw);",
+    "replace": "const line = raw;",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"skips link syntax shown in a code span\""
+  },
+  {
+    "name": "markdown: takes the text of a link and drops its target",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "/g, \"$1\")",
+    "replace": "/g, \"\")",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"takes the text of a link and drops its target\""
+  },
+  {
+    "name": "markdown: drops an image and a tag",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "            .replace(/<\\/?[a-z][^>]*>/gi, \"\")\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"drops an image and a tag\""
+  },
+  {
+    "name": "markdown: drops the underscores of emphasis",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "/gu, \"$2\")",
+    "replace": "/gu, \"$1$2$1\")",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"drops the underscores of emphasis\""
+  },
+  {
+    "name": "markdown: keeps a code span as written",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "index % 2 === 1",
+    "replace": "index % 2 === 2",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"keeps a code span as written\""
+  },
+  {
+    "name": "markdown: has one for each heading, at any level",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "#{1,6}(?:[ \\t]+(.*))?$",
+    "replace": "#{1,2}(?:[ \\t]+(.*))?$",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"has one for each heading, at any level\""
+  },
+  {
+    "name": "markdown: does not read text with no space after the #",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "(?:[ \\t]+(.*))?$/.exec(line)",
+    "replace": "(?:[ \\t]*(.*))?$/.exec(line)",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"does not read text with no space after the #\""
+  },
+  {
+    "name": "markdown: drops a closing run of #",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": ".replace(/(^|[ \\t]+)#+$/, \"\")",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"drops a closing run of #\""
+  },
+  {
+    "name": "markdown: makes the anchor from the words a reader sees",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "anchors.add(nextAnchor(headingText(heading)))",
+    "replace": "anchors.add(nextAnchor(heading))",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"makes the anchor from the words a reader sees\""
+  },
+  {
+    "name": "markdown: numbers a repeated heading",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "anchors.add(nextAnchor(headingText(heading)))",
+    "replace": "anchors.add(createSlugger()(headingText(heading)))",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"numbers a repeated heading\""
+  },
+  {
+    "name": "markdown: reads a heading underlined with",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "atxHeading(line) ?? underlinedHeading(lines, index)",
+    "replace": "atxHeading(line)",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"reads a heading underlined with\""
+  },
+  {
+    "name": "markdown: does not read a rule under a paragraph",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "|| above.trim() !== \"\" || !PLAIN_TEXT.test(line)",
+    "replace": "|| !PLAIN_TEXT.test(line)",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"does not read a rule under a paragraph\""
+  },
+  {
+    "name": "markdown: skips a heading shown in a fenced block",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "const lines = proseLines(text);",
+    "replace": "const lines = text.split(\"\\n\");",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"skips a heading shown in a fenced block\""
+  },
+  {
+    "name": "markdown: has the id and the name written in HTML",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/markdown.mts",
+    "find": "\\s(?:id|name)\\s*=",
+    "replace": "\\s(?:id)\\s*=",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/markdown.test.mts -t \"has the id and the name written in HTML\""
+  },
+  {
+    "name": "check-doc-links: has no findings, and says how much it checked",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-doc-links.mts",
+    "find": "`PASS ${gate} \u2014 ${links} relative",
+    "replace": "`PASS ${gate} \u2014 ${findings.length} relative",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"has no findings, and says how much it checked\""
+  },
+  {
+    "name": "check-doc-links: does not count a link with a scheme",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-doc-links.mts",
+    "find": " || target.startsWith(\"//\")",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"does not count a link with a scheme\""
+  },
+  {
+    "name": "check-doc-links: to a missing file is reported with the file and the line",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-doc-links.mts",
+    "find": "return \"which does not exist.\";",
+    "replace": "return undefined;",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"to a missing file is reported with the file and the line\""
+  },
+  {
+    "name": "check-doc-links: to a missing anchor names the anchor",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-doc-links.mts",
+    "find": "anchor !== \"\" && /\\.md$/i.test(destination)",
+    "replace": "anchor === \"\" && /\\.md$/i.test(destination)",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"to a missing anchor names the anchor\""
+  },
+  {
+    "name": "check-doc-links: is told the anchor GitHub makes",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-doc-links.mts",
+    "find": "bare(candidate) === bare(anchor)",
+    "replace": "candidate === anchor",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"is told the anchor GitHub makes\""
+  },
+  {
+    "name": "check-doc-links: to an anchor in the same file",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-doc-links.mts",
+    "find": "path === \"\" ? source :",
+    "replace": "path === \"\" ? project :",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"to an anchor in the same file\""
+  },
+  {
+    "name": "check-doc-links: only by case is dead",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-doc-links.mts",
+    "find": "if (!readdirSync(folder).includes(name)) {",
+    "replace": "if (false) {",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"only by case is dead\""
+  },
+  {
+    "name": "check-doc-links: is printed under FAIL with a count",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-doc-links.mts",
+    "find": "`FAIL ${gate} (${findings.length})`,",
+    "replace": "`FAIL ${gate}`,",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"is printed under FAIL with a count\""
+  },
+  {
+    "name": "check-doc-links: from the top of the project",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-doc-links.mts",
+    "find": "path.startsWith(\"/\") ? join(project, path) :",
+    "replace": "path.startsWith(\"/\") ? path :",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"from the top of the project\""
+  },
+  {
+    "name": "check-doc-links: decodes %20 in a path and in an anchor",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-doc-links.mts",
+    "find": "return decodeURIComponent(text);",
+    "replace": "return text;",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"decodes %20 in a path and in an anchor\""
+  },
+  {
+    "name": "check-doc-links: leaves a query out of the path",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-doc-links.mts",
+    "find": ".replace(/\\?.*$/, \"\")",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"leaves a query out of the path\""
+  },
+  {
+    "name": "check-doc-links: in a file that is not markdown",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-doc-links.mts",
+    "find": " && /\\.md$/i.test(destination)",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"in a file that is not markdown\""
+  },
+  {
+    "name": "check-doc-links: follows a link that leaves the project",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-doc-links.mts",
+    "find": "inside === \"\" || inside.startsWith(\"..\")",
+    "replace": "inside === \"\"",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"follows a link that leaves the project\""
+  },
+  {
+    "name": "check-doc-links: skips installed and generated folders",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/files.mts",
+    "find": "!SKIPPED_DIRECTORIES.has(entry.name) && ",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"skips installed and generated folders\""
+  },
+  {
+    "name": "check-doc-links: skips the installed tooling in tools",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/files.mts",
+    "find": "path !== INSTALLED_TOOLING && ",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"skips the installed tooling in tools\""
+  },
+  {
+    "name": "check-doc-links: skips a folder that is a checkout of its own",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/files.mts",
+    "find": " && !existsSync(join(root, path, \".git\"))",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"skips a folder that is a checkout of its own\""
+  },
+  {
+    "name": "check-doc-links: skips a file git ignores",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/files.mts",
+    "find": "return files.filter((file) => !ignored.has(file));",
+    "replace": "return files;",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"skips a file git ignores\""
+  },
+  {
+    "name": "check-doc-links: reads a file whose extension is .MD",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-doc-links.mts",
+    "find": "listFiles(project, /\\.md$/i)",
+    "replace": "listFiles(project, /\\.md$/)",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"reads a file whose extension is .MD\""
+  },
+  {
+    "name": "check-doc-links: is skipped when it has no markdown",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-doc-links.mts",
+    "find": "files.length === 0 ? \"no markdown file\" :",
+    "replace": "files.length === 1 ? \"no markdown file\" :",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"is skipped when it has no markdown\""
+  },
+  {
+    "name": "check-doc-links: is skipped when its markdown has no relative link",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-doc-links.mts",
+    "find": "...(links === 0 ? { skipped:",
+    "replace": "...(links < 0 ? { skipped:",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"is skipped when its markdown has no relative link\""
+  },
+  {
+    "name": "check-doc-links: exits 0 and prints PASS",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-doc-links.mts",
+    "find": "process.exit(result.findings.length === 0 ? 0 : 1);",
+    "replace": "process.exit(result.findings.length === 0 ? 3 : 1);",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"exits 0 and prints PASS\""
+  },
+  {
+    "name": "check-doc-links: exits 1 and names the dead link",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-doc-links.mts",
+    "find": "process.exit(result.findings.length === 0 ? 0 : 1);",
+    "replace": "process.exit(0);",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"exits 1 and names the dead link\""
+  },
+  {
+    "name": "check-doc-links: exits 2 when the folder does not exist",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-doc-links.mts",
+    "find": "throw new CheckError(`${project} does not exist`);",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"exits 2 when the folder does not exist\""
+  },
+  {
+    "name": "check-doc-links: exits 2 on an argument it does not know",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-doc-links.mts",
+    "find": "throw new CheckError(`unknown arguments",
+    "replace": "return void new CheckError(`unknown arguments",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-doc-links.test.mts -t \"exits 2 on an argument it does not know\""
+  },
+  {
+    "name": "check-css: gives stylelint the rules file and every stylesheet",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-css.mts",
+    "find": "`PASS ${gate} \u2014 ${files} stylesheet(s) linted`",
+    "replace": "`PASS ${gate} \u2014 ${files + 1} stylesheet(s) linted`",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-css.test.mts -t \"gives stylelint the rules file and every stylesheet\""
+  },
+  {
+    "name": "check-css: fails with stylelint.s report",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-css.mts",
+    "find": "reports.push(`${stdout}${stderr}`.trim());",
+    "replace": "reports.push(stdout.trim());",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-css.test.mts -t \"fails with stylelint.s report\""
+  },
+  {
+    "name": "check-css: when stylelint rejects its configuration",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-css.mts",
+    "find": "if (status !== 0 && status !== 2) {",
+    "replace": "if (status !== 0 && status !== 2 && status !== 78) {",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-css.test.mts -t \"when stylelint rejects its configuration\""
+  },
+  {
+    "name": "check-css: could not run when the rules file is gone",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-css.mts",
+    "find": "if (!existsSync(join(project, CONFIG))) {",
+    "replace": "if (false) {",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-css.test.mts -t \"could not run when the rules file is gone\""
+  },
+  {
+    "name": "check-css: in runs of 200 files",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-css.mts",
+    "find": "const BATCH = 200;",
+    "replace": "const BATCH = 500;",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-css.test.mts -t \"in runs of 200 files\""
+  },
+  {
+    "name": "check-css: leaves out built, installed and tooling folders",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/files.mts",
+    "find": "path !== INSTALLED_TOOLING && ",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-css.test.mts -t \"leaves out built, installed and tooling folders\""
+  },
+  {
+    "name": "check-css: leaves out a stylesheet git ignores",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-css.mts",
+    "find": "dropIgnored(project, listFiles(project, /\\.css$/i))",
+    "replace": "listFiles(project, /\\.css$/i)",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-css.test.mts -t \"leaves out a stylesheet git ignores\""
+  },
+  {
+    "name": "check-css: is skipped without running stylelint",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-css.mts",
+    "find": "if (files.length === 0) {",
+    "replace": "if (files.length < 0) {",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-css.test.mts -t \"is skipped without running stylelint\""
+  },
+  {
+    "name": "check-css: when the tool is not installed",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/run.mts",
+    "find": "if (!existsSync(command)) {",
+    "replace": "if (false) {",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-css.test.mts -t \"when the tool is not installed\""
+  },
+  {
+    "name": "check-css: runs the project.s own copy, in the project",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/run.mts",
+    "find": "      cwd: root,\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-css.test.mts -t \"runs the project.s own copy, in the project\""
+  },
+  {
+    "name": "check-versions: runs manypkg, then syncpack with the project.s settings file",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-versions.mts",
+    "find": "run(\"syncpack\", [\"lint\", \"--config\", CONFIG])",
+    "replace": "run(\"syncpack\", [\"lint\"])",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"runs manypkg, then syncpack with the project.s settings file\""
+  },
+  {
+    "name": "check-versions: says how many entries in how many files",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-versions.mts",
+    "find": "packages: new Set(entries).size,",
+    "replace": "packages: entries.length,",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"says how many entries in how many files\""
+  },
+  {
+    "name": "check-versions: is skipped when no package.json has a dependency",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-versions.mts",
+    "find": "...(entries.length === 0 ? { skipped:",
+    "replace": "...(entries.length < 0 ? { skipped:",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"is skipped when no package.json has a dependency\""
+  },
+  {
+    "name": "check-versions: with each rule it reports, without its hint",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-versions.mts",
+    "find": "/^\\S*\\s*error\\s+(.*)$/",
+    "replace": "/^\\S*\\s*(?:error|info)\\s+(.*)$/",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"with each rule it reports, without its hint\""
+  },
+  {
+    "name": "check-versions: could not run when it fails and names no rule",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-versions.mts",
+    "find": "if (errors.length === 0) {",
+    "replace": "if (false) {",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"could not run when it fails and names no rule\""
+  },
+  {
+    "name": "check-versions: with its report when a version differs",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-versions.mts",
+    "find": "`${lint.stdout}${lint.stderr}`.trim(),",
+    "replace": "lint.stdout.trim(),",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"with its report when a version differs\""
+  },
+  {
+    "name": "check-versions: when it stops before reading the workspace",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-versions.mts",
+    "find": "if (lint.status !== 0 && entries.length === 0) {",
+    "replace": "if (false) {",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"when it stops before reading the workspace\""
+  },
+  {
+    "name": "check-versions: with a code that is not a verdict",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-versions.mts",
+    "find": "if (lint.status !== 0 && lint.status !== 1) {",
+    "replace": "if (false) {",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"with a code that is not a verdict\""
+  },
+  {
+    "name": "check-versions: when its listing is not what was expected",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-versions.mts",
+    "find": "throw new CouldNotRun(`syncpack's listing has",
+    "replace": "return String(`syncpack's listing has",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"when its listing is not what was expected\""
+  },
+  {
+    "name": "check-versions: without it the check could not run",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-versions.mts",
+    "find": "if (!existsSync(join(resolve(root), CONFIG))) {",
+    "replace": "if (false) {",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"without it the check could not run\""
+  },
+  {
+    "name": "check-versions: must be JSON",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-versions.mts",
+    "find": "    JSON.parse(readFileSync(join(resolve(root), CONFIG), \"utf8\"));",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"must be JSON\""
+  },
+  {
+    "name": "check-versions: puts manypkg.s findings under its name",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-versions.mts",
+    "find": "...manypkg.map((line) => `  ${line}`)]",
+    "replace": "...manypkg]",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"puts manypkg.s findings under its name\""
+  },
+  {
+    "name": "addon: has the file every script runs",
+    "file": "addons/repo-hygiene/addon.json",
+    "find": "\"lint:css\": \"node tools/repo-hygiene/check-css.mts\"",
+    "replace": "\"lint:css\": \"node tools/repo-hygiene/lint-css.mts\"",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/addon.test.mts -t \"has the file every script runs\""
+  },
+  {
+    "name": "addon: joins every script to gate:fast",
+    "file": "addons/repo-hygiene/addon.json",
+    "find": "\"pnpm check:doc-links\",",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/addon.test.mts -t \"joins every script to gate:fast\""
+  },
+  {
+    "name": "addon: ships each settings file as a starting file",
+    "file": "addons/repo-hygiene/addon.json",
+    "find": "\"tools/repo-hygiene/syncpack.json\",",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/addon.test.mts -t \"ships each settings file as a starting file\""
+  },
+  {
+    "name": "addon: installs the package the stylelint settings extend",
+    "file": "addons/repo-hygiene/addon.json",
+    "find": "\"stylelint-config-standard\": \"^40.0.0\",",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/addon.test.mts -t \"installs the package the stylelint settings extend\""
+  },
+  {
+    "name": "addon: in the order a sorted package.json has them",
+    "file": "addons/repo-hygiene/addon.json",
+    "find": "\"syncpack\": \"^15.3.2\"",
+    "replace": "\"a-last\": \"1.0.0\"",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/addon.test.mts -t \"in the order a sorted package.json has them\""
+  },
+  {
+    "name": "check-versions: reports dependencies that are not in order, like any other finding",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-versions.mts",
+    "find": "  return errors;\n}",
+    "replace": "  return errors.slice(0, 1);\n}",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"reports dependencies that are not in order\""
+  }
+]

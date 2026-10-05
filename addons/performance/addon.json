@@ -1,6 +1,7 @@
 {
   "name": "performance",
   "summary": "Rendering-performance checks for a UI that animates over live data: a static animation gate and a runtime motion audit.",
+  "recommended": false,
   "packageJson": {
     ".": {
       "scripts": {

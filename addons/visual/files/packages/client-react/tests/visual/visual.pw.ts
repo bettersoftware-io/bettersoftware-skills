@@ -22,11 +22,16 @@ for (const name of Object.keys(scenarios)) {
     await expect(frame, "the visual host never said it was ready")
       .toHaveAttribute("data-visual-ready", "true")
       .catch((error: unknown) => {
-        throw trouble.crashes.length === 0 ? error : new Error(`the visual host threw before it was ready:\n${trouble.crashes.join("\n")}`);
+        throw trouble.crashes.length === 0
+          ? error
+          : new Error(`the visual host threw before it was ready:\n${trouble.crashes.join("\n")}`);
       });
 
     expect(trouble.crashes, "the visual host threw, so the picture would be of a broken page").toEqual([]);
-    expect(trouble.requestsElsewhere, "the visual host reached past its own server; a scenario must not depend on a network").toEqual([]);
+    expect(
+      trouble.requestsElsewhere,
+      "the visual host reached past its own server; a scenario must not depend on a network",
+    ).toEqual([]);
 
     if (testInfo.config.updateSnapshots === "none" && !existsSync(locateGolden(name))) {
       throw new Error(describeMissingGolden(name));
@@ -38,7 +43,10 @@ for (const name of Object.keys(scenarios)) {
 
 test("every golden belongs to a scenario", () => {
   // No folder is no verdict, not a pass. The scenario tests above fail on it.
-  test.skip(!existsSync(GOLDENS_DIRECTORY), `this system has no golden set at ${GOLDENS_DIRECTORY}, so there was nothing to look through`);
+  test.skip(
+    !existsSync(GOLDENS_DIRECTORY),
+    `this system has no golden set at ${GOLDENS_DIRECTORY}, so there was nothing to look through`,
+  );
 
   expect(
     findOrphanGoldens(Object.keys(scenarios)),

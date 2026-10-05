@@ -1,17 +1,21 @@
 #!/usr/bin/env node
 // Creates a new project from the starter.
 //
-//   node scripts/create-project.mts <target> [--scope @acme] [--name my-app]
+//   node scripts/create-project.mts <target> [--scope @acme] [--name my-app] [--with <add-ons>]
 //
 // Copies `starter/` to <target>, puts a real copy of the kit at `tools/arch`
 // (the starter only links to it), and renames the `@app` package scope.
+//
+// `--with` takes add-on names separated by commas, or `recommended` for every
+// add-on whose manifest says it is. Without it no add-on is added: the choice
+// is the person's, and `add-to-project.mts` adds one at any later time.
 
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { isMainModule } from "../kit/gates/lib/files.mts";
-import { addToProject, KIT } from "./add-to-project.mts";
+import { addToProject, KIT, listAddons, type ListedAddon } from "./add-to-project.mts";
 import { listFiles } from "./lib/install.mts";
 
 const REPOSITORY = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -36,17 +40,26 @@ export interface ProjectOptions {
   scope?: string;
   /** The root package name. Defaults to the target folder's name. */
   name?: string;
+  /** Add-on names, or `recommended` for the set the add-ons themselves recommend. */
+  addons?: string[];
 }
+
+/** Stands for every add-on whose manifest recommends it. */
+export const RECOMMENDED = "recommended";
 
 export interface CreatedProject {
   destination: string;
+  /** The add-ons that were added, by name. */
+  addons: string[];
   /** What is left for a person to do by hand. Empty after a normal run. */
   notes: string[];
 }
 
-/** The step that can be swapped in a test. */
+/** The steps that can be swapped in a test. */
 export interface ProjectSteps {
   installKit: (project: string) => { notes: string[] };
+  listAddons: () => ListedAddon[];
+  addAddon: (project: string, name: string, scope: string) => void;
 }
 
 const STEPS: ProjectSteps = {
@@ -54,9 +67,17 @@ const STEPS: ProjectSteps = {
   // record of what was installed and `add-to-project.mts <project> kit` can
   // tell an untouched file from an edited one.
   installKit: (project) => addToProject({ project, unit: KIT }),
+  listAddons: () => listAddons(),
+  addAddon: (project, name, scope) => {
+    addToProject({ project, unit: name, scope });
+  },
 };
 
-export function createProject({ target, scope = STARTER_SCOPE, name }: ProjectOptions, steps = STEPS): CreatedProject {
+export function createProject(
+  { target, scope = STARTER_SCOPE, name, addons = [] }: ProjectOptions,
+  swapped: Partial<ProjectSteps> = {},
+): CreatedProject {
+  const steps = { ...STEPS, ...swapped };
   const destination = resolve(target);
   const projectName = name ?? basename(destination);
 
@@ -68,6 +89,8 @@ export function createProject({ target, scope = STARTER_SCOPE, name }: ProjectOp
     throw new ProjectError(`"${projectName}" is not a package name — use lower-case letters, digits and dashes`);
   }
 
+  // Before anything is written: a mistyped name must not cost a half-made project.
+  const chosen = chooseAddons(addons, steps.listAddons());
   const wasThere = existsSync(destination);
 
   if (wasThere && readdirSync(destination).length > 0) {
@@ -75,7 +98,13 @@ export function createProject({ target, scope = STARTER_SCOPE, name }: ProjectOp
   }
 
   try {
-    return { destination, notes: writeProject(destination, scope, projectName, steps) };
+    const notes = writeProject(destination, scope, projectName, steps);
+
+    for (const addon of chosen) {
+      steps.addAddon(destination, addon, scope);
+    }
+
+    return { destination, addons: chosen, notes };
   } catch (error) {
     // Half a project looks like a project. The folder was empty or absent, so
     // everything in it now is ours to take away again.
@@ -85,6 +114,22 @@ export function createProject({ target, scope = STARTER_SCOPE, name }: ProjectOp
       `Could not create the project, and removed what it had written: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+}
+
+/** The names to add: `recommended` becomes the add-ons that say they are; anything unknown is refused. */
+function chooseAddons(asked: string[], available: ListedAddon[]): string[] {
+  const chosen = asked.flatMap((name) =>
+    name === RECOMMENDED ? available.filter((addon) => addon.recommended).map((addon) => addon.name) : [name],
+  );
+  const unknown = chosen.find((name) => !available.some((addon) => addon.name === name));
+
+  if (unknown !== undefined) {
+    throw new ProjectError(
+      `"${unknown}" is not an add-on — there are: ${available.map((addon) => addon.name).join(", ")}, or "${RECOMMENDED}" for the recommended ones`,
+    );
+  }
+
+  return [...new Set(chosen)];
 }
 
 function writeProject(destination: string, scope: string, projectName: string, steps: ProjectSteps): string[] {
@@ -125,11 +170,11 @@ function removeWhatWasWritten(destination: string, wasThere: boolean): void {
   }
 }
 
-function parseArguments(argv: string[]): ProjectOptions {
+export function parseArguments(argv: string[]): ProjectOptions {
   const [target, ...rest] = argv;
 
   if (target === undefined || target.startsWith("--")) {
-    throw new ProjectError("usage: create-project.mts <target> [--scope @acme] [--name my-app]");
+    throw new ProjectError("usage: create-project.mts <target> [--scope @acme] [--name my-app] [--with recommended|<add-on>,<add-on>]");
   }
 
   const options: ProjectOptions = { target };
@@ -146,6 +191,8 @@ function parseArguments(argv: string[]): ProjectOptions {
       options.scope = value;
     } else if (flag === "--name") {
       options.name = value;
+    } else if (flag === "--with") {
+      options.addons = value.split(",").map((addon) => addon.trim()).filter(Boolean);
     } else {
       throw new ProjectError(`unknown argument "${flag}"`);
     }
@@ -156,10 +203,11 @@ function parseArguments(argv: string[]): ProjectOptions {
 
 if (isMainModule(import.meta.url)) {
   try {
-    const { destination, notes } = createProject(parseArguments(process.argv.slice(2)));
+    const { destination, addons, notes } = createProject(parseArguments(process.argv.slice(2)));
+    const added = addons.length === 0 ? "" : `\nWith: ${addons.join(", ")}`;
     const byHand = notes.length === 0 ? "" : `\n\nStill to do by hand:\n${notes.map((note) => `  - ${note}`).join("\n")}`;
 
-    console.log(`Created ${destination}${byHand}\n\nNext:\n  cd ${destination}\n  git init\n  pnpm install\n  pnpm gate:full`);
+    console.log(`Created ${destination}${added}${byHand}\n\nNext:\n  cd ${destination}\n  git init\n  pnpm install\n  pnpm gate:full`);
   } catch (error) {
     console.error(error instanceof ProjectError ? error.message : error);
     process.exit(1);

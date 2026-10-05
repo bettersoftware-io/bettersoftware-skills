@@ -19,7 +19,7 @@ tbody tr {
 }
 
 tr[data-selected="true"] {
-  background: color-mix(in srgb, currentColor 18%, transparent);
+  background: color-mix(in srgb, currentcolor 18%, transparent);
 }
 
 tr[data-stale="true"] {

@@ -1,7 +1,8 @@
-import type { Price } from "@app/domain";
-import { encodePrice } from "@app/shared";
 import { Subject } from "rxjs";
 import { describe, expect, it } from "vitest";
+
+import type { Price } from "@app/domain";
+import { encodePrice } from "@app/shared";
 
 import { createWsPricePort } from "./wsPrice.ts";
 

@@ -1,5 +1,6 @@
-import type { App, PriceRow, SelectionIntents, SelectionState } from "@app/client-core";
 import { useStateObservable } from "@react-rxjs/core";
+
+import type { App, PriceRow, SelectionIntents, SelectionState } from "@app/client-core";
 
 import { type MachineView, useMachine } from "./useMachine.ts";
 

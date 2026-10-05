@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { createProject, ProjectError } from "./create-project.mts";
+import { createProject, parseArguments, ProjectError, type ProjectSteps } from "./create-project.mts";
 
 describe("creating a project from the starter", () => {
   it("copies the starter and names the root package after the target folder", () => {
@@ -54,6 +54,47 @@ describe("creating a project from the starter", () => {
     expect(readdirSync(target)).toEqual(["notes.txt"]);
   });
 
+  it("adds the add-ons asked for, in the order given", () => {
+    const added: string[] = [];
+    const { addons } = createProject(
+      { target: createTarget("price-desk"), addons: ["coverage", "format-lint"] },
+      createStepsThatRecord(added),
+    );
+
+    expect(added).toEqual(["coverage", "format-lint"]);
+    expect(addons).toEqual(["coverage", "format-lint"]);
+  });
+
+  it("adds every recommended add-on when asked for the recommended set, and no other", () => {
+    const added: string[] = [];
+
+    createProject({ target: createTarget("price-desk"), addons: ["recommended"] }, createStepsThatRecord(added));
+
+    expect(added).toEqual(["coverage", "format-lint"]);
+  });
+
+  it("adds none unless asked", () => {
+    const added: string[] = [];
+
+    createProject({ target: createTarget("price-desk") }, createStepsThatRecord(added));
+
+    expect(added).toEqual([]);
+  });
+
+  it("refuses an add-on that does not exist before writing anything, and names the ones that do", () => {
+    const target = createTarget("price-desk");
+    const create = (): unknown => createProject({ target, addons: ["coverge"] }, createStepsThatRecord([]));
+
+    expect(create).toThrow(/"coverge" is not an add-on.*coverage, format-lint, visual/s);
+    expect(readdirSync(target)).toEqual([]);
+  });
+
+  it("reads the choice from the command line as one list", () => {
+    expect(parseArguments(["desk", "--with", "coverage,format-lint"]).addons).toEqual(["coverage", "format-lint"]);
+    expect(parseArguments(["desk", "--with", "recommended"]).addons).toEqual(["recommended"]);
+    expect(parseArguments(["desk"]).addons).toBeUndefined();
+  });
+
   it("has nothing left for a person to do after a normal run", () => {
     expect(createProject({ target: createTarget("price-desk") }).notes).toEqual([]);
   });
@@ -83,6 +124,20 @@ describe("creating a project from the starter", () => {
     expect(() => createProject({ target: createTarget("ok"), name: "My App" })).toThrow(/not a package name/);
   });
 });
+
+/** Steps with three add-ons to choose from, two of them recommended, that record what was added. */
+function createStepsThatRecord(added: string[]): Partial<ProjectSteps> {
+  return {
+    listAddons: () => [
+      { name: "coverage", summary: "", recommended: true },
+      { name: "format-lint", summary: "", recommended: true },
+      { name: "visual", summary: "", recommended: false },
+    ],
+    addAddon: (_project, name) => {
+      added.push(name);
+    },
+  };
+}
 
 function failToInstall(): never {
   throw new Error("disk full");

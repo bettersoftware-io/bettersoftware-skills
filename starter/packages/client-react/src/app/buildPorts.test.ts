@@ -1,6 +1,7 @@
-import type { Price } from "@app/domain";
-import { installFakeWebSocket } from "@app/client-core/testing/fakeWebSocket.ts";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
+
+import { installFakeWebSocket } from "@app/client-core/testing/fakeWebSocket.ts";
+import type { Price } from "@app/domain";
 
 import { buildPorts } from "./buildPorts.ts";
 

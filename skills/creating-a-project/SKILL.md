@@ -65,7 +65,36 @@ it pass.
 Make the untouched project the first commit, unless the user has said not to
 commit. A clean first commit keeps the first feature's diff readable.
 
-## 5. Report
+## 5. Offer the add-ons
+
+The project has the architecture gates and nothing else. The rest is optional,
+and the choice is the user's. List what there is:
+
+```bash
+node <plugin root>/scripts/add-to-project.mts --list
+```
+
+- **If the user can be asked**, ask once: show every add-on with its one-line
+  summary, with the ones marked `(recommended)` selected to begin with, and let
+  them change the selection. If the request already named add-ons, or said
+  "none", do not ask.
+- **If nobody can be asked** (a non-interactive run), add none, and name the
+  recommended ones in the report with the command that adds them.
+
+For each one chosen, in the project:
+
+```bash
+node <plugin root>/scripts/add-to-project.mts . <add-on>
+```
+
+Then `pnpm install` and `pnpm gate:full` once more, and a second commit, so the
+add-ons are their own diff. If the gate fails now, report the output and stop,
+as in step 4.
+
+When the choice is known before the project is created, `create-project.mts`
+takes it directly: `--with recommended`, or `--with coverage,format-lint`.
+
+## 6. Report
 
 Say, in this order:
 
@@ -76,7 +105,9 @@ Say, in this order:
    then tests and the build: what CI runs).
 3. That `AGENTS.md` in the project says where each kind of code goes, and that
    the price list is a worked example to copy, not part of the product.
-4. That the hooks are in the project, so they apply to everyone who works on
+4. Which add-ons were added, and which were not, with the command that adds
+   one later.
+5. That the hooks are in the project, so they apply to everyone who works on
    it: Claude Code reads `.claude/settings.json`; Codex reads
    `.codex/hooks.json` once it is trusted with `/hooks`.
 

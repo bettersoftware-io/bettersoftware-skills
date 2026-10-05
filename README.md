@@ -69,7 +69,15 @@ node scripts/add-to-project.mts <project> coverage
 | [`coverage`](addons/coverage/README.md) | A per-file coverage gate for every package, a ranked list of gaps, a check that proves a test can fail, and a published report that states the commit it was built from |
 | [`visual`](addons/visual/README.md) | Screenshot tests of the UI in seeded states against committed golden images, kept per platform, with the tolerance measured and set in one place |
 | [`performance`](addons/performance/README.md) | A static check of animations and transitions, a runtime audit of what Chromium actually composites, and a guide to the traps and their fixes |
+| [`format-lint`](addons/format-lint/README.md) | Biome: a formatter, a general linter and import sorting, as a base the add-on owns and a `biome.json` the project owns |
+| [`ci-security`](addons/ci-security/README.md) | Workflow lint and workflow security lint, Dependency Review on pull requests, `pnpm audit`, an OpenSSF Scorecard report and a Dependabot config |
+| [`repo-hygiene`](addons/repo-hygiene/README.md) | One version of each dependency across the workspace, every markdown link and heading anchor resolving, and CSS lint |
 | `kit` | The same command brings a project's copy of the gates up to date, or sets them up in a project that did not start here |
+
+`coverage`, `format-lint` and `ci-security` are marked recommended: a new
+project should take them unless it has a reason not to. The creation skill
+offers the list with those selected, and `create-project.mts --with
+recommended` takes them where nobody can be asked.
 
 The script records a hash of each file it installs. On a later run an untouched
 file is replaced by the newer version; a file edited in the project is never

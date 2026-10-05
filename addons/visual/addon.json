@@ -1,6 +1,7 @@
 {
   "name": "visual",
   "summary": "Visual golden tests: each UI scenario is rendered in a known state and compared with a committed screenshot.",
+  "recommended": false,
   "packageJson": {
     ".": {
       "scripts": {

@@ -1,8 +1,9 @@
+import { act, render, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
 import { createAppHarness } from "@app/client-core/testing/appHarness.ts";
 import type { Movement, Price } from "@app/domain";
 import { createViewModel, ViewModelProvider } from "@app/react-bindings";
-import { act, render, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 
 import { PriceList } from "./PriceList.tsx";
 import { TESTIDS } from "./testids.ts";
@@ -45,19 +46,19 @@ export function mountPriceList(): PriceListPage {
   }
 
   return {
-    showPrice: (price): void => {
+    showPrice: (price: Price): void => {
       act(() => {
         harness.deliverPrice(price);
       });
     },
     symbols: (): string[] => findRows().map((row) => within(row).getByRole("rowheader").textContent ?? ""),
-    movementOf: (symbol): Movement => within(findRow(symbol)).getByRole("cell").dataset.movement as Movement,
+    movementOf: (symbol: string): Movement => within(findRow(symbol)).getByRole("cell").dataset.movement as Movement,
     selectedSymbol: (): string | null => {
       const selected = findRows().find((row) => row.dataset.selected === "true");
 
       return selected ? (within(selected).getByRole("rowheader").textContent ?? null) : null;
     },
-    clickRow: async (symbol): Promise<void> => {
+    clickRow: async (symbol: string): Promise<void> => {
       await user.click(findRow(symbol));
     },
   };

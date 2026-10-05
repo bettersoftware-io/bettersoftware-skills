@@ -1,42 +1,25 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": [
-    "tsconfig.base.json"
-  ],
+  "globalDependencies": ["tsconfig.base.json"],
   "tasks": {
     "build": {
-      "dependsOn": [
-        "^build"
-      ],
-      "outputs": [
-        "dist/**"
-      ],
-      "env": [
-        "VITE_SERVER_URL"
-      ]
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+      "env": ["VITE_SERVER_URL"]
     },
     "transit": {
-      "dependsOn": [
-        "^transit"
-      ]
+      "dependsOn": ["^transit"]
     },
     "typecheck": {
-      "dependsOn": [
-        "transit"
-      ]
+      "dependsOn": ["transit"]
     },
     "test": {
-      "dependsOn": [
-        "transit"
-      ]
+      "dependsOn": ["transit"]
     },
     "dev": {
       "cache": false,
       "persistent": true,
-      "env": [
-        "VITE_SERVER_URL",
-        "PORT"
-      ]
+      "env": ["VITE_SERVER_URL", "PORT"]
     }
   }
 }

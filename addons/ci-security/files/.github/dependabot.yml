@@ -1,0 +1,37 @@
+# Dependabot: one pull request a week per group of updates, never for a
+# release younger than a week.
+#
+# This file is yours. The add-on wrote it once and will not touch it again.
+#
+# It drives version updates only. Security updates (a pull request that fixes
+# a known advisory) are a repository setting, and they ignore both the
+# cooldown and the limit below, so a fix is never held back.
+version: 2
+updates:
+  # The packages in pnpm-lock.yaml, for every workspace package.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # A release that turns out to be malicious is usually found and removed
+    # within days. Waiting a week means it is rarely installed here.
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      # Minor and patch releases arrive as one pull request. A major release
+      # gets its own, because it is the one that needs reading.
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  # The actions the workflows use. Each is pinned by commit, and Dependabot
+  # moves the commit and the version comment beside it together.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]

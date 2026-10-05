@@ -1,6 +1,7 @@
+import type { ReactElement } from "react";
+
 import type { PriceRow } from "@app/client-core";
 import { useViewModel } from "@app/react-bindings";
-import type { ReactElement } from "react";
 
 import { TESTIDS } from "./testids.ts";
 

@@ -4,11 +4,12 @@
 import "../../../src/index.css";
 import "./host.css";
 
+import FakeTimers from "@sinonjs/fake-timers";
+import { createRoot } from "react-dom/client";
+
 import { type App as Application, STALE_AFTER_MS } from "@app/client-core";
 import { type AppHarness, createAppHarness } from "@app/client-core/testing/appHarness.ts";
 import { createViewModel, ViewModelProvider } from "@app/react-bindings";
-import FakeTimers from "@sinonjs/fake-timers";
-import { createRoot } from "react-dom/client";
 
 import { App } from "../../../src/ui/App.tsx";
 import { type Scenario, scenarios } from "../scenarios.ts";
@@ -32,7 +33,9 @@ const scenario: Scenario | undefined = (scenarios as Record<string, Scenario>)[n
 const container = document.getElementById("root");
 
 if (scenario === undefined) {
-  throw new Error(`No scenario called "${name}". The address needs ?scenario=<name>, one of: ${Object.keys(scenarios).join(", ")}`);
+  throw new Error(
+    `No scenario called "${name}". The address needs ?scenario=<name>, one of: ${Object.keys(scenarios).join(", ")}`,
+  );
 }
 
 if (container === null) {

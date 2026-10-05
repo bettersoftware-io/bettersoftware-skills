@@ -1,0 +1,27 @@
+{
+  "name": "format-lint",
+  "summary": "Biome as the formatter, the general linter and the import sorter, with one check in gate:fast.",
+  "recommended": true,
+  "packageJson": {
+    ".": {
+      "scripts": {
+        "biome:format": "biome format --write .",
+        "biome:fix": "biome check --write .",
+        "biome:check": "biome ci --error-on-warnings ."
+      },
+      "devDependencies": {
+        "@biomejs/biome": "2.5.14"
+      }
+    }
+  },
+  "gates": {
+    "fast": [
+      "pnpm biome:check"
+    ],
+    "full": []
+  },
+  "startingFiles": [
+    "biome.json"
+  ],
+  "verify": "pnpm biome:check"
+}

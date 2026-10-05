@@ -15,7 +15,8 @@ export const PLATFORM = `${os.platform()}-${os.arch()}`;
  * Where this run reads and writes its goldens. `pnpm visual:jitter` points it
  * at a scratch folder so a measurement never touches the committed images.
  */
-export const GOLDENS_DIRECTORY =
+export const GOLDENS_DIRECTORY: string =
+  // biome-ignore lint/suspicious/noUndeclaredEnvVars: Playwright runs this file, not a turbo task, so turbo neither strips the variable nor caches on it
   process.env.VISUAL_GOLDENS_DIR ?? fileURLToPath(new URL(`./goldens/${PLATFORM}`, import.meta.url));
 
 const PROJECT_ROOT = fileURLToPath(new URL("../../../..", import.meta.url));
@@ -32,7 +33,7 @@ export function describeMissingGolden(scenario: string): string {
     "",
     "A golden is never created by a plain run, so a new scenario cannot pass unseen.",
     "To create it on this machine: run `pnpm visual:update`, open the new image, check it shows what the scenario says, and commit it.",
-    "The linux-x64 set is the one CI compares against, and it can only be drawn in CI's container: run the \"Update visual goldens\" workflow on your branch and commit the images from its artifact.",
+    'The linux-x64 set is the one CI compares against, and it can only be drawn in CI\'s container: run the "Update visual goldens" workflow on your branch and commit the images from its artifact.',
   ].join("\n");
 }
 

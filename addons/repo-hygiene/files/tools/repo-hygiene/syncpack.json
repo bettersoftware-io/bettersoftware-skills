@@ -1,0 +1,9 @@
+{
+  "versionGroups": [
+    {
+      "label": "Workspace packages depend on each other as workspace:* and have no version of their own",
+      "dependencies": ["$LOCAL"],
+      "isIgnored": true
+    }
+  ]
+}

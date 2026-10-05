@@ -1,9 +1,10 @@
 import type { AddressInfo } from "node:net";
 
-import type { PricePort } from "@app/domain";
-import { encodePrice, WS_PATH } from "@app/shared";
 import { share } from "rxjs";
 import { WebSocketServer } from "ws";
+
+import type { PricePort } from "@app/domain";
+import { encodePrice, WS_PATH } from "@app/shared";
 
 export interface ServerOptions {
   /** 0 picks a free port. */

@@ -78,6 +78,8 @@ interface AddonManifest {
    */
   startingFiles?: string[];
   verify?: string;
+  /** True for an add-on a new project should take unless it has a reason not to. */
+  recommended?: boolean;
 }
 
 type PackageJson = Record<string, unknown> & PackagePatch;
@@ -253,7 +255,14 @@ function takeStartingFiles(files: Map<string, Buffer>, patterns: string[]): Map<
   return starting;
 }
 
-export function listAddons(repository: string = REPOSITORY): { name: string; summary: string }[] {
+export interface ListedAddon {
+  name: string;
+  summary: string;
+  /** Taken unless there is a reason not to. Said by the add-on's own manifest. */
+  recommended: boolean;
+}
+
+export function listAddons(repository: string = REPOSITORY): ListedAddon[] {
   const root = join(repository, "addons");
 
   if (!existsSync(root)) {
@@ -265,7 +274,7 @@ export function listAddons(repository: string = REPOSITORY): { name: string; sum
     .map((entry) => {
       const manifest = JSON.parse(readFileSync(join(root, entry.name, "addon.json"), "utf8")) as AddonManifest;
 
-      return { name: entry.name, summary: manifest.summary };
+      return { name: entry.name, summary: manifest.summary, recommended: manifest.recommended === true };
     });
 }
 
@@ -292,6 +301,26 @@ function detectScope(project: string): string {
 }
 
 /** `packages/*` → every folder under `packages/` that holds a package.json. */
+/**
+ * The section with one entry added. Dependencies are kept in name order, as
+ * package managers write them and as tools that compare versions expect;
+ * scripts keep the order their author chose.
+ */
+function withEntry(
+  section: (typeof PATCHED_SECTIONS)[number],
+  entries: Record<string, string> | undefined,
+  key: string,
+  value: string,
+): Record<string, string> {
+  const added = { ...entries, [key]: value };
+
+  if (section === "scripts") {
+    return added;
+  }
+
+  return Object.fromEntries(Object.entries(added).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+}
+
 function expandPackagePath(project: string, path: string): string[] {
   if (!path.endsWith("/*")) {
     return [path];
@@ -354,7 +383,7 @@ function planPackageChanges(project: string, manifest: AddonManifest, force: boo
             continue;
           }
 
-          json[section] = { ...json[section], [key]: value };
+          json[section] = withEntry(section, json[section], key, value);
           changed.add(json);
           changes.push(`${join(path, "package.json")}: ${section}.${key}`);
         }
@@ -467,7 +496,7 @@ function usage(): string {
     "",
     "units:",
     `  ${KIT.padEnd(12)} the architecture gates, lint rules and hooks (tools/arch)`,
-    ...listAddons().map(({ name, summary }) => `  ${name.padEnd(12)} ${summary}`),
+    ...listAddons().map(({ name, summary, recommended }) => `  ${name.padEnd(12)} ${recommended ? "(recommended) " : ""}${summary}`),
   ].join("\n");
 }
 

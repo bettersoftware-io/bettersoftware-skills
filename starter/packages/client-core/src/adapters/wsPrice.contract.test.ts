@@ -1,6 +1,8 @@
+import { Subject } from "rxjs";
+
+import type { Price } from "@app/domain";
 import { describePricePortContract } from "@app/domain/ports/__contracts__/PricePortContract.ts";
 import { encodePrice } from "@app/shared";
-import { Subject } from "rxjs";
 
 import { createWsPricePort } from "./wsPrice.ts";
 
@@ -9,7 +11,7 @@ describePricePortContract("WebSocket price adapter", () => {
 
   return {
     port: createWsPricePort({ messages: () => messages$ }),
-    produce: (price): void => {
+    produce: (price: Price): void => {
       messages$.next(encodePrice(price));
     },
     teardown: (): void => {

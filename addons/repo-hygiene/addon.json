@@ -1,0 +1,33 @@
+{
+  "name": "repo-hygiene",
+  "summary": "Three small checks in gate:fast: one version of each dependency, no dead markdown link or anchor, and CSS lint.",
+  "recommended": false,
+  "packageJson": {
+    ".": {
+      "scripts": {
+        "check:versions": "node tools/repo-hygiene/check-versions.mts",
+        "check:doc-links": "node tools/repo-hygiene/check-doc-links.mts",
+        "lint:css": "node tools/repo-hygiene/check-css.mts"
+      },
+      "devDependencies": {
+        "@manypkg/cli": "^0.25.1",
+        "stylelint": "^17.13.0",
+        "stylelint-config-standard": "^40.0.0",
+        "syncpack": "^15.3.2"
+      }
+    }
+  },
+  "gates": {
+    "fast": [
+      "pnpm check:versions",
+      "pnpm check:doc-links",
+      "pnpm lint:css"
+    ],
+    "full": []
+  },
+  "startingFiles": [
+    "tools/repo-hygiene/syncpack.json",
+    "tools/repo-hygiene/stylelint.json"
+  ],
+  "verify": "pnpm check:versions && pnpm check:doc-links && pnpm lint:css"
+}

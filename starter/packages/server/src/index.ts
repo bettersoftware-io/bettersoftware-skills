@@ -1,11 +1,11 @@
 import { createPriceSimulator } from "@app/domain";
 import { WS_PATH } from "@app/shared";
 
-import { startServer } from "./startServer.ts";
+import { type RunningServer, startServer } from "./startServer.ts";
 
 // The server's composition root: read the configuration, pick the price
 // source, start.
-const server = await startServer({
+const server: RunningServer = await startServer({
   port: Number(process.env.PORT ?? 4000),
   prices: createPriceSimulator(),
 });

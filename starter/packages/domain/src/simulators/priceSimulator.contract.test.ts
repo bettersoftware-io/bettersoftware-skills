@@ -18,8 +18,8 @@ describePricePortContract("price simulator", () => {
   const queued: Price[] = [];
 
   return {
-    port: createPriceSimulator({ intervalMs: INTERVAL_MS, nextPrice: () => queued.shift()! }),
-    produce: async (price): Promise<void> => {
+    port: createPriceSimulator({ intervalMs: INTERVAL_MS, nextPrice: () => takeNext(queued) }),
+    produce: async (price: Price): Promise<void> => {
       queued.push(price);
       await vi.advanceTimersByTimeAsync(INTERVAL_MS);
     },
@@ -28,3 +28,14 @@ describePricePortContract("price simulator", () => {
     },
   };
 });
+
+/** The simulator ticks once for each price the contract produces, so one is always waiting. */
+function takeNext(queued: Price[]): Price {
+  const next = queued.shift();
+
+  if (next === undefined) {
+    throw new Error("the simulator asked for a price the contract had not produced");
+  }
+
+  return next;
+}

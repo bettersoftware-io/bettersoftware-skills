@@ -1,0 +1,20 @@
+{
+  "name": "ci-security",
+  "summary": "Supply-chain checks for a project on GitHub: workflow lint (actionlint, zizmor), Dependency Review, pnpm audit, Dependabot and OpenSSF Scorecard.",
+  "recommended": true,
+  "packageJson": {
+    ".": {
+      "scripts": {
+        "lint:workflows": "node tools/ci-security/lint-workflows.mts"
+      }
+    }
+  },
+  "gates": {
+    "fast": [],
+    "full": []
+  },
+  "startingFiles": [
+    ".github/dependabot.yml"
+  ],
+  "verify": "pnpm lint:workflows"
+}

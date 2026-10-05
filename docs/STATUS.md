@@ -21,6 +21,14 @@ on 2026-10-05, on pushes to main and on a pull request
 ([the record](github-run-2026-10-05.md),
 [the feature run](demo-feature-2026-10-05.md)). What that did not cover:
 
+- **`format-lint`, `ci-security` and `repo-hygiene` have not run on GitHub at
+  all.** They were built during an outage of GitHub Actions. The three
+  `ci-security` workflows (workflow lint, Dependency Review, Scorecard) are
+  checked for form only, by actionlint and zizmor. Only the macOS arm64 builds
+  of the two linters and of Biome have been run.
+- **No job creates a project with several add-ons at once.** CI adds each one
+  alone. All six together, and the recommended three together, pass
+  `gate:full` locally.
 - **No run where the coverage gate fails has been seen.** The report is meant
   to publish then too.
 - **The motion audit had nothing to judge.** The starter has no animation, so
@@ -40,6 +48,14 @@ on 2026-10-05, on pushes to main and on a pull request
 
 ## Next, each small
 
+- **A `strict-lint` add-on:** type-aware ESLint (unhandled promises and the
+  like) and knip for dead code and unused dependencies. The fourth of the
+  portable tools from the source project; the other three are in.
+- **The mutation check accepts a test command that runs no test.** A `-t`
+  filter that matches nothing exits 0, so the baseline reads green and the
+  mutant reads SURVIVED; with a runner that exits non-zero on no match it would
+  read KILLED for nothing. The tool should refuse a baseline that ran zero
+  tests. Found while building the `ci-security` add-on.
 - **The creation script rewrites the README.** A created project's README is
   still titled "Starter" and describes the starter. The script rewrites the
   package scope and name, not this file.
@@ -55,6 +71,11 @@ on 2026-10-05, on pushes to main and on a pull request
   finish in one session; not tried.
 
 ## Open decisions
+
+- **Biome's line width is 120; the source project uses 80.** The starter was
+  written to 120: at 80 the formatter rewrites 42 of its files, at 120 four.
+  A project sets its own in `biome.json`. Which the starter ships is a choice
+  of style, not yet made by the owner.
 
 - **Nothing says when a new pattern earns a row in the `AGENTS.md` table.** The
   `agent-docs` gate fails on a row that points at a file that is gone; it

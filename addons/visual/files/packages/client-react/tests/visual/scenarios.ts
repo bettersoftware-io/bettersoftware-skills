@@ -36,7 +36,7 @@ const USDJPY: Price = { symbol: "USDJPY", mid: 151.2 };
  * lower-case and dashed. Each scenario needs a golden on every platform that
  * runs the tier; `pnpm visual` says which are missing.
  */
-export const scenarios = {
+export const scenarios: Record<string, Scenario> = {
   empty: {
     prices: [],
   },
@@ -51,4 +51,4 @@ export const scenarios = {
     stalePrices: [USDJPY],
     prices: MOVES,
   },
-} satisfies Record<string, Scenario>;
+};

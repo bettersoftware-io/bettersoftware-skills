@@ -1,9 +1,10 @@
 import { connect } from "node:net";
 
-import type { Price } from "@app/domain";
-import { encodePrice, WS_PATH } from "@app/shared";
 import { Subject } from "rxjs";
 import { describe, expect, it, onTestFinished } from "vitest";
+
+import type { Price } from "@app/domain";
+import { encodePrice, WS_PATH } from "@app/shared";
 
 import { type RunningServer, startServer } from "./startServer.ts";
 
