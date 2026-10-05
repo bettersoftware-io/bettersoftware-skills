@@ -21,11 +21,11 @@ on 2026-10-05, on pushes to main and on a pull request
 ([the record](github-run-2026-10-05.md),
 [the feature run](demo-feature-2026-10-05.md)). What that did not cover:
 
-- **`format-lint`, `ci-security` and `repo-hygiene` have not run on GitHub at
-  all.** They were built during an outage of GitHub Actions. The three
-  `ci-security` workflows (workflow lint, Dependency Review, Scorecard) are
-  checked for form only, by actionlint and zizmor. Only the macOS arm64 builds
-  of the two linters and of Biome have been run.
+- **The three `ci-security` workflows have not run on GitHub** (workflow lint,
+  Dependency Review, Scorecard). They are checked for form only, by actionlint
+  and zizmor. This repository's CI does create a project with each of
+  `format-lint`, `ci-security` and `repo-hygiene` and holds it to `gate:full`,
+  on Linux, and that passes; the add-ons' own workflows are a different thing.
 - **No job creates a project with several add-ons at once.** CI adds each one
   alone. All six together, and the recommended three together, pass
   `gate:full` locally.
