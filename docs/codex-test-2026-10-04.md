@@ -84,10 +84,57 @@ In the first run turbo replayed the server's and the integration tests from
 cache, correctly: Codex had changed only the client, and they do not read it.
 That is why the second run was needed.
 
+## The plugin's skills in a Codex session
+
+Also on 2026-10-05, with the plugin installed in a real Codex setup the way
+the README says (`codex plugin marketplace add`, `codex plugin add`), on the
+free tier. Headless, default sandbox, nothing in the prompt about a skill.
+
+### Starting a project
+
+> Start a new project in this folder for a small stock-level tracker: a
+> TypeScript monorepo on ports and adapters, with a React UI that shows live
+> data. Call it stock-desk.
+
+| | First run | After the fix |
+|---|---|---|
+| Loaded `creating-a-project` unprompted | yes | yes |
+| Found the script two folders above the skill, in the plugin's cache | yes | yes |
+| The script | **died halfway**: `EPERM` making `.codex`, and left a partial project | wrote the whole project, and said `.codex/hooks.json` could not be written |
+| `git init` | not reached | refused: the sandbox keeps `.git` read-only |
+| `pnpm install`, `pnpm gate:full` | not reached | refused: no network, so the gate never ran |
+| What Codex did then | reported the failure | reported each refused step and the commands to run, and stopped. It built no feature, as the skill says |
+
+Two defects in the script, both fixed: it copied the starter's `.codex`
+folder, which Codex's sandbox protects so that an agent cannot install hooks
+for itself, and a failure left half a project behind. The hosts' settings are
+now written in one place that gives way to that refusal and says what is left
+to do, and a failed run removes what it wrote.
+
+What is left is the sandbox's own rule, and the skill does not work round it:
+in Codex's default sandbox a project is created and not proven. The README
+gives the four commands to run outside it.
+
+### Reviewing a change
+
+> Review the uncommitted changes in this project. Do not change any file.
+
+Asked in the project the hook runs above had left (a symbol count in the UI,
+one reworded comment). Codex did not name the plugin's skill. It said it would
+"follow the project's review instructions", which is the path meant to work
+without the plugin: it ran `pnpm gate:fast`, showed the output, and answered
+the seven questions with `file:line` evidence.
+
+Verdict: CHANGES NEEDED, on question 4. The count Codex itself had added the
+run before is worked out in the component, from `rows.length`, and the
+questions put a total in the core.
+
+### Not run in Codex
+
+`extending-a-project`. It would meet the same sandbox: no network for
+`pnpm install`.
+
 ## Not checked
 
-- **The plugin's skills in a Codex session.** Installing the plugin in Codex is
-  checked ([how](plugin-test-2026-10-04.md)); a session that loads one of its
-  skills is not. That needs the plugin installed in a real Codex setup.
 - **Trusting the hooks interactively** with `/hooks`.
 - One model, one run of each.

@@ -33,6 +33,18 @@ codex plugin add bettersoftware-skills@bettersoftware
 | `bettersoftware-skills:extending-a-project` | To add an add-on to a project, bring its copy of the kit up to date, or give an existing project the gates for the first time |
 | `bettersoftware-skills:reviewing-architecture` | To review a change for what no gate can check, as seven judgement questions |
 
+**In Codex's default sandbox a new project is created but not proven.** The
+sandbox has no network and keeps `.git` and `.codex` read-only, so the skill
+writes the project, says which steps were refused, and stops. Outside the
+sandbox, in the project:
+
+```bash
+git init
+pnpm install
+pnpm gate:full
+cp tools/arch/hooks/codex.hooks.json .codex/hooks.json   # then trust it with /hooks
+```
+
 The plugin installs no hooks. The gates and the hooks that run them are files
 in each project (`tools/arch`, `.claude/settings.json`, `.codex/hooks.json`),
 so they apply to everyone who works on the project, with or without the

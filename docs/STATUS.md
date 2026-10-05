@@ -74,9 +74,8 @@ on 2026-10-05, on pushes to main and on a pull request
 - **A feature that touches more of the app:** sign-in, routing. The hardest
   test so far (users and categories with create, edit and delete, over REST)
   added a second transport and forms, but no navigation and no session.
-- **The plugin's skills in a Codex session.** Installing is checked, and the
-  project's `AGENTS.md` and hooks are checked in Codex. A session that loads a
-  skill from the plugin is not.
+- **`extending-a-project` in a Codex session.** The other two are checked
+  there ([the record](codex-test-2026-10-04.md)).
 - **A model between the smallest and the frontier.** Claude Haiku 4.5 has been
   tried ([the record](small-model-2026-10-05.md)); Claude Sonnet has not.
 - **The kit in a real existing project.** The script sets up the files and says
@@ -85,6 +84,11 @@ on 2026-10-05, on pushes to main and on a pull request
   watched an agent do.
 
 ## Known limits
+
+- **In Codex's default sandbox a project is created and not proven.** No
+  network, and `.git` and `.codex` are read-only there, so `git init`,
+  `pnpm install`, `gate:full` and the Codex hook file are left to the person.
+  The script and the skill say so; the README gives the commands.
 
 - **The stop hook does not run the visual tests.** `pnpm visual` is outside
   `gate:full` on purpose, so an agent can still finish with stale goldens. CI's
