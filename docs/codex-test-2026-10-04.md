@@ -84,6 +84,25 @@ In the first run turbo replayed the server's and the integration tests from
 cache, correctly: Codex had changed only the client, and they do not read it.
 That is why the second run was needed.
 
+### What Codex's own run of the gate says
+
+`AGENTS.md` now tells an agent to run `gate:full` itself. Inside the sandbox
+that run executes the server's tests whenever the change reaches code they
+read, and they cannot listen. Two runs that changed the domain:
+
+| `AGENTS.md` | Codex's report |
+|---|---|
+| As it was | "`pnpm gate:full` did not pass: ... Server tests failed because the environment denied opening a listening socket (`listen EPERM`)." |
+| With a paragraph saying that this is the sandbox, and that the stop hook runs the gate outside it | "`pnpm gate:full` stopped at the server tests because this sandbox blocks listening on ports (`listen EPERM`); the build did not run." |
+
+Both times the work was correct and the stop hook's own `gate:full` passed.
+The paragraph changed who the report blames. It did not change what Codex
+ran: it still ran `gate:full` and not the narrower commands the paragraph
+suggests, and it did not mention the stop hook. Turbo also stops at the first
+failing package, so inside the sandbox the steps after the server's tests (the
+build) never run for the agent. The paragraph is in the starter's `AGENTS.md`;
+the rest is in [STATUS](STATUS.md).
+
 ## The plugin's skills in a Codex session
 
 Also on 2026-10-05, with the plugin installed in a real Codex setup the way

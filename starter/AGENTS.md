@@ -18,6 +18,14 @@ work is not finished, and `gate:fast` alone does not show that it is: it runs
 no test. The stop hook runs `gate:full` for you whenever a file has changed
 since it last passed.
 
+Some sandboxes do not let a process listen on a port; Codex's default one does
+not. There the tests in `packages/server` and `packages/integration` fail with
+`listen EPERM`, and `pnpm gate:full` fails with them. That is the sandbox, not
+your change: do not try to fix it or work round it. Run `pnpm gate:fast` and
+the tests of the packages you changed, and say in your report which tests
+could not run where you are. The stop hook runs `gate:full` outside the
+sandbox, so the whole gate is still checked before you finish.
+
 ## The layers
 
 Dependencies point inward only. `architecture.config.mts` is the declaration
