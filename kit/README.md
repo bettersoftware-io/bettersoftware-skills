@@ -190,12 +190,24 @@ The stop hook runs the project's `gate:full` script, the one CI runs, so
 ```
 
 The full gate takes minutes, so the hook does not run it on a tree that has
-already passed. After a green run it stores a hash of every file git does not
-ignore, in `node_modules/.cache/arch/`. While the hash is unchanged the agent
-finishes at once; after any edit it is held to the whole gate.
+already passed. After a green run it stores a hash in
+`node_modules/.cache/arch/`. While the hash is unchanged the agent finishes at
+once; after any edit it is held to the whole gate.
 
-- Outside a git repository there is nothing to hash, and the gate runs every
-  time.
+The hash covers what the verdict is taken to depend on: every file git does
+not ignore, tracked or not; the `.env` files it does ignore; and the version
+of Node.
+
+- Where that cannot be established the gate runs every time: outside a git
+  repository, and in a tree that holds a repository of its own (a submodule, a
+  nested clone), whose files git lists as one entry.
+- **It is a guard against stopping early, not a lock.** The record is a file.
+  An agent that sets out to cheat can write it, as it can rewrite the
+  `gate:full` script or the hook itself. CI, which runs the same script from
+  nothing, is what catches that.
+- **An input the hash leaves out can change the verdict without changing the
+  record**: an environment variable, a tool installed outside the project, a
+  file edited by hand inside `node_modules`.
 - A gate that does not finish in nine minutes is reported as "nothing is
   verified", never as a pass. The hook's own timeout in the host's settings is
   ten minutes.

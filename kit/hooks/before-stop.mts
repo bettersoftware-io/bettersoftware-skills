@@ -12,6 +12,13 @@
 // agent that only answered a question never waits, and one that edited
 // anything is held to the whole gate.
 //
+// This is a guard against stopping early, not a lock. The record is a file,
+// and an agent that sets out to cheat can write it, as it can rewrite the
+// `gate:full` script or this hook. What catches that is CI, which runs the
+// same script from nothing. The record is also only as complete as its hash:
+// an input the hash leaves out (an environment variable, a tool installed
+// outside the project) can change the verdict without changing the record.
+//
 // `stop_hook_active` means the agent is already continuing because of this
 // hook; it is let through then, so a gate the agent cannot fix ends in a
 // report to the user and never in a loop.
@@ -114,35 +121,45 @@ function runGate(root: string, script: string): GateRun {
   };
 }
 
+/** A file of settings that git usually ignores and that a build or a test may read. */
+const ENVIRONMENT_FILE = /(^|\/)\.env(\.[^/]*)?$/;
+
 /**
- * One hash over the path and content of every file git does not ignore,
- * tracked or not. Undefined where git cannot say which files those are: then
- * nothing is remembered and the gate runs every time.
+ * One hash over everything a gate's verdict is taken to depend on: the path
+ * and content of every file git does not ignore, tracked or not; the
+ * environment files it does ignore; and the version of Node.
+ *
+ * Undefined when that cannot be established: git cannot list the files, or
+ * the tree holds a repository of its own (a submodule, a nested clone), whose
+ * files git lists as one entry. Then nothing is remembered and the gate runs
+ * every time.
  */
 function hashWorkingTree(root: string): string | undefined {
-  const listed = spawnSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], {
-    cwd: root,
-    encoding: "utf8",
-    maxBuffer: 256 * 1024 * 1024,
-  });
+  const judged = listFiles(root, ["--cached", "--others", "--exclude-standard"]);
+  // `--directory` names an ignored folder once and does not walk it, so this never reads node_modules.
+  const ignored = listFiles(root, ["--others", "--ignored", "--exclude-standard", "--directory"]);
 
-  if (listed.status !== 0) {
+  if (judged === undefined || ignored === undefined) {
     return undefined;
   }
 
-  const hash = createHash("sha256");
+  const hash = createHash("sha256").update(`${process.version} ${process.platform} ${process.arch}\0`);
 
-  for (const path of listed.stdout.split("\0").filter(Boolean).sort()) {
+  for (const path of [...judged, ...ignored.filter((entry) => ENVIRONMENT_FILE.test(entry))].sort()) {
     const file = lstatSync(join(root, path), { throwIfNoEntry: false });
 
     hash.update(`${path}\0`);
+
+    if (file?.isDirectory()) {
+      return undefined;
+    }
 
     if (file?.isSymbolicLink()) {
       hash.update(readlinkSync(join(root, path)));
     } else if (file?.isFile()) {
       hash.update(readFileSync(join(root, path)));
     } else {
-      // Deleted but still in the index, or a folder git lists as one entry.
+      // Deleted, but still in git's index.
       hash.update("\0absent");
     }
 
@@ -150,6 +167,16 @@ function hashWorkingTree(root: string): string | undefined {
   }
 
   return hash.digest("hex");
+}
+
+function listFiles(root: string, which: string[]): string[] | undefined {
+  const listed = spawnSync("git", ["ls-files", ...which, "-z"], {
+    cwd: root,
+    encoding: "utf8",
+    maxBuffer: 256 * 1024 * 1024,
+  });
+
+  return listed.status === 0 ? listed.stdout.split("\0").filter(Boolean) : undefined;
 }
 
 function readLastGreen(root: string): string | undefined {
@@ -161,8 +188,13 @@ function readLastGreen(root: string): string | undefined {
 function writeLastGreen(root: string, tree: string): void {
   const file = join(root, LAST_GREEN);
 
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, `${tree}\n`);
+  // Where it cannot be stored, the next stop simply runs the gate again.
+  try {
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, `${tree}\n`);
+  } catch {
+    // Nothing to do: the verdict of this run stands, and it was green.
+  }
 }
 
 if (isMainModule(import.meta.url)) {

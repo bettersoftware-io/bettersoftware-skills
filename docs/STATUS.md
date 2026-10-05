@@ -73,8 +73,19 @@ on 2026-10-05, on pushes to main and on a pull request
 - **The stop hook does not run the visual tests.** `pnpm visual` is outside
   `gate:full` on purpose, so an agent can still finish with stale goldens. CI's
   `Visual goldens` job is what catches that.
+- **The stop hook's memory of a green tree is a file an agent could write,**
+  and its hash leaves out what is not a file in the project (an environment
+  variable, a tool installed elsewhere). It guards against stopping early; it
+  is not a lock. CI is the check that cannot be talked round. A security
+  review of the first version found both points; the hash now also covers
+  ignored `.env` files and the Node version, and a tree with a nested
+  repository is never remembered.
 - **The stop hook reads every file git does not ignore, on every stop,** to
   know whether the tree changed. Not measured on a large repository.
+- **Updating the kit does not say what changed for the project's own files.**
+  The new stop hook wanted a longer timeout in `.claude/settings.json` and a
+  changed sentence in `AGENTS.md`; the installer leaves those files alone and
+  printed nothing about them.
 - **A stop-hook gate that is cut off at nine minutes may leave its child
   processes running.** The hook stops the command it started, not what that
   command started.

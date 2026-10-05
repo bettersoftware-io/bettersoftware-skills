@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, wr
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { editedFilesOf, judgeEdit } from "./after-edit.mts";
 import { type GateRun, judgeStop } from "./before-stop.mts";
@@ -226,6 +226,58 @@ describe("a tree that has already passed", () => {
     expect(gate.runs()).toBe(1);
   });
 
+  it("is judged again when an environment file changes, though git ignores it", () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const gate = createCountedGate(green);
+
+    mkdirSync(join(project, "packages", "web"), { recursive: true });
+    writeFileSync(join(project, "packages", "web", ".env.local"), "API=http://localhost:4000\n");
+    judgeStop({ cwd: project }, gate.run);
+    writeFileSync(join(project, "packages", "web", ".env.local"), "API=http://localhost:5000\n");
+    judgeStop({ cwd: project }, gate.run);
+    judgeStop({ cwd: project }, gate.run);
+
+    expect(gate.runs()).toBe(2);
+  });
+
+  it("is judged again under another version of Node", () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const gate = createCountedGate(green);
+    const version = process.version;
+
+    onTestFinished(() => {
+      Object.defineProperty(process, "version", { value: version });
+    });
+
+    judgeStop({ cwd: project }, gate.run);
+    Object.defineProperty(process, "version", { value: "v99.0.0" });
+    judgeStop({ cwd: project }, gate.run);
+
+    expect(gate.runs()).toBe(2);
+  });
+
+  it("is judged every time when it holds a repository of its own, whose files git does not list", () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const gate = createCountedGate(green);
+
+    mkdirSync(join(project, "vendor"));
+    spawnSync("git", ["init", "--quiet"], { cwd: join(project, "vendor") });
+    writeFileSync(join(project, "vendor", "lib.ts"), "export const v = 1;\n");
+    judgeStop({ cwd: project }, gate.run);
+    judgeStop({ cwd: project }, gate.run);
+
+    expect(gate.runs()).toBe(2);
+  });
+
+  it("lets the agent finish on a green gate even where the result cannot be stored", () => {
+    const project = createGitProject({ "gate:full": "true" });
+
+    // A file where the folder for the record would go.
+    writeFileSync(join(project, "node_modules"), "");
+
+    expect(judgeStop({ cwd: project }, green)).toBeUndefined();
+  });
+
   it("is not judged again for a change git ignores, such as a build's output", () => {
     const project = createGitProject({ "gate:full": "true" });
     const gate = createCountedGate(green);
@@ -307,7 +359,7 @@ function createGitProject(scripts: Record<string, string>): string {
   const root = createProject(scripts);
 
   writeFileSync(join(root, "src.ts"), "export const a = 1;\n");
-  writeFileSync(join(root, ".gitignore"), "node_modules/\ndist/\n");
+  writeFileSync(join(root, ".gitignore"), "node_modules\ndist/\n.env.local\n");
   spawnSync("git", ["init", "--quiet"], { cwd: root });
   spawnSync("git", ["add", "src.ts", "package.json", ".gitignore"], { cwd: root });
 
