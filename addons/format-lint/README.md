@@ -49,7 +49,7 @@ The source is the Biome config of ReactiveTraderCloudClone. What was kept:
 |---|---|
 | Spaces, width 2, `lf` line endings | One layout, so a diff shows only what changed |
 | Double quotes, a semicolon after every statement, trailing commas everywhere | The same. A trailing comma keeps a one-item addition to a one-line diff |
-| Line width **120** (the source uses 80) | The starter is written to 120. Measured on the starter, formatting only: 42 files and 349 added lines at 80, 16 files at 100, 4 files at 120 |
+| Line width **100** (the source uses 80) | The rules here ask for an explicit type on every parameter and return, which makes lines longer than in ordinary TypeScript. Measured on the starter as first written, formatting only: 42 files and 349 added lines at 80, 16 files at 100, 4 files at 120. 100 keeps most typed signatures on one line and still reads side by side |
 | JSON and CSS are formatted, CSS is linted | Same rule for every file a person edits |
 | `tsconfig*.json` may hold comments and trailing commas | TypeScript reads them that way, and the starter's tsconfig files have comments |
 
@@ -195,7 +195,7 @@ Biome ships a binary per platform; only the macOS arm64 one ran.
   fail: a new rule, or a Biome version that formats differently. Run
   `pnpm biome:fix` after one. A project that edited the base is refused by the
   installer until it moves the edit to `biome.json`.
-- **Line width 120 is a choice for the starter**, not the source's. A project
+- **Line width 100 is a choice for the starter**, not the source's. A project
   that wants 80 sets `formatter.lineWidth` in `biome.json` and runs the fixer.
 - **`useExplicitType` is a nursery rule.** It asks for types that inference
   already has, and may change between Biome versions.

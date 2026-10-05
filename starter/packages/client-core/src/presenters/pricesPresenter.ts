@@ -33,5 +33,8 @@ export function createPricesPresenter(port: PricePort): PricesPresenter {
 
 /** The row as fresh now, and again as stale if nothing replaces it in time. */
 function showThenAge(tick: PriceTick): Observable<PriceRow> {
-  return concat(of({ ...tick, stale: false }), timer(STALE_AFTER_MS).pipe(map(() => ({ ...tick, stale: true }))));
+  return concat(
+    of({ ...tick, stale: false }),
+    timer(STALE_AFTER_MS).pipe(map(() => ({ ...tick, stale: true }))),
+  );
 }

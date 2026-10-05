@@ -72,11 +72,6 @@ on 2026-10-05, on pushes to main and on a pull request
 
 ## Open decisions
 
-- **Biome's line width is 120; the source project uses 80.** The starter was
-  written to 120: at 80 the formatter rewrites 42 of its files, at 120 four.
-  A project sets its own in `biome.json`. Which the starter ships is a choice
-  of style, not yet made by the owner.
-
 - **Nothing says when a new pattern earns a row in the `AGENTS.md` table.** The
   `agent-docs` gate fails on a row that points at a file that is gone; it
   cannot know that a row is missing. In the REST run the agent built a new

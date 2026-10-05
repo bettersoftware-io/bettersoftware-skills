@@ -16,5 +16,9 @@
     "types": ["node"]
   },
   "include": ["tools/**/*.mts", "eslint.config.mts", "architecture.config.mts"],
-  "exclude": ["tools/**/*.test.mts", "tools/arch/gates/fixtures", "tools/arch/architecture.config.example.mts"]
+  "exclude": [
+    "tools/**/*.test.mts",
+    "tools/arch/gates/fixtures",
+    "tools/arch/architecture.config.example.mts"
+  ]
 }

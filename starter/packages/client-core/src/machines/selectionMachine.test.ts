@@ -4,7 +4,9 @@ import { createSelectionMachine, reduceSelection } from "./selectionMachine.ts";
 
 describe("reduceSelection", () => {
   it("selects a symbol", () => {
-    expect(reduceSelection({ selected: null }, { type: "select", symbol: "EURUSD" })).toEqual({ selected: "EURUSD" });
+    expect(reduceSelection({ selected: null }, { type: "select", symbol: "EURUSD" })).toEqual({
+      selected: "EURUSD",
+    });
   });
 
   it("moves the selection to another symbol", () => {
@@ -14,7 +16,9 @@ describe("reduceSelection", () => {
   });
 
   it("clears when the selected symbol is selected again", () => {
-    expect(reduceSelection({ selected: "EURUSD" }, { type: "select", symbol: "EURUSD" })).toEqual({ selected: null });
+    expect(reduceSelection({ selected: "EURUSD" }, { type: "select", symbol: "EURUSD" })).toEqual({
+      selected: null,
+    });
   });
 
   it("clears on request", () => {

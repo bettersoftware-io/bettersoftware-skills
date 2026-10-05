@@ -25,7 +25,8 @@ export function createPriceSimulator({
   nextPrice = createRandomWalk(),
 }: PriceSimulatorOptions = {}): PricePort {
   return {
-    prices: (): Observable<Price> => defer(() => timer(intervalMs, intervalMs).pipe(map(() => nextPrice()))),
+    prices: (): Observable<Price> =>
+      defer(() => timer(intervalMs, intervalMs).pipe(map(() => nextPrice()))),
   };
 }
 

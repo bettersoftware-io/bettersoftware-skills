@@ -2,7 +2,12 @@ import { existsSync } from "node:fs";
 
 import { expect, type Page, test } from "@playwright/test";
 
-import { describeMissingGolden, findOrphanGoldens, GOLDENS_DIRECTORY, locateGolden } from "./goldens.ts";
+import {
+  describeMissingGolden,
+  findOrphanGoldens,
+  GOLDENS_DIRECTORY,
+  locateGolden,
+} from "./goldens.ts";
 import { FRAME_TESTID, HOST_URL } from "./host/address.ts";
 import { scenarios } from "./scenarios.ts";
 
@@ -27,7 +32,10 @@ for (const name of Object.keys(scenarios)) {
           : new Error(`the visual host threw before it was ready:\n${trouble.crashes.join("\n")}`);
       });
 
-    expect(trouble.crashes, "the visual host threw, so the picture would be of a broken page").toEqual([]);
+    expect(
+      trouble.crashes,
+      "the visual host threw, so the picture would be of a broken page",
+    ).toEqual([]);
     expect(
       trouble.requestsElsewhere,
       "the visual host reached past its own server; a scenario must not depend on a network",

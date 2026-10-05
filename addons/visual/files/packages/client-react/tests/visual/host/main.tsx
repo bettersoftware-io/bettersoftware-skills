@@ -61,7 +61,9 @@ function seedPrices(): void {
 }
 
 createRoot(container).render(
-  <ViewModelProvider viewModel={createViewModel(selectFromTheStart(harness.app, scenario.selected))}>
+  <ViewModelProvider
+    viewModel={createViewModel(selectFromTheStart(harness.app, scenario.selected))}
+  >
     <ScenarioFrame seed={seedPrices}>
       <App />
     </ScenarioFrame>

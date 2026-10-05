@@ -1,7 +1,11 @@
 import type { PricePort } from "@app/domain";
 
 import type { Machine } from "./machines/machine.ts";
-import { createSelectionMachine, type SelectionIntents, type SelectionState } from "./machines/selectionMachine.ts";
+import {
+  createSelectionMachine,
+  type SelectionIntents,
+  type SelectionState,
+} from "./machines/selectionMachine.ts";
 import { createPricesPresenter, type PricesPresenter } from "./presenters/pricesPresenter.ts";
 
 /** Everything the application needs from the outside world. The client's

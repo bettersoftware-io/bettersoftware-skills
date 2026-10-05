@@ -16,7 +16,10 @@ export interface PricePortHarness {
  * calls this with its own harness; an adapter that passes is interchangeable
  * with the others.
  */
-export function describePricePortContract(label: string, createHarness: () => PricePortHarness): void {
+export function describePricePortContract(
+  label: string,
+  createHarness: () => PricePortHarness,
+): void {
   describe(`${label} :: PricePort contract`, () => {
     it("delivers every price the source produces, in order", async () => {
       const { port, produce, teardown } = createHarness();

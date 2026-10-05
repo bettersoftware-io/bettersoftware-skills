@@ -8,5 +8,7 @@ import { portTestsToSkip } from "../../tools/arch/testing/portTests.mts";
 export default defineConfig(async () => {
   const skipped = await portTestsToSkip();
 
-  return { test: { exclude: [...configDefaults.exclude, ...skipped], passWithNoTests: skipped.length > 0 } };
+  return {
+    test: { exclude: [...configDefaults.exclude, ...skipped], passWithNoTests: skipped.length > 0 },
+  };
 });

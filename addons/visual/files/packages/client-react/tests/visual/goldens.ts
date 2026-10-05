@@ -17,7 +17,8 @@ export const PLATFORM = `${os.platform()}-${os.arch()}`;
  */
 export const GOLDENS_DIRECTORY: string =
   // biome-ignore lint/suspicious/noUndeclaredEnvVars: Playwright runs this file, not a turbo task, so turbo neither strips the variable nor caches on it
-  process.env.VISUAL_GOLDENS_DIR ?? fileURLToPath(new URL(`./goldens/${PLATFORM}`, import.meta.url));
+  process.env.VISUAL_GOLDENS_DIR ??
+  fileURLToPath(new URL(`./goldens/${PLATFORM}`, import.meta.url));
 
 const PROJECT_ROOT = fileURLToPath(new URL("../../../..", import.meta.url));
 
@@ -44,6 +45,8 @@ export function findOrphanGoldens(scenarioNames: readonly string[]): string[] {
   }
 
   return readdirSync(GOLDENS_DIRECTORY)
-    .filter((file) => file.endsWith(".png") && !scenarioNames.includes(file.slice(0, -".png".length)))
+    .filter(
+      (file) => file.endsWith(".png") && !scenarioNames.includes(file.slice(0, -".png".length)),
+    )
     .map((file) => relative(PROJECT_ROOT, join(GOLDENS_DIRECTORY, file)));
 }
