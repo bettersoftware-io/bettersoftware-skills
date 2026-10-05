@@ -163,7 +163,7 @@ describe("the workflows", () => {
   it("reviews dependencies on pull requests only, in both scopes, at any severity", () => {
     expect(DEPENDENCY_REVIEW).toContain("\non:\n  pull_request:\n\n");
     expect(DEPENDENCY_REVIEW).toContain("          fail-on-severity: low\n");
-    expect(DEPENDENCY_REVIEW).toContain("          fail-on-scopes: runtime, development\n");
+    expect(DEPENDENCY_REVIEW).toContain("          fail-on-scopes: runtime, development, unknown\n");
     expect(DEPENDENCY_REVIEW).not.toContain("actions/checkout");
   });
 

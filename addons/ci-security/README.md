@@ -167,6 +167,12 @@ neither could be seen alone. It is now two tests.
 
 ## Limits
 
+- **The licence check is a list of what is refused.** A dependency whose
+  licence GitHub cannot read only warns, and a strong-copyleft licence that is
+  not on the list, or is declared under an older identifier, passes. A project
+  that needs a licence policy replaces `deny-licenses` with `allow-licenses`
+  in its own copy of the workflow and accepts the upkeep. Raised by a security
+  review of this add-on.
 - **None of the four workflows has run on GitHub.** GitHub Actions was down on
   the day this was written. actionlint and zizmor pass on the files, which
   checks their form, not their behaviour. Not seen: Dependency Review reading

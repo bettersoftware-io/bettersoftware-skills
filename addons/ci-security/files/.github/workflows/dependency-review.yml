@@ -37,12 +37,18 @@ jobs:
           fail-on-severity: low
           # The action's default is `runtime` only. `development` is the scope
           # `pnpm audit --prod` cannot see, so it is the reason this is here.
-          fail-on-scopes: runtime, development
+          # `unknown` is a dependency GitHub could not place in either: left
+          # out, an advisory on one would pass unjudged.
+          fail-on-scopes: runtime, development, unknown
           # A list of what is refused, not of what is allowed. Strong copyleft
           # is the class that changes what the project may do with its own
           # code. A list of allowed licences would fail a pull request on
-          # every harmless one nobody thought to write down. A licence the
-          # action cannot read only warns.
+          # every harmless one nobody thought to write down.
+          #
+          # What this list does not stop, and the README says so: a licence
+          # the action cannot read only warns, and a strong-copyleft licence
+          # that is not named here (or is named by an older identifier) passes.
+          # It is a tripwire for the common cases, not a licence policy.
           deny-licenses: >-
             AGPL-1.0-only, AGPL-1.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later,
             GPL-2.0-only, GPL-2.0-or-later, GPL-3.0-only, GPL-3.0-or-later,
