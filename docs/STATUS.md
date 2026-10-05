@@ -3,7 +3,7 @@
 What is not done yet. Finished work is removed from this page, not archived;
 the test records in this folder and the git log say what was done.
 
-**Last updated: 2026-10-04**
+**Last updated: 2026-10-05**
 
 ## Waiting on something outside this repository
 
@@ -33,6 +33,17 @@ is meant to run.
   update workflow a few times on one commit, compare the sets with
   `pnpm visual:jitter`, and set the threshold just above what it reports (0 if
   it reports nothing).
+
+## Dated
+
+- **From 19 October 2026 `ubuntu-latest` means Ubuntu 26.** GitHub's notice:
+  [actions/runner-images#14748](https://github.com/actions/runner-images/issues/14748).
+  Every workflow here uses that label: this repository's `ci.yml`, the
+  starter's `ci.yml`, and the add-ons' `coverage.yml`, `visual.yml`,
+  `update-visual-goldens.yml` and `perf.yml`. Decide whether to pin a version
+  (`ubuntu-24.04`) or to move with the label. Either way, re-run this
+  repository's CI once the change lands. The visual tests are the least
+  exposed, since they run inside a pinned Playwright container.
 
 ## Open decisions
 
