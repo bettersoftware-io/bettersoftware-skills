@@ -71,6 +71,12 @@ jobs:
         working-directory: ${{ env.PROJECT }}
         run: pnpm gate:full
 
+      # CI starts with an empty cache, so a task that replays a stale result
+      # can never show up as a wrong verdict here. It is asked about directly.
+      - name: Its cached tasks notice a change upstream
+        if: matrix.addon == 'none'
+        run: node scripts/check-task-cache.mts "$PROJECT"
+
       - name: Add the add-on
         if: matrix.addon != 'none'
         run: node scripts/add-to-project.mts "$PROJECT" ${{ matrix.addon }}

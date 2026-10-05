@@ -89,6 +89,7 @@ How each part was tested:
 | [`docs/codex-test-2026-10-04.md`](docs/codex-test-2026-10-04.md) | The project in Codex: a feature from `AGENTS.md` alone, and both hooks firing |
 | [`docs/github-run-2026-10-05.md`](docs/github-run-2026-10-05.md) | The add-ons' workflows on GitHub, the Linux goldens, and CI's visual noise |
 | [`docs/demo-feature-2026-10-05.md`](docs/demo-feature-2026-10-05.md) | A CRUD feature over REST, built by an agent in the demo project, and what review and use found |
+| [`docs/small-model-2026-10-05.md`](docs/small-model-2026-10-05.md) | A feature built by the smallest model: where it stopped, what a second session fixed, and a stale-cache bug found on the way |
 | [`docs/inventory.md`](docs/inventory.md) | What was extracted, and how it was sorted |
 
 No skill exists yet for placing logic, adding a port, streaming state or

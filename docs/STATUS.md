@@ -40,6 +40,22 @@ on 2026-10-05, on pushes to main and on a pull request
 
 ## Open decisions
 
+- **What the stop hook holds an agent to.** Today it is `gate:fast`, and
+  `AGENTS.md` says the same. The smallest model stopped exactly there, with
+  `gate:full` red, and reported green; told the full bar, it reached it. The
+  choices: the hook runs `gate:full` (every stop then waits for the tests, the
+  build and coverage); it runs `gate:full` only when files changed since the
+  last green run (needs a record of that); or only the sentence in `AGENTS.md`
+  changes (text, which a model may not follow).
+- **A contract may leave out a method of its port.** The `port-contracts` gate
+  checks that an adapter runs the contract, not that the contract calls each
+  method. A new method passed with no case. This is decidable from source and
+  is not built.
+- **The task-cache check is not in the kit.** `scripts/check-task-cache.mts`
+  runs in this repository's CI against a created project. A project that edits
+  its `turbo.json` can bring the stale results back, and nothing in the
+  project would say so.
+
 - **Nothing says when a new pattern earns a row in the `AGENTS.md` table.** The
   `agent-docs` gate fails on a row that points at a file that is gone; it
   cannot know that a row is missing. In the REST run the agent built a new
@@ -61,8 +77,8 @@ on 2026-10-05, on pushes to main and on a pull request
 - **The plugin's skills in a Codex session.** Installing is checked, and the
   project's `AGENTS.md` and hooks are checked in Codex. A session that loads a
   skill from the plugin is not.
-- **A smaller model.** Every run used a frontier model (Claude Fable 5.1, or
-  Claude Opus 5.5 for the REST feature).
+- **A model between the smallest and the frontier.** Claude Haiku 4.5 has been
+  tried ([the record](small-model-2026-10-05.md)); Claude Sonnet has not.
 - **The kit in a real existing project.** The script sets up the files and says
   what is left. Declaring each package's role, and deciding what to do with the
   findings on code that was never held to these rules, is judgement nobody has
