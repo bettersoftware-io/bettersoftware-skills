@@ -38,6 +38,22 @@ on 2026-10-05, on pushes to main and on a pull request
   repository's CI once the change lands. The visual tests are the least
   exposed, since they run inside a pinned Playwright container.
 
+## Next, each small
+
+- **The creation script rewrites the README.** A created project's README is
+  still titled "Starter" and describes the starter. The script rewrites the
+  package scope and name, not this file.
+- **A kit update says what the project has to change itself.** The installer
+  leaves the project's own files alone, which is right, and says nothing about
+  them, which is not. The new stop hook wanted a longer timeout in
+  `.claude/settings.json` and `.codex/hooks.json` and a changed sentence in
+  `AGENTS.md`; the update printed neither.
+- **A gate that prints failures only.** Held to `gate:full`, the smallest model
+  ran out of context on a feature that crosses every layer, and a second
+  session finished it. Its context filled with the gate's output: every
+  passing test and every cached task. A quiet mode might be what lets it
+  finish in one session; not tried.
+
 ## Open decisions
 
 - **Nothing says when a new pattern earns a row in the `AGENTS.md` table.** The
@@ -63,10 +79,6 @@ on 2026-10-05, on pushes to main and on a pull request
   skill from the plugin is not.
 - **A model between the smallest and the frontier.** Claude Haiku 4.5 has been
   tried ([the record](small-model-2026-10-05.md)); Claude Sonnet has not.
-- **A way for a small model to finish in one session.** Held to `gate:full`,
-  Haiku ran out of context on a feature that crosses every layer, and a second
-  session finished it. Its context filled with the gate's output. A quieter
-  gate (failures only) might be enough; not tried.
 - **The kit in a real existing project.** The script sets up the files and says
   what is left. Declaring each package's role, and deciding what to do with the
   findings on code that was never held to these rules, is judgement nobody has
@@ -86,10 +98,6 @@ on 2026-10-05, on pushes to main and on a pull request
   repository is never remembered.
 - **The stop hook reads every file git does not ignore, on every stop,** to
   know whether the tree changed. Not measured on a large repository.
-- **Updating the kit does not say what changed for the project's own files.**
-  The new stop hook wanted a longer timeout in `.claude/settings.json` and a
-  changed sentence in `AGENTS.md`; the installer leaves those files alone and
-  printed nothing about them.
 - **A stop-hook gate that is cut off at nine minutes may leave its child
   processes running.** The hook stops the command it started, not what that
   command started.
@@ -116,8 +124,6 @@ on 2026-10-05, on pushes to main and on a pull request
   re-exported through a package index. Closing it by reachability would forbid
   the UI every value import from an index that re-exports an adapter, which is
   a layout the source project relies on.
-- **A created project's README is still titled "Starter"** and describes the
-  starter. The script rewrites the package scope and name, not this file.
 - **Two links in `tools/arch/README.md` are dead inside a project**: they point
   at files that are not copied.
 - **The visual add-on has no theme matrix, no "which UI does no scenario
