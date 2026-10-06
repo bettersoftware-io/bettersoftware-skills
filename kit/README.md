@@ -43,7 +43,7 @@ A project declares its layers once, in `architecture.config.mts`
 | `app-harness` | A test calls the function that builds the whole application, anywhere but the one harness file |
 | `test-ids` | A test id is written as a string literal, in a component, a selector or a query, outside the client's test-ids file |
 | `types-only` | A package declared `typesOnly` exports a runtime value |
-| `playwright-pin` | A `package.json` asks for `@playwright/test` as a range; two ask for two versions; another version is installed; a workflow's Playwright image has another version |
+| `playwright-pin` | A `package.json` asks for `@playwright/test` or `playwright` as a range; two ask for two versions; another version is installed; a workflow's Playwright image has another version |
 
 ```bash
 node tools/arch/gates/run.mts                 # every gate
@@ -127,13 +127,14 @@ lives in the client's `tests/` folder and imports what it renders.
 The npm package brings a browser build, and so does the container image a
 workflow runs in. The `playwright-pin` gate holds them to one:
 
-- every `package.json` that asks for `@playwright/test`, the root's included,
-  names an exact version, and all name the same one;
+- every `package.json` that asks for `@playwright/test`, or for the
+  `playwright` library it is built on, the root's included, names an exact
+  version, and all name the same one;
 - the version installed in that package is the one it names;
 - the tag of every `mcr.microsoft.com/playwright:v…` image in
   `.github/workflows` carries that version.
 
-With no `package.json` that asks for it the gate reports `SKIP`. A project
+With no `package.json` that asks for either the gate reports `SKIP`. A project
 with one such package and no workflow passes: the exact version was judged.
 
 ### The paths the agent instructions name

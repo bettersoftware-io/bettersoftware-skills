@@ -58,11 +58,32 @@ describe("the Playwright pin", () => {
     expect(checkPlaywrightPin(project).map(({ file }) => file)).toEqual(["packages/e2e/package.json"]);
   });
 
+  it("holds the library to the test runner's version, and names both", () => {
+    const project = createProject({ declared: { "packages/e2e": "1.63.0" }, library: { "": "1.62.1" }, images: ["v1.63.0-noble"] });
+
+    expect(checkPlaywrightPin(project).map(({ file, message }) => `${file}: ${message}`)).toEqual([
+      "package.json: playwright is 1.62.1 here and @playwright/test is 1.63.0 in packages/e2e/package.json. Two versions are two browser builds on one machine: write the same version in both.",
+    ]);
+  });
+
+  it("holds a project that uses the library alone: a range, and a workflow image of another version", () => {
+    const range = createProject({ declared: {}, library: { "": "^1.63.0" }, images: [] });
+    const image = createProject({ declared: {}, library: { "": "1.63.0" }, images: ["v1.62.1-noble"] });
+
+    expect(playwrightPinSkipReason(range)).toBeUndefined();
+    expect(checkPlaywrightPin(range).map(({ message }) => message)).toEqual([expect.stringContaining('playwright is "^1.63.0". Write the exact version')]);
+    expect(checkPlaywrightPin(image).map(({ message }) => message)).toEqual([
+      expect.stringContaining("The container image is Playwright 1.62.1, but playwright is 1.63.0 in package.json"),
+    ]);
+  });
+
   it("judged nothing, and says so, when no package asks for Playwright", () => {
     const project = createProject({ declared: {}, images: ["v1.63.0-noble"] });
 
     expect(checkPlaywrightPin(project)).toEqual([]);
-    expect(playwrightPinSkipReason(project)).toBe("no package.json asks for @playwright/test, so there was no version to hold");
+    expect(playwrightPinSkipReason(project)).toBe(
+      "no package.json asks for @playwright/test, or for the playwright library, so there was no version to hold",
+    );
   });
 });
 
@@ -79,23 +100,30 @@ interface ProjectShape {
   declared: Record<string, string>;
   /** Package folder → its @playwright/test runtime dependency. */
   runtime?: Record<string, string>;
+  /** Package folder → its dev dependency on the `playwright` library. */
+  library?: Record<string, string>;
   /** Package folder → the version in its node_modules. Left out: not installed. */
   installed?: Record<string, string>;
   /** One workflow file per image tag. */
   images: string[];
 }
 
-function createProject({ declared, runtime = {}, installed = {}, images }: ProjectShape): Project {
+function createProject({ declared, runtime = {}, library = {}, installed = {}, images }: ProjectShape): Project {
   const root = mkdtempSync(join(tmpdir(), "playwright-pin-"));
 
   scratch.push(root);
   writeFile(join(root, "pnpm-workspace.yaml"), "packages:\n  - packages/*\n");
   writeJson(join(root, "packages/domain/package.json"), { name: "domain" });
 
-  for (const directory of new Set([...Object.keys(declared), ...Object.keys(runtime)])) {
+  for (const directory of new Set([...Object.keys(declared), ...Object.keys(runtime), ...Object.keys(library)])) {
+    const devDependencies = {
+      ...(declared[directory] === undefined ? {} : { "@playwright/test": declared[directory] }),
+      ...(library[directory] === undefined ? {} : { playwright: library[directory] }),
+    };
+
     writeJson(join(root, directory, "package.json"), {
       name: directory || "root",
-      ...(declared[directory] === undefined ? {} : { devDependencies: { "@playwright/test": declared[directory] } }),
+      devDependencies,
       ...(runtime[directory] === undefined ? {} : { dependencies: { "@playwright/test": runtime[directory] } }),
     });
   }

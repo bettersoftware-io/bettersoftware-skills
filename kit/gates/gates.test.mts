@@ -556,7 +556,7 @@ describe("a gate with nothing to judge", () => {
       "app-harness": "no core package defines createApp(…), so there was no application for a test to build",
       "test-ids": "no client package is declared, so there was nothing to check",
       "types-only": "no package is declared typesOnly, so there was nothing to check",
-      "playwright-pin": "no package.json asks for @playwright/test, so there was no version to hold",
+      "playwright-pin": "no package.json asks for @playwright/test, or for the playwright library, so there was no version to hold",
     });
     expect(report).toContain("SKIP dumb-ui");
     expect(report).toContain("SKIP port-contracts");
