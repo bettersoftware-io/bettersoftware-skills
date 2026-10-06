@@ -78,6 +78,7 @@ describe("declaring a package in the architecture config", () => {
 
     expect(declarePackages("export default buildConfig();\n", E2E)).toEqual({ added: [], byHand: line });
     expect(declarePackages('export default { packages: { "packages/domain": { role: "domain" } } };\n', E2E)).toEqual({ added: [], byHand: line });
+    expect(declarePackages('export default {\n  packages: { "packages/domain": { role: "domain" } },\n};\n', E2E)).toEqual({ added: [], byHand: line });
     expect(declarePackages('export default {\n  packages: {\n    "packages/domain": { role: "domain" },\n', E2E)).toEqual({ added: [], byHand: line });
     expect(declarePackages('export default {\n  packages: {\n    "packages/domain": "unclosed,\n  },\n};\n', E2E)).toEqual({ added: [], byHand: line });
     expect(declarePackages('export default {\n  packages: {\n    /* never closed\n  },\n};\n', E2E)).toEqual({ added: [], byHand: line });
