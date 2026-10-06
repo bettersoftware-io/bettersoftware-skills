@@ -1,0 +1,100 @@
+[
+  {
+    "name": "sim: a newer price never replaces the one a row first showed",
+    "file": "packages/client-core/src/presenters/pricesPresenter.ts",
+    "find": "return new Map(rows).set(row.symbol, row);",
+    "replace": "return rows.has(row.symbol) ? rows : new Map(rows).set(row.symbol, row);",
+    "test": "pnpm e2e --mode sim -g \"replaces the mid\""
+  },
+  {
+    "name": "sim: the simulator stops after its first price",
+    "file": "packages/domain/src/simulators/priceSimulator.ts",
+    "find": "timer(intervalMs, intervalMs)",
+    "replace": "timer(intervalMs)",
+    "test": "pnpm e2e --mode sim -g \"replaces the mid\""
+  },
+  {
+    "name": "sim: the app no longer draws the price list",
+    "file": "packages/client-react/src/ui/App.tsx",
+    "find": "      <PriceList />\n",
+    "replace": "",
+    "test": "pnpm e2e --mode sim -g \"shows a row\""
+  },
+  {
+    "name": "sim: a mid is drawn to two decimals",
+    "file": "packages/client-react/src/ui/PriceList.tsx",
+    "find": "row.mid.toFixed(4)",
+    "replace": "row.mid.toFixed(2)",
+    "test": "pnpm e2e --mode sim -g \"shows a row\""
+  },
+  {
+    "name": "sim: the page throws after it has started",
+    "file": "packages/client-react/src/main.tsx",
+    "find": "startApp();",
+    "replace": "startApp();\n\nqueueMicrotask(() => {\n  throw new Error(\"thrown by a mutant\");\n});",
+    "test": "pnpm e2e --mode sim -g \"shows a row\""
+  },
+  {
+    "name": "sim: a click on a row reaches nothing",
+    "file": "packages/client-react/src/ui/PriceList.tsx",
+    "find": "      onClick={selectRow}\n",
+    "replace": "",
+    "test": "pnpm e2e --mode sim -g \"marks the row\""
+  },
+  {
+    "name": "sim: a second click on the selected row does not clear it",
+    "file": "packages/client-core/src/machines/selectionMachine.ts",
+    "find": "action.type === \"clear\" || current.selected === action.symbol",
+    "replace": "action.type === \"clear\"",
+    "test": "pnpm e2e --mode sim -g \"marks the row\""
+  },
+  {
+    "name": "sim: the row that is drawn as selected is never the one that was clicked",
+    "file": "packages/client-react/src/ui/PriceList.tsx",
+    "find": "selected={selection.state.selected === row.symbol}",
+    "replace": "selected={selection.state.selected !== null && selection.state.selected !== row.symbol}",
+    "test": "pnpm e2e --mode sim -g \"marks the row\""
+  },
+  {
+    "name": "sim: the client opens a socket although it runs on the simulator",
+    "file": "packages/client-react/src/app/buildPorts.ts",
+    "find": "  console.info(\"[data] composed sim: no VITE_SERVER_URL\");\n",
+    "replace": "  console.info(\"[data] composed sim: no VITE_SERVER_URL\");\n  createWsConnection(\"ws://127.0.0.1:9/ws\").messages().subscribe();\n",
+    "test": "pnpm e2e --mode sim -g \"opens no connection\""
+  },
+  {
+    "name": "fullstack: the client silently runs on its simulator",
+    "file": "packages/client-react/src/app/buildPorts.ts",
+    "find": "if (serverUrl) {",
+    "replace": "if (serverUrl && serverUrl === \"never\") {",
+    "test": "pnpm e2e --mode fullstack"
+  },
+  {
+    "name": "fullstack: the composition root ignores the server it was configured with",
+    "file": "packages/client-react/src/app/startApp.tsx",
+    "find": "buildPorts(import.meta.env.VITE_SERVER_URL)",
+    "replace": "buildPorts(undefined)",
+    "test": "pnpm e2e --mode fullstack"
+  },
+  {
+    "name": "fullstack: the client's side of the protocol changes a price on its way in",
+    "file": "packages/shared/src/protocol.ts",
+    "find": "return { symbol: dto.symbol, mid: dto.mid };",
+    "replace": "return { symbol: dto.symbol, mid: dto.mid + 0.0001 };",
+    "test": "pnpm e2e --mode fullstack"
+  },
+  {
+    "name": "fullstack: the server accepts a client and sends it nothing",
+    "file": "packages/server/src/startServer.ts",
+    "find": "socket.send(JSON.stringify(encodePrice(price)));",
+    "replace": "void price;",
+    "test": "pnpm e2e --mode fullstack"
+  },
+  {
+    "name": "fullstack: the server listens on another path than the one the protocol names",
+    "file": "packages/server/src/startServer.ts",
+    "find": "new WebSocketServer({ port, path: WS_PATH })",
+    "replace": "new WebSocketServer({ port, path: \"/elsewhere\" })",
+    "test": "pnpm e2e --mode fullstack"
+  }
+]

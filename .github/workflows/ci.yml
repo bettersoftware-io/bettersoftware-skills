@@ -49,7 +49,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        addon: [none, coverage, visual, performance, format-lint, ci-security, repo-hygiene, strict-lint, agent-workflow]
+        addon: [none, coverage, visual, performance, format-lint, ci-security, repo-hygiene, strict-lint, agent-workflow, e2e]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -114,9 +114,23 @@ jobs:
           fi
 
       # The static checks of every add-on join gate:fast or gate:full, so the
-      # project's own gate is the proof. What needs a browser (the visual
-      # goldens, the runtime motion audit) is not run here.
+      # project's own gate is the proof. What needs a browser and committed
+      # images (the visual goldens, the runtime motion audit) is not run here.
       - name: Its gate, with the add-on in
         if: matrix.addon != 'none'
         working-directory: ${{ env.PROJECT }}
         run: pnpm gate:full
+
+      # The e2e add-on joins no gate: its run needs a browser. So this job
+      # brings one, the build Playwright's npm package asks for, with the
+      # system libraries it needs, and runs the specs for real. Without this
+      # nothing here would start the shipped specs at all.
+      - name: Install the browser the e2e add-on drives
+        if: matrix.addon == 'e2e'
+        working-directory: ${{ env.PROJECT }}
+        run: pnpm --dir packages/e2e exec playwright install --with-deps chromium
+
+      - name: Its end-to-end specs, against a build of the project just created
+        if: matrix.addon == 'e2e'
+        working-directory: ${{ env.PROJECT }}
+        run: pnpm e2e

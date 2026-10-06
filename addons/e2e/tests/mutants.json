@@ -1,0 +1,1136 @@
+[
+  {
+    "name": "kit structure: a file of no kind in an e2e package is not reported",
+    "file": "kit/gates/lib/structure.mts",
+    "find": "!isTestScaffolding(file)",
+    "replace": "!isTestScaffolding(file) && file === \"never\"",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"names a file of an e2e package\""
+  },
+  {
+    "name": "kit structure: an e2e package is not read when a single file is judged",
+    "file": "kit/gates/lib/structure.mts",
+    "find": "checkHoldsOnlyEndToEndTests(root, e2e, files.filter((file) => isInside(file, e2e.path))),",
+    "replace": "checkHoldsOnlyEndToEndTests(root, e2e, []),",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"judges a file in an e2e package\""
+  },
+  {
+    "name": "kit dependencies: the test ids are not let through",
+    "file": "kit/gates/lib/depcruise.mts",
+    "find": "[own, ...testIds.map((file) => `${escape(file)}$`)]",
+    "replace": "[own]",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"names an e2e package that imports the application\""
+  },
+  {
+    "name": "kit dependencies: only an e2e package's src is read, not its config",
+    "file": "kit/gates/lib/depcruise.mts",
+    "find": "from: { path: `^${own}` },",
+    "replace": "from: { path: `^${own}src/` },",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"names an e2e package that imports the application\""
+  },
+  {
+    "name": "kit dependencies: an e2e package also gets the rule every other role gets",
+    "file": "kit/gates/lib/depcruise.mts",
+    "find": "declared.filter(({ role }) => role !== \"e2e\")",
+    "replace": "declared",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"names an e2e package that imports the application\""
+  },
+  {
+    "name": "kit dependencies: the whole client is let through, not its test ids alone",
+    "file": "kit/gates/lib/depcruise.mts",
+    "find": "testIds.map((file) => `${escape(file)}$`)",
+    "replace": "packagesWithRole(config, \"client\").map((client) => `${escape(client.path)}/`)",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"names an e2e package that imports the application\""
+  },
+  {
+    "name": "kit package-scripts: a test script in an e2e package is not reported",
+    "file": "kit/gates/lib/package-scripts.mts",
+    "find": "if (config.packages[path]?.role === \"e2e\") {\n      for (const script of testScripts) {",
+    "replace": "if (config.packages[path]?.role === \"e2e\") {\n      for (const script of [] as string[]) {",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"names each test script of an e2e package\""
+  },
+  {
+    "name": "kit package-scripts: an e2e package is asked for a test script like any other",
+    "file": "kit/gates/lib/package-scripts.mts",
+    "find": "      continue;\n    }\n\n    if (!hasTests && !config.packagesWithoutTests[path]) {",
+    "replace": "    }\n\n    if (!hasTests && !config.packagesWithoutTests[path]) {",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"passes every gate\""
+  },
+  {
+    "name": "kit config: e2e is not a role",
+    "file": "kit/gates/lib/config.mts",
+    "find": "  \"integration\",\n  \"e2e\",\n];",
+    "replace": "  \"integration\",\n];",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"passes every gate\""
+  },
+  {
+    "name": "kit pin: a range is accepted",
+    "file": "kit/gates/lib/playwright-pin.mts",
+    "find": "if (!EXACT_VERSION.test(version)) {",
+    "replace": "if (version === \"\") {",
+    "test": "pnpm vitest run kit/gates/playwright-pin.test.mts -t \"fails when the version is a range\""
+  },
+  {
+    "name": "kit pin: an exact version is read as a range",
+    "file": "kit/gates/lib/playwright-pin.mts",
+    "find": "const EXACT_VERSION = /^\\d+\\.\\d+\\.\\d+$/;",
+    "replace": "const EXACT_VERSION = /^\\d+\\.\\d+$/;",
+    "test": "pnpm vitest run kit/gates/playwright-pin.test.mts -t \"passes when every package and every workflow\""
+  },
+  {
+    "name": "kit pin: two packages may name two versions",
+    "file": "kit/gates/lib/playwright-pin.mts",
+    "find": "if (first !== undefined && version !== first.version) {",
+    "replace": "if (first === undefined && version !== \"\") {",
+    "test": "pnpm vitest run kit/gates/playwright-pin.test.mts -t \"fails when two packages name two versions\""
+  },
+  {
+    "name": "kit pin: the workflows are not read",
+    "file": "kit/gates/lib/playwright-pin.mts",
+    "find": "for (const { file, version } of findImageTags(project.root)) {",
+    "replace": "for (const { file, version } of findImageTags(project.root).slice(0, 0)) {",
+    "test": "pnpm vitest run kit/gates/playwright-pin.test.mts -t \"fails when a workflow's image is another\""
+  },
+  {
+    "name": "kit pin: what is installed is not compared",
+    "file": "kit/gates/lib/playwright-pin.mts",
+    "find": "if (installed !== undefined && installed !== version) {",
+    "replace": "if (installed === undefined && installed !== version) {",
+    "test": "pnpm vitest run kit/gates/playwright-pin.test.mts -t \"fails when another version is installed\""
+  },
+  {
+    "name": "kit pin: only a dev dependency is read",
+    "file": "kit/gates/lib/playwright-pin.mts",
+    "find": "manifest.devDependencies?.[name] ?? manifest.dependencies?.[name]",
+    "replace": "manifest.devDependencies?.[name]",
+    "test": "pnpm vitest run kit/gates/playwright-pin.test.mts -t \"reads the root package.json and a runtime dependency\""
+  },
+  {
+    "name": "kit pin: the root package.json is not read",
+    "file": "kit/gates/lib/playwright-pin.mts",
+    "find": "[\"\", ...workspace.map(({ path }) => path)]",
+    "replace": "[...workspace.map(({ path }) => path)]",
+    "test": "pnpm vitest run kit/gates/playwright-pin.test.mts -t \"reads the root package.json and a runtime dependency\""
+  },
+  {
+    "name": "kit pin: the playwright library is not read",
+    "file": "kit/gates/lib/playwright-pin.mts",
+    "find": "const PACKAGES = [\"@playwright/test\", \"playwright\", \"playwright-core\"];",
+    "replace": "const PACKAGES = [\"@playwright/test\"];",
+    "test": "pnpm vitest run kit/gates/playwright-pin.test.mts -t \"holds the library to the test runner's version\""
+  },
+  {
+    "name": "kit pin: the test runner is held to the library, not the other way round",
+    "file": "kit/gates/lib/playwright-pin.mts",
+    "find": "const PACKAGES = [\"@playwright/test\", \"playwright\", \"playwright-core\"];",
+    "replace": "const PACKAGES = [\"playwright\", \"@playwright/test\", \"playwright-core\"];",
+    "test": "pnpm vitest run kit/gates/playwright-pin.test.mts -t \"holds the library to the test runner's version\""
+  },
+  {
+    "name": "kit pin: a project that uses the library alone is skipped",
+    "file": "kit/gates/lib/playwright-pin.mts",
+    "find": "const PACKAGES = [\"@playwright/test\", \"playwright\", \"playwright-core\"];",
+    "replace": "const PACKAGES = [\"@playwright/test\", \"playwright-core\"];",
+    "test": "pnpm vitest run kit/gates/playwright-pin.test.mts -t \"holds a project that uses the library alone\""
+  },
+  {
+    "name": "kit pin: a finding names the test runner whatever package it is about",
+    "file": "kit/gates/lib/playwright-pin.mts",
+    "find": "message: `${name} is \"${version}\".",
+    "replace": "message: `${PACKAGES[0]} is \"${version}\".",
+    "test": "pnpm vitest run kit/gates/playwright-pin.test.mts -t \"holds a project that uses the library alone\""
+  },
+  {
+    "name": "kit pin: nothing to judge is not said",
+    "file": "kit/gates/lib/playwright-pin.mts",
+    "find": "return findDeclared(project).length === 0\n",
+    "replace": "return findDeclared(project).length < 0\n",
+    "test": "pnpm vitest run kit/gates/playwright-pin.test.mts -t \"judged nothing, and says so\""
+  },
+  {
+    "name": "kit pin: the gate is not part of the run",
+    "file": "kit/gates/run.mts",
+    "find": "      ...checkPlaywrightPin(project),\n",
+    "replace": "",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"names a Playwright version that is a range\""
+  },
+  {
+    "name": "kit pin: the gate is not in the kit's list of its gates",
+    "file": "kit/gates/gates.json",
+    "find": "  \"types-only\": [\"typesOnly\"],\n  \"playwright-pin\": []\n",
+    "replace": "  \"types-only\": [\"typesOnly\"]\n",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"names every gate that runs\""
+  },
+  {
+    "name": "kit pin: a range is compared with the workflows as if it were a version",
+    "file": "kit/gates/lib/playwright-pin.mts",
+    "find": "const first = declared.find(({ version }) => EXACT_VERSION.test(version));",
+    "replace": "const [first] = declared;",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"names a Playwright version that is a range\""
+  },
+  {
+    "name": "kit lint: an import of @playwright/test is not the driver",
+    "file": "kit/eslint-rules/no-browser-driver-in-specs.mts",
+    "find": "const DRIVER_PACKAGE = /^(@playwright\\/test|playwright|playwright-core)$/;",
+    "replace": "const DRIVER_PACKAGE = /^(playwright-core)$/;",
+    "test": "pnpm vitest run kit/eslint-rules/no-browser-driver-in-specs.test.mts -t \"a value import of the driver\""
+  },
+  {
+    "name": "kit lint: a type-only import is reported",
+    "file": "kit/eslint-rules/no-browser-driver-in-specs.mts",
+    "find": "if (node.importKind === \"type\" || !DRIVER_PACKAGE.test(node.source.value)) {",
+    "replace": "if (!DRIVER_PACKAGE.test(node.source.value)) {",
+    "test": "pnpm vitest run kit/eslint-rules/no-browser-driver-in-specs.test.mts -t \"a type-only import of the driver\""
+  },
+  {
+    "name": "kit lint: an import whose every name is a type is reported",
+    "file": "kit/eslint-rules/no-browser-driver-in-specs.mts",
+    "find": "return specifier.type === \"ImportSpecifier\" && specifier.importKind === \"type\";",
+    "replace": "return specifier.type === \"ImportSpecifier\" && specifier.importKind === \"value\";",
+    "test": "pnpm vitest run kit/eslint-rules/no-browser-driver-in-specs.test.mts -t \"an import that names only types\""
+  },
+  {
+    "name": "kit lint: one type among the names lets a value through",
+    "file": "kit/eslint-rules/no-browser-driver-in-specs.mts",
+    "find": "node.specifiers.every((specifier) => {",
+    "replace": "node.specifiers.some((specifier) => {",
+    "test": "pnpm vitest run kit/eslint-rules/no-browser-driver-in-specs.test.mts -t \"a value beside an inline type\""
+  },
+  {
+    "name": "kit lint: an import that names nothing is let through",
+    "file": "kit/eslint-rules/no-browser-driver-in-specs.mts",
+    "find": "node.specifiers.length > 0 &&",
+    "replace": "node.specifiers.length >= 0 &&",
+    "test": "pnpm vitest run kit/eslint-rules/no-browser-driver-in-specs.test.mts -t \"a side-effect import of the driver\""
+  },
+  {
+    "name": "kit lint: the page is not a driver fixture",
+    "file": "kit/eslint-rules/no-browser-driver-in-specs.mts",
+    "find": "new Set([\"page\", \"context\", \"browser\", \"request\", \"playwright\"])",
+    "replace": "new Set([\"context\", \"browser\", \"request\", \"playwright\"])",
+    "test": "pnpm vitest run kit/eslint-rules/no-browser-driver-in-specs.test.mts -t \"a test that takes the page\""
+  },
+  {
+    "name": "kit lint: a function expression is not looked at",
+    "file": "kit/eslint-rules/no-browser-driver-in-specs.mts",
+    "find": "      FunctionExpression(node: TSESTree.FunctionExpression): void {\n        reportDriverFixtures(context, node);\n      },\n",
+    "replace": "",
+    "test": "pnpm vitest run kit/eslint-rules/no-browser-driver-in-specs.test.mts -t \"a hook that takes the context and the browser\""
+  },
+  {
+    "name": "kit lint: a function declaration is not looked at",
+    "file": "kit/eslint-rules/no-browser-driver-in-specs.mts",
+    "find": "      FunctionDeclaration(node: TSESTree.FunctionDeclaration): void {\n        reportDriverFixtures(context, node);\n      },\n",
+    "replace": "",
+    "test": "pnpm vitest run kit/eslint-rules/no-browser-driver-in-specs.test.mts -t \"a helper declared in the spec that takes the page\""
+  },
+  {
+    "name": "kit lint: locator is not a driver call",
+    "file": "kit/eslint-rules/no-browser-driver-in-specs.mts",
+    "find": "  \"locator\",\n",
+    "replace": "",
+    "test": "pnpm vitest run kit/eslint-rules/no-browser-driver-in-specs.test.mts -t \"a locator built in the spec\""
+  },
+  {
+    "name": "kit lint: a query by role is not a driver call",
+    "file": "kit/eslint-rules/no-browser-driver-in-specs.mts",
+    "find": "  \"getByRole\",\n",
+    "replace": "",
+    "test": "pnpm vitest run kit/eslint-rules/no-browser-driver-in-specs.test.mts -t \"a query by test id and one by role\""
+  },
+  {
+    "name": "kit lint: evaluate is not a driver call",
+    "file": "kit/eslint-rules/no-browser-driver-in-specs.mts",
+    "find": "  \"evaluate\",\n",
+    "replace": "",
+    "test": "pnpm vitest run kit/eslint-rules/no-browser-driver-in-specs.test.mts -t \"a script run in the page\""
+  },
+  {
+    "name": "kit lint: waitForSelector is not a driver call",
+    "file": "kit/eslint-rules/no-browser-driver-in-specs.mts",
+    "find": "  \"waitForSelector\",\n",
+    "replace": "",
+    "test": "pnpm vitest run kit/eslint-rules/no-browser-driver-in-specs.test.mts -t \"a wait for a selector\""
+  },
+  {
+    "name": "kit lint: a page object's own method is read as a driver call",
+    "file": "kit/eslint-rules/no-browser-driver-in-specs.mts",
+    "find": "DRIVER_CALLS.has(callee.property.name)",
+    "replace": "(DRIVER_CALLS.has(callee.property.name) || callee.property.name === \"rows\")",
+    "test": "pnpm vitest run kit/eslint-rules/no-browser-driver-in-specs.test.mts -t \"waiting for a state the page object reports\""
+  },
+  {
+    "name": "kit lint: every fixture is read as the driver",
+    "file": "kit/eslint-rules/no-browser-driver-in-specs.mts",
+    "find": "DRIVER_FIXTURES.has(property.key.name)",
+    "replace": "property.key.name !== \"\"",
+    "test": "pnpm vitest run kit/eslint-rules/no-browser-driver-in-specs.test.mts -t \"a fixture that is not the driver\""
+  },
+  {
+    "name": "kit lint config: the driver rule is not switched on for an e2e package's specs",
+    "file": "kit/eslint.config.mts",
+    "find": "rules: { \"arch/no-browser-driver-in-specs\": \"error\" },",
+    "replace": "rules: {},",
+    "test": "pnpm vitest run kit/eslint.config.test.mts -t \"scope: only an e2e package's specs\""
+  },
+  {
+    "name": "kit lint config: the driver rule reaches the page objects and the fixtures too",
+    "file": "kit/eslint.config.mts",
+    "find": "sourceOf(config, [\"e2e\"], \"spec.{ts,tsx}\")",
+    "replace": "sourceOf(config, [\"e2e\"], \"{ts,tsx}\")",
+    "test": "pnpm vitest run kit/eslint.config.test.mts -t \"scope: only an e2e package's specs\""
+  },
+  {
+    "name": "kit lint config: a fixed wait is reported in an e2e package's specs only",
+    "file": "kit/eslint.config.mts",
+    "find": "            files: endToEndSource,\n",
+    "replace": "            files: endToEndSpecs,\n",
+    "test": "pnpm vitest run kit/eslint.config.test.mts -t \"scope: a fixed wait is reported in an e2e package\""
+  },
+  {
+    "name": "kit lint config: the two blocks are made without an e2e package",
+    "file": "kit/eslint.config.mts",
+    "find": "...(endToEndSource.length === 0\n",
+    "replace": "...(endToEndSource.length < 0\n",
+    "test": "pnpm vitest run kit/eslint.config.test.mts -t \"scope: without an e2e package the two blocks are not made\""
+  },
+  {
+    "name": "scripts declare: an entry the project has is added again",
+    "file": "scripts/lib/architecture.mts",
+    "find": ".filter(([path]) => code === undefined || !declares(code, path))",
+    "replace": ".filter(([path]) => path !== \"\")",
+    "test": "pnpm vitest run scripts/lib/architecture.test.mts -t \"leaves an entry the project already has\""
+  },
+  {
+    "name": "scripts declare: only double quotes are read as a key",
+    "file": "scripts/lib/architecture.mts",
+    "find": "[`\"${path}\"`, `'${path}'`].some(",
+    "replace": "[`\"${path}\"`].some(",
+    "test": "pnpm vitest run scripts/lib/architecture.test.mts -t \"leaves an entry the project already has\""
+  },
+  {
+    "name": "scripts declare: the last entry is left without its comma",
+    "file": "scripts/lib/architecture.mts",
+    "find": "needsComma: lastCharacter !== \",\" && lastCharacter !== \"{\"",
+    "replace": "needsComma: lastCharacter === \"\"",
+    "test": "pnpm vitest run scripts/lib/architecture.test.mts -t \"gives the last entry its comma\""
+  },
+  {
+    "name": "scripts declare: an empty map gets a comma before its first entry",
+    "file": "scripts/lib/architecture.mts",
+    "find": "needsComma: lastCharacter !== \",\" && lastCharacter !== \"{\"",
+    "replace": "needsComma: lastCharacter !== \",\"",
+    "test": "pnpm vitest run scripts/lib/architecture.test.mts -t \"adds to a map that is empty\""
+  },
+  {
+    "name": "scripts declare: the comments are read as code",
+    "file": "scripts/lib/architecture.mts",
+    "find": "  const code = blankComments(text);\n",
+    "replace": "  const code: string | undefined = text;\n",
+    "test": "pnpm vitest run scripts/lib/architecture.test.mts -t \"does not take an entry that is commented out\""
+  },
+  {
+    "name": "scripts declare: a brace in a string closes the map",
+    "file": "scripts/lib/architecture.mts",
+    "find": "    if (character === '\"' || character === \"'\" || character === \"`\") {\n      // Blanking",
+    "replace": "    if (character === \"never\") {\n      // Blanking",
+    "test": "pnpm vitest run scripts/lib/architecture.test.mts -t \"is not misled by a brace in a string\""
+  },
+  {
+    "name": "scripts declare: a quote in a comment opens a string",
+    "file": "scripts/lib/architecture.mts",
+    "find": "    } else if (text.startsWith(\"//\", index)) {",
+    "replace": "    } else if (text.startsWith(\"//never\", index)) {",
+    "test": "pnpm vitest run scripts/lib/architecture.test.mts -t \"reads a quote in a comment as part of the comment\""
+  },
+  {
+    "name": "scripts declare: a map on one line is written into",
+    "file": "scripts/lib/architecture.mts",
+    "find": "if (closingLineStart <= opening.index) {",
+    "replace": "if (closingLineStart < 0) {",
+    "test": "pnpm vitest run scripts/lib/architecture.test.mts -t \"hands back the line to write\""
+  },
+  {
+    "name": "scripts declare: every key is written in quotes",
+    "file": "scripts/lib/architecture.mts",
+    "find": "/^[A-Za-z_$][\\w$]*$/.test(key) ? key : JSON.stringify(key)",
+    "replace": "JSON.stringify(key)",
+    "test": "pnpm vitest run scripts/lib/architecture.test.mts -t \"writes a key that is not a plain name in quotes\""
+  },
+  {
+    "name": "scripts declare: the new line is added after the closing brace",
+    "file": "scripts/lib/architecture.mts",
+    "find": "const closingLineStart = code.lastIndexOf(\"\\n\", index) + 1;",
+    "replace": "const closingLineStart = code.indexOf(\"\\n\", index) + 1;",
+    "test": "pnpm vitest run scripts/lib/architecture.test.mts -t \"adds the entry as the last line of the packages map\""
+  },
+  {
+    "name": "scripts declare: several entries are written in one line",
+    "file": "scripts/lib/architecture.mts",
+    "find": "entries.map((entry) => `${indent}  ${entry}\\n`).join(\"\")",
+    "replace": "`${indent}  ${entries.join(\" \")}\\n`",
+    "test": "pnpm vitest run scripts/lib/architecture.test.mts -t \"adds several entries, in the order given\""
+  },
+  {
+    "name": "scripts declare: a blanked comment loses its length",
+    "file": "scripts/lib/architecture.mts",
+    "find": "code += \" \".repeat(end + 1 - index);",
+    "replace": "code += \" \";",
+    "test": "pnpm vitest run scripts/lib/architecture.test.mts -t \"blanks a comment without moving anything\""
+  },
+  {
+    "name": "scripts declare: the starter's own config is not read",
+    "file": "scripts/lib/architecture.mts",
+    "find": "const opening = /^([ \\t]*)packages:\\s*\\{/m.exec(code);",
+    "replace": "const opening = /^()packages:\\s*\\{/m.exec(code);",
+    "test": "pnpm vitest run scripts/lib/architecture.test.mts -t \"reads the starter's own config and the kit's example\""
+  },
+  {
+    "name": "scripts declare: the second run adds the entry again",
+    "file": "scripts/lib/architecture.mts",
+    "find": "  if (entries.length === 0) {\n    return { added: [], byHand: [] };\n  }\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/lib/architecture.test.mts -t \"changes nothing the second time\""
+  },
+  {
+    "name": "scripts add: the declaration is planned and never written",
+    "file": "scripts/add-to-project.mts",
+    "find": "    writeProjectFile(destination, ARCHITECTURE_CONFIG, architecturePlan.text);\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"declares a package it brings in the architecture config\""
+  },
+  {
+    "name": "scripts add: what was declared is not said",
+    "file": "scripts/add-to-project.mts",
+    "find": "    declared: architecturePlan.declared,\n",
+    "replace": "    declared: [],\n",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"declares a package it brings in the architecture config\""
+  },
+  {
+    "name": "scripts add: the line to add by hand is not said",
+    "file": "scripts/add-to-project.mts",
+    "find": "    ...architecturePlan.notes,\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"says which line to add by hand\""
+  },
+  {
+    "name": "scripts add: a config that is a link is found out only after files were written",
+    "file": "scripts/add-to-project.mts",
+    "find": "  assertInside(project, ARCHITECTURE_CONFIG);\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"never declares a package through an architecture config that is a link\""
+  },
+  {
+    "name": "scripts add: a kit without the gate is accepted",
+    "file": "scripts/add-to-project.mts",
+    "find": "const missing = wanted.filter((gate) => !(gate in has));",
+    "replace": "const missing = wanted.filter((gate) => gate === \"\");",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"refuses a project whose kit lacks a gate it relies on\""
+  },
+  {
+    "name": "scripts add: a kit with no list of gates is taken to have them all",
+    "file": "scripts/add-to-project.mts",
+    "find": "const has = readGateList(readIfThere(join(destination, GATE_LIST))) ?? {};",
+    "replace": "const has = readGateList(readIfThere(join(destination, GATE_LIST))) ?? Object.fromEntries(wanted.map((gate) => [gate, []]));",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"refuses the same way when the project's kit has no list\""
+  },
+  {
+    "name": "scripts add: the kit's gates are not asked about",
+    "file": "scripts/add-to-project.mts",
+    "find": "  assertKitHasGates(destination, project, manifest);\n\n  const packagePlan = planPackageChanges(destination, manifest, force);",
+    "replace": "  const packagePlan = planPackageChanges(destination, manifest, force);",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"refuses a project whose kit lacks a gate it relies on\""
+  },
+  {
+    "name": "scripts add: a project's own declaration is replaced",
+    "file": "scripts/add-to-project.mts",
+    "find": "declarePackages(existsSync(file) ? readFileSync(file, \"utf8\") : \"\", packages)",
+    "replace": "declarePackages(existsSync(file) ? readFileSync(file, \"utf8\").replaceAll(\"packages/demo\", \"packages/was-demo\") : \"\", packages)",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"leaves a declaration the project already wrote\""
+  },
+  {
+    "name": "addon: the browser run joins the full gate",
+    "file": "addons/e2e/addon.json",
+    "find": "\"full\": []",
+    "replace": "\"full\": [\"pnpm e2e\"]",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"is optional, and joins neither gate\""
+  },
+  {
+    "name": "addon: it is recommended",
+    "file": "addons/e2e/addon.json",
+    "find": "\"recommended\": false",
+    "replace": "\"recommended\": true",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"is optional, and joins neither gate\""
+  },
+  {
+    "name": "addon: it names no gate it needs",
+    "file": "addons/e2e/addon.json",
+    "find": "  \"requiresGates\": [\n    \"playwright-pin\"\n  ],\n",
+    "replace": "  \"requiresGates\": [],\n",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"needs a kit that knows the e2e role\""
+  },
+  {
+    "name": "addon: the package is declared with another role",
+    "file": "addons/e2e/addon.json",
+    "find": "\"role\": \"e2e\"",
+    "replace": "\"role\": \"integration\"",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"declares the package it brings\""
+  },
+  {
+    "name": "addon: the run goes through the package manager",
+    "file": "addons/e2e/addon.json",
+    "find": "\"e2e\": \"node tools/e2e/run.mts\"",
+    "replace": "\"e2e\": \"pnpm --dir packages/e2e exec playwright test\"",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"adds two root scripts\""
+  },
+  {
+    "name": "addon: the specs are the add-on's, replaced on update",
+    "file": "addons/e2e/addon.json",
+    "find": "    \"packages/e2e/package.json\",\n    \"packages/e2e/src/\"\n",
+    "replace": "    \"packages/e2e/package.json\"\n",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"leaves the project its config\""
+  },
+  {
+    "name": "addon: the package has a test script",
+    "file": "addons/e2e/files/packages/e2e/package.json",
+    "find": "\"typecheck\": \"tsc --noEmit -p tsconfig.json\"",
+    "replace": "\"typecheck\": \"tsc --noEmit -p tsconfig.json\",\n    \"test\": \"playwright test\"",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"has a typecheck script and no test script\""
+  },
+  {
+    "name": "addon: Playwright is asked for as a range",
+    "file": "addons/e2e/files/packages/e2e/package.json",
+    "find": "\"@playwright/test\": \"1.63.0\"",
+    "replace": "\"@playwright/test\": \"^1.63.0\"",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"asks for the exact Playwright version\""
+  },
+  {
+    "name": "addon: the workflow's image is another Playwright version",
+    "file": "addons/e2e/files/.github/workflows/e2e.yml",
+    "find": "container: mcr.microsoft.com/playwright:v1.63.0-noble",
+    "replace": "container: mcr.microsoft.com/playwright:v1.62.1-noble",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"asks for the exact Playwright version\""
+  },
+  {
+    "name": "addon: the Node types are at another range than the starter's",
+    "file": "addons/e2e/files/packages/e2e/package.json",
+    "find": "\"@types/node\": \"^26.2.0\"",
+    "replace": "\"@types/node\": \"^26.6.4\"",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"asks for the Node types at the range the starter does\""
+  },
+  {
+    "name": "addon: the package depends on the server",
+    "file": "addons/e2e/files/packages/e2e/package.json",
+    "find": "    \"@app/shared\": \"workspace:*\",\n",
+    "replace": "    \"@app/server\": \"workspace:*\",\n    \"@app/shared\": \"workspace:*\",\n",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"depends on the client for its test ids\""
+  },
+  {
+    "name": "addon: the tsconfig leaves out a file at the package's root",
+    "file": "addons/e2e/files/packages/e2e/tsconfig.json",
+    "find": "\"include\": [\"src\", \"*.ts\"]",
+    "replace": "\"include\": [\"src\", \"playwright.config.ts\"]",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"has every TypeScript file it ships in its tsconfig.json\""
+  },
+  {
+    "name": "addon: the shipped config has a mode with no spec",
+    "file": "addons/e2e/files/tools/e2e.config.mts",
+    "find": "  modes: {\n",
+    "replace": "  modes: {\n    preview: {},\n",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"has a spec in every mode of the config it ships\""
+  },
+  {
+    "name": "addon: the Playwright config starts a server of its own",
+    "file": "addons/e2e/files/packages/e2e/playwright.config.ts",
+    "find": "  outputDir: \"reports/artifacts\",\n",
+    "replace": "  outputDir: \"reports/artifacts\",\n  webServer: { command: \"vite preview\", url: \"http://127.0.0.1:4173\" },\n",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"starts no server of its own\""
+  },
+  {
+    "name": "addon: the runner and the config name the modes' variable differently",
+    "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
+    "find": "export const MODES_VARIABLE = \"E2E_MODES\";",
+    "replace": "export const MODES_VARIABLE = \"E2E_RUNNING\";",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"starts no server of its own\""
+  },
+  {
+    "name": "addon: a failing spec is retried",
+    "file": "addons/e2e/files/packages/e2e/playwright.config.ts",
+    "find": "retries: 0,",
+    "replace": "retries: 2,",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"never retries, keeps a trace of each failure\""
+  },
+  {
+    "name": "addon: no trace is kept",
+    "file": "addons/e2e/files/packages/e2e/playwright.config.ts",
+    "find": "trace: \"retain-on-failure\"",
+    "replace": "trace: \"off\"",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"never retries, keeps a trace of each failure\""
+  },
+  {
+    "name": "addon: the workflow uploads another folder than the report is written to",
+    "file": "addons/e2e/files/.github/workflows/e2e.yml",
+    "find": "path: packages/e2e/reports\n",
+    "replace": "path: packages/e2e/playwright-report\n",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"never retries, keeps a trace of each failure\""
+  },
+  {
+    "name": "addon: the results the runner counts from are written elsewhere",
+    "file": "addons/e2e/files/packages/e2e/playwright.config.ts",
+    "find": "[\"json\", { outputFile: \"reports/results.json\" }]",
+    "replace": "[\"json\", { outputFile: \"reports/e2e.json\" }]",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"never retries, keeps a trace of each failure\""
+  },
+  {
+    "name": "addon: nothing says how to start the run when it is started by hand",
+    "file": "addons/e2e/files/packages/e2e/playwright.config.ts",
+    "find": "testMatch: \"notStarted.setup.ts\"",
+    "replace": "testMatch: \"notStarted.spec.ts\"",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"has a test that says how to start the run\""
+  },
+  {
+    "name": "addon: an action is named by its tag",
+    "file": "addons/e2e/files/.github/workflows/e2e.yml",
+    "find": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7",
+    "replace": "actions/checkout@v7",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"pins every action to a full commit hash\""
+  },
+  {
+    "name": "addon: the workflow can write to the repository",
+    "file": "addons/e2e/files/.github/workflows/e2e.yml",
+    "find": "permissions:\n  contents: read",
+    "replace": "permissions:\n  contents: write",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"runs on pull requests and on main, with read access only\""
+  },
+  {
+    "name": "addon: the workflow leaves the token in the checkout",
+    "file": "addons/e2e/files/.github/workflows/e2e.yml",
+    "find": "persist-credentials: false",
+    "replace": "persist-credentials: true",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"runs on pull requests and on main, with read access only\""
+  },
+  {
+    "name": "addon: the workflow does not run on pull requests",
+    "file": "addons/e2e/files/.github/workflows/e2e.yml",
+    "find": "on:\n  pull_request:\n  push:",
+    "replace": "on:\n  push:",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"runs on pull requests and on main, with read access only\""
+  },
+  {
+    "name": "addon: the workflow filters the run's output",
+    "file": "addons/e2e/files/.github/workflows/e2e.yml",
+    "find": "        run: pnpm e2e\n",
+    "replace": "        run: pnpm e2e | tail -20\n",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"runs the script the add-on adds, unfiltered\""
+  },
+  {
+    "name": "addon: the workflow has no limit of its own",
+    "file": "addons/e2e/files/.github/workflows/e2e.yml",
+    "find": "    timeout-minutes: 15\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"runs the script the add-on adds, unfiltered\""
+  },
+  {
+    "name": "addon: the report is uploaded after every run",
+    "file": "addons/e2e/files/.github/workflows/e2e.yml",
+    "find": "if: failure()",
+    "replace": "if: always()",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"uploads the report only when the run failed\""
+  },
+  {
+    "name": "addon: a shipped spec imports the driver",
+    "file": "addons/e2e/files/packages/e2e/src/sim/priceList.spec.ts",
+    "find": "import { expect, test } from \"#/testing/test.ts\";",
+    "replace": "import { expect, test } from \"@playwright/test\";",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"pass the kit's lint as an e2e package\""
+  },
+  {
+    "name": "addon: a shipped page object writes a test id as a string",
+    "file": "addons/e2e/files/packages/e2e/src/pages/PriceList.page.ts",
+    "find": "page.getByTestId(TESTIDS.priceList)",
+    "replace": "page.getByTestId(\"price-list\")",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"pass the kit's per-file gates\""
+  },
+  {
+    "name": "addon: the shipped package is declared with a role that asks for a test script",
+    "file": "addons/e2e/addon.json",
+    "find": "\"role\": \"e2e\"",
+    "replace": "\"role\": \"leaf\"",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"pass the kit's per-file gates\""
+  },
+  {
+    "name": "tools arguments: an argument that is not --mode is dropped",
+    "file": "addons/e2e/files/tools/e2e/lib/arguments.mts",
+    "find": "    } else {\n      request.forwarded.push(argument);\n    }",
+    "replace": "    }",
+    "test": "pnpm vitest run addons/e2e/tests/arguments.test.mts -t \"hands everything else to the test runner\""
+  },
+  {
+    "name": "tools arguments: --mode=name is handed to the test runner",
+    "file": "addons/e2e/files/tools/e2e/lib/arguments.mts",
+    "find": "} else if (argument.startsWith(\"--mode=\")) {",
+    "replace": "} else if (argument.startsWith(\"--mode==\")) {",
+    "test": "pnpm vitest run addons/e2e/tests/arguments.test.mts -t \"takes each --mode, in either spelling, once\""
+  },
+  {
+    "name": "tools arguments: a mode named twice is run twice",
+    "file": "addons/e2e/files/tools/e2e/lib/arguments.mts",
+    "find": "modes: [...new Set(request.modes)]",
+    "replace": "modes: request.modes",
+    "test": "pnpm vitest run addons/e2e/tests/arguments.test.mts -t \"takes each --mode, in either spelling, once\""
+  },
+  {
+    "name": "tools arguments: a --mode after -- is taken as its own",
+    "file": "addons/e2e/files/tools/e2e/lib/arguments.mts",
+    "find": "if (argument === \"--\") {",
+    "replace": "if (argument === \"---\") {",
+    "test": "pnpm vitest run addons/e2e/tests/arguments.test.mts -t \"hands on what follows a --\""
+  },
+  {
+    "name": "tools arguments: a flag is taken for the name of a mode",
+    "file": "addons/e2e/files/tools/e2e/lib/arguments.mts",
+    "find": "if (name === undefined || name.startsWith(\"-\")) {",
+    "replace": "if (name === undefined) {",
+    "test": "pnpm vitest run addons/e2e/tests/arguments.test.mts -t \"refuses a --mode with no name after it\""
+  },
+  {
+    "name": "tools arguments: something is asked when nothing is given",
+    "file": "addons/e2e/files/tools/e2e/lib/arguments.mts",
+    "find": "const request: Request = { modes: [], forwarded: [] };",
+    "replace": "const request: Request = { modes: [], forwarded: [\"--headed\"] };",
+    "test": "pnpm vitest run addons/e2e/tests/arguments.test.mts -t \"is every mode and nothing for the test runner\""
+  },
+  {
+    "name": "tools config: pnpm is not a package manager",
+    "file": "addons/e2e/files/tools/e2e/lib/config.mts",
+    "find": "new Set([\"pnpm\", \"npm\", \"npx\", \"yarn\", \"bun\", \"bunx\"])",
+    "replace": "new Set([\"npm\", \"yarn\", \"bun\", \"bunx\"])",
+    "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"refuses a command that goes through a package manager\""
+  },
+  {
+    "name": "tools config: a mode's server may go through a package manager",
+    "file": "addons/e2e/files/tools/e2e/lib/config.mts",
+    "find": "...servers.map(({ what, server }): [string, unknown] => [`${what}.command`, server.command]),",
+    "replace": "",
+    "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"refuses a command that goes through a package manager\""
+  },
+  {
+    "name": "tools config: a package manager is known only by a bare name",
+    "file": "addons/e2e/files/tools/e2e/lib/config.mts",
+    "find": ".split(\"/\").at(-1)",
+    "replace": ".split(\"/\").at(0)",
+    "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"knows a package manager by its name\""
+  },
+  {
+    "name": "tools config: a pattern with no group is accepted",
+    "file": "addons/e2e/files/tools/e2e/lib/config.mts",
+    "find": "!(ready instanceof RegExp) || !hasGroup(ready)",
+    "replace": "!(ready instanceof RegExp)",
+    "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"refuses a ready pattern that captures no address\""
+  },
+  {
+    "name": "tools config: a server's pattern is not checked",
+    "file": "addons/e2e/files/tools/e2e/lib/config.mts",
+    "find": "...servers.map(({ what, server }): [string, unknown] => [`${what}.ready`, server.ready]),",
+    "replace": "",
+    "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"refuses a ready pattern that captures no address\""
+  },
+  {
+    "name": "tools config: a command with no output folder is accepted",
+    "file": "addons/e2e/files/tools/e2e/lib/config.mts",
+    "find": "if (!client[what].includes(OUT_DIR)) {",
+    "replace": "if (client[what].length === 0) {",
+    "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"refuses a build or a serve command that names no output folder\""
+  },
+  {
+    "name": "tools config: a config with no mode is accepted",
+    "file": "addons/e2e/files/tools/e2e/lib/config.mts",
+    "find": "if (Object.keys(modes).length === 0) {",
+    "replace": "if (Object.keys(modes).length < 0) {",
+    "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"refuses a config with no mode\""
+  },
+  {
+    "name": "tools config: a command given as one string is accepted",
+    "file": "addons/e2e/files/tools/e2e/lib/config.mts",
+    "find": "return Array.isArray(value) && value.length > 0 &&",
+    "replace": "return (typeof value === \"string\" || Array.isArray(value)) && value.length > 0 &&",
+    "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"refuses a command that is not a program and its arguments\""
+  },
+  {
+    "name": "tools config: an empty command is accepted",
+    "file": "addons/e2e/files/tools/e2e/lib/config.mts",
+    "find": "Array.isArray(value) && value.length > 0 && value.every(",
+    "replace": "Array.isArray(value) && value.every(",
+    "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"refuses a command that is not a program and its arguments\""
+  },
+  {
+    "name": "tools config: a file with no client is accepted",
+    "file": "addons/e2e/files/tools/e2e/lib/config.mts",
+    "find": "typeof config.tests !== \"string\" || !isRecord(config.client) || !isRecord(config.modes)",
+    "replace": "typeof config.tests !== \"string\"",
+    "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"refuses a file that does not hold the three parts\""
+  },
+  {
+    "name": "tools config: a missing config is a crash, not a message",
+    "file": "addons/e2e/files/tools/e2e/lib/config.mts",
+    "find": "  if (!existsSync(file)) {\n    throw new E2eError(`${PROJECT_CONFIG} not found in ${root} — run this from the project root`);\n  }\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"could not be read when the file is not there\""
+  },
+  {
+    "name": "tools config: the shipped config is refused",
+    "file": "addons/e2e/files/tools/e2e/lib/config.mts",
+    "find": "const program = (command[0] ?? \"\").split(\"/\").at(-1) ?? \"\";",
+    "replace": "const program = (command[0] ?? \"\").split(\"/\").at(-1) === \"vite\" ? \"pnpm\" : \"\";",
+    "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"accepts the config the add-on ships\""
+  },
+  {
+    "name": "tools modes: a mode that does not exist is run",
+    "file": "addons/e2e/files/tools/e2e/lib/config.mts",
+    "find": "if (unknown.length > 0) {",
+    "replace": "if (unknown.length < 0) {",
+    "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"refuses a mode that does not exist\""
+  },
+  {
+    "name": "tools modes: a spec in no mode's folder is left unseen",
+    "file": "addons/e2e/files/tools/e2e/lib/config.mts",
+    "find": "if (homeless.length > 0) {",
+    "replace": "if (homeless.length < 0) {",
+    "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"refuses a spec that is in no mode's folder\""
+  },
+  {
+    "name": "tools modes: a mode with no spec is run",
+    "file": "addons/e2e/files/tools/e2e/lib/config.mts",
+    "find": "if (empty.length > 0) {",
+    "replace": "if (empty.length < 0) {",
+    "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"refuses a mode with no spec\""
+  },
+  {
+    "name": "tools modes: a mode that was not asked for must have a spec too",
+    "file": "addons/e2e/files/tools/e2e/lib/config.mts",
+    "find": "const empty = modes.filter(",
+    "replace": "const empty = known.filter(",
+    "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"refuses a mode with no spec\""
+  },
+  {
+    "name": "tools modes: specs are looked for in installed folders",
+    "file": "addons/e2e/files/tools/e2e/lib/config.mts",
+    "find": "return NOT_SOURCE.has(entry.name) ? [] : listSpecs(directory, path);",
+    "replace": "return listSpecs(directory, path);",
+    "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"does not look for specs in installed or generated folders\""
+  },
+  {
+    "name": "tools modes: the modes run in the order they were asked for",
+    "file": "addons/e2e/files/tools/e2e/lib/config.mts",
+    "find": "known.filter((name) => asked.length === 0 || asked.includes(name))",
+    "replace": "(asked.length === 0 ? known : asked)",
+    "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"are the ones asked for, in the config's order\""
+  },
+  {
+    "name": "tools modes: every mode runs whatever was asked",
+    "file": "addons/e2e/files/tools/e2e/lib/config.mts",
+    "find": "known.filter((name) => asked.length === 0 || asked.includes(name))",
+    "replace": "known",
+    "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"are the ones asked for, in the config's order\""
+  },
+  {
+    "name": "tools modes: a tests package with no src is a crash",
+    "file": "addons/e2e/files/tools/e2e/lib/config.mts",
+    "find": "  if (!existsSync(source)) {\n    throw new E2eError(`${config.tests}/src not found — ${PROJECT_CONFIG} says the specs are there`);\n  }\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"refuses a tests package with no src folder\""
+  },
+  {
+    "name": "tools stack: the server's address replaces the whole value",
+    "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
+    "find": "return [key, value.replaceAll(SERVER_URL, serverURL)];",
+    "replace": "return [key, serverURL];",
+    "test": "pnpm vitest run addons/e2e/tests/stack.test.mts -t \"carry the address the mode's server printed\""
+  },
+  {
+    "name": "tools stack: a mode with no server may ask for one's address",
+    "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
+    "find": "if (serverURL === undefined) {\n        throw",
+    "replace": "if (serverURL === \"\") {\n        throw",
+    "test": "pnpm vitest run addons/e2e/tests/stack.test.mts -t \"refuse to ask for the address of a server\""
+  },
+  {
+    "name": "tools stack: a plain variable is dropped",
+    "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
+    "find": "      if (!value.includes(SERVER_URL)) {\n        return [key, value];\n      }",
+    "replace": "      if (!value.includes(SERVER_URL)) {\n        return [key, \"\"];\n      }",
+    "test": "pnpm vitest run addons/e2e/tests/stack.test.mts -t \"are passed as written when they name no server\""
+  },
+  {
+    "name": "tools counts: a flaky pass is not counted",
+    "file": "addons/e2e/files/tools/e2e/lib/counts.mts",
+    "find": "expected + (typeof flaky === \"number\" ? flaky : 0)",
+    "replace": "expected",
+    "test": "pnpm vitest run addons/e2e/tests/counts.test.mts -t \"is read from Playwright's results\""
+  },
+  {
+    "name": "tools counts: what failed is counted as passed",
+    "file": "addons/e2e/files/tools/e2e/lib/counts.mts",
+    "find": "numFailedTests: unexpected }",
+    "replace": "numFailedTests: 0 }",
+    "test": "pnpm vitest run addons/e2e/tests/counts.test.mts -t \"is read from Playwright's results\""
+  },
+  {
+    "name": "tools counts: a file with no counts is read as zero",
+    "file": "addons/e2e/files/tools/e2e/lib/counts.mts",
+    "find": "return typeof expected === \"number\" && typeof unexpected === \"number\"\n      ?",
+    "replace": "return typeof expected !== \"boolean\" && typeof unexpected !== \"boolean\"\n      ?",
+    "test": "pnpm vitest run addons/e2e/tests/counts.test.mts -t \"is not known without a results file\""
+  },
+  {
+    "name": "tools counts: an earlier run's results are kept",
+    "file": "addons/e2e/files/tools/e2e/lib/counts.mts",
+    "find": "rmSync(join(tests, RESULTS), { force: true });",
+    "replace": "void tests;",
+    "test": "pnpm vitest run addons/e2e/tests/counts.test.mts -t \"is forgotten before a run\""
+  },
+  {
+    "name": "tools counts: zero is read as no count",
+    "file": "addons/e2e/files/tools/e2e/lib/counts.mts",
+    "find": "return typeof expected === \"number\" && typeof unexpected === \"number\"\n      ?",
+    "replace": "return typeof expected === \"number\" && typeof unexpected === \"number\" && expected + unexpected > 0\n      ?",
+    "test": "pnpm vitest run addons/e2e/tests/counts.test.mts -t \"is zero and zero when nothing ran\""
+  },
+  {
+    "name": "tools run: a server's child is left running (only the program is signalled)",
+    "file": "addons/e2e/files/tools/e2e/lib/processes.mts",
+    "find": "function signalGroup(pid: number, signal: NodeJS.Signals): void {\n  try {\n    process.kill(-pid, signal);",
+    "replace": "function signalGroup(pid: number, signal: NodeJS.Signals): void {\n  try {\n    process.kill(pid, signal);",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"starts each mode's stack, runs the specs against them, and leaves nothing running\""
+  },
+  {
+    "name": "tools run: the programs share the runner's own group",
+    "file": "addons/e2e/files/tools/e2e/lib/processes.mts",
+    "find": "      detached: true,\n",
+    "replace": "      detached: false,\n",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"starts each mode's stack, runs the specs against them, and leaves nothing running\""
+  },
+  {
+    "name": "tools run: nothing is stopped when the run ends",
+    "file": "addons/e2e/files/tools/e2e/run.mts",
+    "find": "  } finally {\n    await groups.stopAll();\n  }",
+    "replace": "  } finally {\n    process.removeAllListeners(\"exit\");\n  }",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"starts each mode's stack, runs the specs against them, and leaves nothing running\""
+  },
+  {
+    "name": "tools run: the test runner is not told where the clients are",
+    "file": "addons/e2e/files/tools/e2e/run.mts",
+    "find": "env: { ...environment, [MODES_VARIABLE]: JSON.stringify(running) },",
+    "replace": "env: { ...environment, [MODES_VARIABLE]: JSON.stringify({}) },",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"starts each mode's stack, runs the specs against them, and leaves nothing running\""
+  },
+  {
+    "name": "tools run: the specs run in the project root",
+    "file": "addons/e2e/files/tools/e2e/run.mts",
+    "find": "    cwd: tests,\n    env: { ...environment, [MODES_VARIABLE]",
+    "replace": "    cwd: root,\n    env: { ...environment, [MODES_VARIABLE]",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"starts each mode's stack, runs the specs against them, and leaves nothing running\""
+  },
+  {
+    "name": "tools run: the build is not given the mode's variables",
+    "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
+    "find": "const buildEnv = { ...environment, ...resolveEnv(name, mode.env ?? {}, serverURL) };",
+    "replace": "const buildEnv = { ...environment };",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"builds each mode with its own variables\""
+  },
+  {
+    "name": "tools run: the build is given another address than the server printed",
+    "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
+    "find": "    serverURL = server.address;\n",
+    "replace": "    serverURL = server.address.replace(/\\d+\\/ws$/, \"1/ws\");\n",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"builds each mode with its own variables\""
+  },
+  {
+    "name": "tools run: every mode is built into one folder",
+    "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
+    "find": "join(root, config.tests, \"node_modules\", \".cache\", \"e2e\", name)",
+    "replace": "join(root, config.tests, \"node_modules\", \".cache\", \"e2e\", \"shared\")",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"builds each mode with its own variables\""
+  },
+  {
+    "name": "tools run: colour in a ready line is read as part of the address",
+    "file": "addons/e2e/files/tools/e2e/lib/processes.mts",
+    "find": "ready.exec(output.replace(COLOUR, \"\"))?.[1]",
+    "replace": "ready.exec(output)?.[1]",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"reads an address out of a line a program printed in colour\""
+  },
+  {
+    "name": "tools run: every mode is started whatever was asked",
+    "file": "addons/e2e/files/tools/e2e/run.mts",
+    "find": "const { modes } = selectModes(root, config, request.modes);",
+    "replace": "const { modes } = selectModes(root, config, []);",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"starts only what one mode needs\""
+  },
+  {
+    "name": "tools run: the other arguments are not passed on",
+    "file": "addons/e2e/files/tools/e2e/run.mts",
+    "find": "command: [...runner, ...forwarded],",
+    "replace": "command: [...runner],",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"starts only what one mode needs\""
+  },
+  {
+    "name": "tools run: a failing spec is reported as a pass",
+    "file": "addons/e2e/files/tools/e2e/run.mts",
+    "find": "  reportCounts(tests, environment);\n\n  return exitCode;",
+    "replace": "  reportCounts(tests, environment);\n\n  return exitCode === 1 ? 0 : exitCode;",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"exits with the test runner's code when a spec fails\""
+  },
+  {
+    "name": "tools run: the specs run on a build that failed",
+    "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
+    "find": "if (build.exitCode !== 0) {",
+    "replace": "if (build.exitCode < 0) {",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"could not run when the build fails\""
+  },
+  {
+    "name": "tools run: a failed build's output is not shown",
+    "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
+    "find": "${build.output || \"(none)\"}",
+    "replace": "(not shown)",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"could not run when the build fails\""
+  },
+  {
+    "name": "tools run: the signal is answered with a kill, not passed on",
+    "file": "addons/e2e/files/tools/e2e/run.mts",
+    "find": "    groups.signal(signal);\n    // A program that does not leave",
+    "replace": "    groups.killAllNow();\n    // A program that does not leave",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"stops everything when it is interrupted\""
+  },
+  {
+    "name": "tools run: an interrupted run exits with the test runner's own code",
+    "file": "addons/e2e/files/tools/e2e/run.mts",
+    "find": "return interrupted === undefined ? exitCode : exitCodeOfSignal(interrupted);",
+    "replace": "return exitCode;",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"stops a stack that is still coming up\""
+  },
+  {
+    "name": "tools run: SIGTERM is reported with another signal's code",
+    "file": "addons/e2e/files/tools/e2e/lib/processes.mts",
+    "find": "SIGTERM: 15 }",
+    "replace": "SIGTERM: 14 }",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"does the same when it is terminated\""
+  },
+  {
+    "name": "tools run: a run that is stopping still starts the next program",
+    "file": "addons/e2e/files/tools/e2e/lib/processes.mts",
+    "find": "    if (stopping) {\n      throw new StartError",
+    "replace": "    if (stopping && label === \"\") {\n      throw new StartError",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"is not started at all once the run has been told to stop\""
+  },
+  {
+    "name": "tools run: an interruption is reported as a fault",
+    "file": "addons/e2e/files/tools/e2e/run.mts",
+    "find": "        if (interrupted === undefined) {\n          console.error(line);\n        }",
+    "replace": "        console.error(line);",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"stops a stack that is still coming up\""
+  },
+  {
+    "name": "tools run: a second signal is waited out like the first",
+    "file": "addons/e2e/files/tools/e2e/run.mts",
+    "find": "    if (interrupted !== undefined) {\n      // Asked twice: stop waiting for anything.\n      groups.killAllNow();\n      process.exit(exitCodeOfSignal(signal));\n    }\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"waits for nothing when it is asked a second time\""
+  },
+  {
+    "name": "tools run: a count is written although nobody asked",
+    "file": "addons/e2e/files/tools/e2e/lib/counts.mts",
+    "find": "if (asked === undefined || asked === \"\" || counts === undefined) {",
+    "replace": "if (asked === undefined || counts === undefined) {",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"says how many specs ran to a tool that asked\""
+  },
+  {
+    "name": "tools run: no count is written for the tool that asked",
+    "file": "addons/e2e/files/tools/e2e/run.mts",
+    "find": "  reportCounts(tests, environment);\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"says how many specs ran to a tool that asked\""
+  },
+  {
+    "name": "tools run: an earlier run's results are counted as this run's",
+    "file": "addons/e2e/files/tools/e2e/run.mts",
+    "find": "  forgetResults(tests);\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"gives no count when the runner left no results\""
+  },
+  {
+    "name": "tools run: a missing config is not said",
+    "file": "addons/e2e/files/tools/e2e/run.mts",
+    "find": "complain(`e2e could not run: ${error.message}`);",
+    "replace": "complain(\"e2e could not run\");",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"could not run without the project's config\""
+  },
+  {
+    "name": "tools run: the run goes on where no port can be opened",
+    "file": "addons/e2e/files/tools/e2e/run.mts",
+    "find": "if (!(await probe())) {",
+    "replace": "if ((await probe()) === undefined) {",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"could not run where no port can be opened\""
+  },
+  {
+    "name": "tools run: a usage error is a crash",
+    "file": "addons/e2e/files/tools/e2e/run.mts",
+    "find": "if (error instanceof UsageError) {\n      complain(`${error.message}\\n\\n${USAGE}`);",
+    "replace": "if (error instanceof UsageError) {\n      complain(error.message);",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"prints how it is used for a mode with no name\""
+  },
+  {
+    "name": "tools run: a package with nothing installed is started anyway",
+    "file": "addons/e2e/files/tools/e2e/run.mts",
+    "find": "if (!existsSync(join(tests, \"node_modules\"))) {",
+    "replace": "if (!existsSync(tests)) {",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"could not run in a tests package that has nothing installed\""
+  },
+  {
+    "name": "tools run: a program that never says it is ready is waited for much longer",
+    "file": "addons/e2e/files/tools/e2e/lib/processes.mts",
+    "find": "        }, timeoutMs);\n",
+    "replace": "        }, timeoutMs * 100);\n",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"is given up on when it never says it is ready\""
+  },
+  {
+    "name": "tools run: a program that ignores the first signal is left running",
+    "file": "addons/e2e/files/tools/e2e/lib/processes.mts",
+    "find": "      for (const pid of live) {\n        signalGroup(pid, \"SIGKILL\");\n      }\n\n      await untilGone(live, graceMs);\n    },",
+    "replace": "    },",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"is killed when it does not leave on the first signal\""
+  },
+  {
+    "name": "tools run: a program that stopped early is waited for until the timeout",
+    "file": "addons/e2e/files/tools/e2e/lib/processes.mts",
+    "find": "child.once(\"exit\", (code, signal) => {\n          const why",
+    "replace": "child.once(\"never\", (code, signal) => {\n          const why",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"is reported when it stops before it is ready\""
+  },
+  {
+    "name": "tools run: a program that cannot be started is not reported as such",
+    "file": "addons/e2e/files/tools/e2e/lib/processes.mts",
+    "find": "          fail(`could not be started (${error.message})`);",
+    "replace": "          fail(`stopped (${error.message})`);",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"is reported when it cannot be started at all\""
+  },
+  {
+    "name": "listed: the e2e add-on is left out of the CI matrix",
+    "file": ".github/workflows/ci.yml",
+    "find": "strict-lint, agent-workflow, e2e]",
+    "replace": "strict-lint, agent-workflow]",
+    "test": "pnpm vitest run scripts/addons-listed.test.mts -t \"is in the CI matrix\""
+  },
+  {
+    "name": "listed: the e2e add-on has no row in the README's table",
+    "file": "README.md",
+    "find": "| [`e2e`](addons/e2e/README.md) |",
+    "replace": "| `e2e` |",
+    "test": "pnpm vitest run scripts/addons-listed.test.mts -t \"has a row in the README\""
+  },
+  {
+    "name": "listed: the add-on's manifest carries another name than its folder",
+    "file": "addons/e2e/addon.json",
+    "find": "\"name\": \"e2e\"",
+    "replace": "\"name\": \"end-to-end\"",
+    "test": "pnpm vitest run scripts/addons-listed.test.mts -t \"e2e has the parts the contract names\""
+  }
+]

@@ -1,0 +1,30 @@
+[
+  {
+    "name": "end to end: a row never goes stale",
+    "file": "packages/client-core/src/presenters/pricesPresenter.ts",
+    "find": "return { ...tick, stale: true };",
+    "replace": "return { ...tick, stale: false };",
+    "test": "pnpm e2e"
+  },
+  {
+    "name": "the presenter's own test: a row never goes stale",
+    "file": "packages/client-core/src/presenters/pricesPresenter.ts",
+    "find": "return { ...tick, stale: true };",
+    "replace": "return { ...tick, stale: false };",
+    "test": "pnpm --dir packages/client-core exec vitest run pricesPresenter"
+  },
+  {
+    "name": "end to end: a price that went up is marked as down",
+    "file": "packages/domain/src/useCases/trackMovement.ts",
+    "find": "return mid > before ? \"up\" : \"down\";",
+    "replace": "return mid < before ? \"up\" : \"down\";",
+    "test": "pnpm e2e"
+  },
+  {
+    "name": "the use case's own test: a price that went up is marked as down",
+    "file": "packages/domain/src/useCases/trackMovement.ts",
+    "find": "return mid > before ? \"up\" : \"down\";",
+    "replace": "return mid < before ? \"up\" : \"down\";",
+    "test": "pnpm --dir packages/domain exec vitest run trackMovement"
+  }
+]
