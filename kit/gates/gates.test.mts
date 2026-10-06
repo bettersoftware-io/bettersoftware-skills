@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, symlinkSync } from "node:fs";
+import { mkdtempSync, readFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,7 +9,8 @@ import type { Finding } from "./lib/config.mts";
 import { ConfigError } from "./lib/config.mts";
 import { formatFindings, runGates } from "./run.mts";
 
-const fixtures = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
+const here = dirname(fileURLToPath(import.meta.url));
+const fixtures = join(here, "fixtures");
 const clean = join(fixtures, "clean");
 const broken = join(fixtures, "broken");
 
@@ -41,6 +42,25 @@ describe("a project that follows the rules", () => {
     const result = await runGates({ root: clean, files: [UI] });
 
     expect(result.findings).toEqual([]);
+  });
+});
+
+// `gates.json` is what an update of the kit reads to tell a project which
+// gates are new to it. Nothing runs from it, so only this holds it to the truth.
+describe("the kit's list of its gates", () => {
+  const list = JSON.parse(readFileSync(join(here, "gates.json"), "utf8")) as Record<string, string[]>;
+
+  it("names every gate that runs, in the order they run, and no other", async () => {
+    expect(Object.keys(list)).toEqual((await runGates({ root: clean })).gates);
+  });
+
+  it("names only options the architecture config has", () => {
+    const declared = readFileSync(join(here, "lib", "config.mts"), "utf8");
+    const unknown = Object.values(list)
+      .flat()
+      .filter((option) => !new RegExp(`^  ${option}\\??:`, "m").test(declared));
+
+    expect(unknown).toEqual([]);
   });
 });
 

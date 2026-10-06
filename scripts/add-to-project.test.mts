@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
 
-import { addToProject, listAddons, writeUnlessProtected } from "./add-to-project.mts";
+import { addToProject, describeYours, listAddons, writeUnlessProtected } from "./add-to-project.mts";
 import { InstallError, writeProjectFile } from "./lib/install.mts";
 
 describe("adding the kit", () => {
@@ -231,6 +231,226 @@ describe("adding the kit", () => {
   });
 });
 
+describe("what a kit update leaves to the project", () => {
+  it("says nothing the first time the kit is installed", () => {
+    const { repository, project } = createWorld();
+    withStarterInstructions(repository, "# Working here\n");
+
+    const result = addToProject({ project, unit: "kit", repository });
+
+    expect(result.yours).toEqual([]);
+    expect(result.newGates).toEqual([]);
+    expect(describeYours(result)).toEqual([]);
+  });
+
+  it("says nothing about a file whose template did not change, whatever else the update brought", () => {
+    const { repository, project } = createWorldWithKit();
+    write(project, ".claude/settings.json", '{ "permissions": {}, "hooks": "node tools/arch/hooks/after-edit.mts" }\n');
+    write(repository, "kit/gates/run.mts", "// gates, version 2\n");
+
+    const result = addToProject({ project, unit: "kit", repository });
+
+    expect(result.files.written).toEqual(["tools/arch/gates/run.mts"]);
+    expect(result.yours).toEqual([]);
+  });
+
+  it("names a file that is still the old template, with the command that takes the new one, and does not take it itself", () => {
+    const { repository, project } = createWorldWithKit();
+    write(repository, "kit/hooks/claude.settings.json", '{ "hooks": "node tools/arch/hooks/after-edit.mts", "timeout": 600 }\n');
+
+    const result = addToProject({ project, unit: "kit", repository });
+
+    expect(result.yours).toEqual([
+      {
+        owned: ".claude/settings.json",
+        template: "tools/arch/hooks/claude.settings.json",
+        state: "untouched",
+        lines: ['- { "hooks": "node tools/arch/hooks/after-edit.mts" }', '+ { "hooks": "node tools/arch/hooks/after-edit.mts", "timeout": 600 }'],
+      },
+    ]);
+    expect(read(project, ".claude/settings.json")).toBe(CLAUDE_SETTINGS);
+    expect(describeYours(result)).toEqual([
+      "",
+      "Yours to change. These files are the project's, so the update did not touch them:",
+      "  - .claude/settings.json: yours is still the old template, word for word. Take the new one:",
+      "      cp tools/arch/hooks/claude.settings.json .claude/settings.json",
+      "      What changed in the template:",
+      '        - { "hooks": "node tools/arch/hooks/after-edit.mts" }',
+      '        + { "hooks": "node tools/arch/hooks/after-edit.mts", "timeout": 600 }',
+    ]);
+  });
+
+  it("names a file the project edited, shows what changed in its template, and leaves the edit alone", () => {
+    const { repository, project } = createWorldWithKit();
+    const edited = '{ "permissions": {}, "hooks": "node tools/arch/hooks/after-edit.mts" }\n';
+    write(project, ".claude/settings.json", edited);
+    write(repository, "kit/hooks/claude.settings.json", '{ "hooks": "node tools/arch/hooks/after-edit.mts", "timeout": 600 }\n');
+
+    const result = addToProject({ project, unit: "kit", repository });
+
+    expect(result.yours.map(({ owned, state }) => ({ owned, state }))).toEqual([{ owned: ".claude/settings.json", state: "edited" }]);
+    expect(read(project, ".claude/settings.json")).toBe(edited);
+    expect(describeYours(result).slice(2, 5)).toEqual([
+      "  - .claude/settings.json: yours has changes of its own, so it was left as it is. Make this change in it by hand.",
+      "      The whole template is tools/arch/hooks/claude.settings.json",
+      "      What changed in the template:",
+    ]);
+  });
+
+  it("says it once: a second update with the same kit has nothing to add", () => {
+    const { repository, project } = createWorldWithKit();
+    write(repository, "kit/hooks/claude.settings.json", '{ "hooks": "node tools/arch/hooks/after-edit.mts", "timeout": 600 }\n');
+    addToProject({ project, unit: "kit", repository });
+
+    expect(addToProject({ project, unit: "kit", repository }).yours).toEqual([]);
+  });
+
+  it("does not ask for a change to a file it has just written from the new template", () => {
+    const { repository, project } = createWorldWithKit();
+    rmSync(join(project, ".codex/hooks.json"));
+    write(repository, "kit/hooks/codex.hooks.json", '{ "hooks": "node tools/arch/hooks/after-edit.mts", "timeout": 600 }\n');
+
+    const result = addToProject({ project, unit: "kit", repository });
+
+    expect(result.created).toEqual([".codex/hooks.json"]);
+    expect(result.yours).toEqual([]);
+  });
+
+  it("covers AGENTS.md, from the starter's, kept in the project's own package scope", () => {
+    const { repository, project } = createWorld();
+    withStarterInstructions(repository, "# Working here\n\nRun `pnpm --filter @app/web test`.\nStop on a red gate.\n");
+    addToProject({ project, unit: "kit", repository });
+    write(project, "AGENTS.md", read(project, "tools/arch/templates/AGENTS.md.txt"));
+    withStarterInstructions(repository, "# Working here\n\nRun `pnpm --filter @app/web test`.\nStop on a red gate, and say so.\n");
+
+    const result = addToProject({ project, unit: "kit", repository });
+
+    expect(read(project, "tools/arch/templates/AGENTS.md.txt")).toContain("pnpm --filter @acme/web test");
+    expect(result.yours).toEqual([
+      {
+        owned: "AGENTS.md",
+        template: "tools/arch/templates/AGENTS.md.txt",
+        state: "untouched",
+        lines: ["- Stop on a red gate.", "+ Stop on a red gate, and say so."],
+      },
+    ]);
+    expect(read(project, "AGENTS.md")).toContain("Stop on a red gate.\n");
+  });
+
+  it("covers architecture.config.mts, from the kit's example, and says when the project has none under that name", () => {
+    const { repository, project } = createWorldWithKit();
+    write(repository, "kit/architecture.config.example.mts", "// the example config\n// typesOnly: a package of types\n");
+    const edited = addToProject({ project, unit: "kit", repository });
+
+    expect(edited.yours).toEqual([
+      {
+        owned: "architecture.config.mts",
+        template: "tools/arch/templates/architecture.config.mts.txt",
+        state: "untouched",
+        lines: ["+ // typesOnly: a package of types"],
+      },
+    ]);
+
+    rmSync(join(project, "architecture.config.mts"));
+    write(project, "architecture.config.mjs", "// a project on an older runtime\n");
+    write(repository, "kit/architecture.config.example.mts", "// the example config\n");
+    const absent = addToProject({ project, unit: "kit", repository });
+
+    expect(absent.yours.map(({ owned, state }) => ({ owned, state }))).toEqual([{ owned: "architecture.config.mts", state: "absent" }]);
+    expect(describeYours(absent)[2]).toBe(
+      "  - architecture.config.mts: this project has none. If it should, the template is tools/arch/templates/architecture.config.mts.txt",
+    );
+  });
+
+  it("names a gate the update brought, with the options of the architecture config it reads", () => {
+    const { repository, project } = createWorld();
+    write(repository, "kit/gates/gates.json", JSON.stringify({ structure: ["packages"] }));
+    addToProject({ project, unit: "kit", repository });
+    write(repository, "kit/gates/gates.json", JSON.stringify({ structure: ["packages"], "types-only": ["typesOnly"], "agent-docs": [] }));
+
+    const result = addToProject({ project, unit: "kit", repository });
+
+    expect(result.newGates).toEqual([
+      { name: "types-only", options: ["typesOnly"] },
+      { name: "agent-docs", options: [] },
+    ]);
+    expect(describeYours(result)).toEqual([
+      "",
+      "Yours to change. These files are the project's, so the update did not touch them:",
+      "  - architecture.config.mts: the kit has a new gate, types-only. It reads typesOnly: set what this project needs.",
+      "      tools/arch/README.md says what it fails on. Run pnpm gates to see what it says here.",
+      "  - architecture.config.mts: the kit has a new gate, agent-docs. It reads no option of this file.",
+      "      tools/arch/README.md says what it fails on. Run pnpm gates to see what it says here.",
+    ]);
+    expect(addToProject({ project, unit: "kit", repository }).newGates).toEqual([]);
+  });
+
+  it("does not call every gate new in a project whose kit had no list of them, or one that cannot be read", () => {
+    const { repository, project } = createWorldWithKit();
+    write(repository, "kit/gates/gates.json", JSON.stringify({ structure: ["packages"] }));
+
+    expect(addToProject({ project, unit: "kit", repository }).newGates).toEqual([]);
+
+    write(repository, "kit/gates/gates.json", "not json");
+    write(repository, "kit/hooks/after-edit.mts", "// hook, version 2\n");
+
+    expect(addToProject({ project, unit: "kit", repository }).newGates).toEqual([]);
+  });
+});
+
+describe("what an add-on update leaves to the project", () => {
+  it("says nothing when the add-on is first added", () => {
+    const { repository, project } = createWorldWithKit();
+    withStartingFiles(repository);
+
+    expect(addToProject({ project, unit: "demo", repository }).yours).toEqual([]);
+  });
+
+  it("names a starting file whose template changed, whether the project edited it or not, and overwrites neither", () => {
+    const { repository, project } = createWorldWithKit();
+    withStartingFiles(repository);
+    write(repository, "addons/demo/files/tools/demo.config.mts", "// settings, as shipped\n");
+    write(repository, "addons/demo/addon.json", JSON.stringify({ ...readJson(repository, "addons/demo/addon.json"), startingFiles: ["packages/web/tests/scenarios.ts", "packages/web/tests/goldens/", "tools/demo.config.mts"] }));
+    addToProject({ project, unit: "demo", repository });
+    write(project, "packages/web/tests/scenarios.ts", "// the project's own scenarios\n");
+    write(repository, "addons/demo/files/packages/web/tests/scenarios.ts", "// scenarios, version 2\n");
+    write(repository, "addons/demo/files/tools/demo.config.mts", "// settings, version 2\n");
+
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(result.yours).toEqual([
+      {
+        owned: "packages/web/tests/scenarios.ts",
+        template: "tools/templates/demo.packages__web__tests__scenarios.ts.txt",
+        state: "edited",
+        lines: ["- // scenarios, as shipped", "+ // scenarios, version 2"],
+      },
+      {
+        owned: "tools/demo.config.mts",
+        template: "tools/templates/demo.tools__demo.config.mts.txt",
+        state: "untouched",
+        lines: ["- // settings, as shipped", "+ // settings, version 2"],
+      },
+    ]);
+    expect(read(project, "packages/web/tests/scenarios.ts")).toBe("// the project's own scenarios\n");
+    expect(read(project, "tools/demo.config.mts")).toBe("// settings, as shipped\n");
+  });
+
+  it("keeps no copy of a starting file that is not text, so a golden image is never compared", () => {
+    const { repository, project } = createWorldWithKit();
+    withStartingFiles(repository);
+    addToProject({ project, unit: "demo", repository });
+    write(repository, "addons/demo/files/packages/web/tests/goldens/a.png", "another image");
+
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(Object.keys(readJson(project, "tools/installed.json").demo.files).filter((path) => path.startsWith("tools/templates/"))).toEqual([
+      "tools/templates/demo.packages__web__tests__scenarios.ts.txt",
+    ]);
+    expect(result.yours).toEqual([]);
+  });
+});
+
 describe("writing a project file", () => {
   it("is refused through a link on its own, so a write that skips the checks up front is still safe", () => {
     const { project } = createWorld();
@@ -339,7 +559,7 @@ describe("adding an add-on", () => {
     expect(read(project, "packages/web/tests/scenarios.ts")).toBe("// the project's own scenarios\n");
     expect(read(project, "packages/web/tests/goldens/a.png")).toBe("the project's own image");
     expect(read(project, "tools/demo/check.mts")).toBe("// the add-on's check, version 2\n");
-    expect(result.files.written).toEqual(["tools/demo/check.mts"]);
+    expect(result.files.written).toEqual(["tools/demo/check.mts", "tools/templates/demo.packages__web__tests__scenarios.ts.txt"]);
   });
 
   it("does not bring back a starting file the project deleted", () => {
@@ -441,7 +661,15 @@ const KIT_FILES = [
   "tools/arch/hooks/after-edit.mts",
   "tools/arch/hooks/claude.settings.json",
   "tools/arch/hooks/codex.hooks.json",
+  "tools/arch/templates/architecture.config.mts.txt",
 ];
+
+const CLAUDE_SETTINGS = '{ "hooks": "node tools/arch/hooks/after-edit.mts" }\n';
+
+/** Gives the stand-in repository a starter with an AGENTS.md, as the real one has. */
+function withStarterInstructions(repository: string, text: string): void {
+  write(repository, "starter/AGENTS.md", text);
+}
 
 /** Gives the demo add-on two starting files: one named exactly, one by its folder. */
 function withStartingFiles(repository: string): void {

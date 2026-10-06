@@ -68,7 +68,7 @@ export interface CreatedProject {
 
 /** The steps that can be swapped in a test. */
 export interface ProjectSteps {
-  installKit: (project: string) => { notes: string[] };
+  installKit: (project: string, scope: string) => { notes: string[] };
   listAddons: () => ListedAddon[];
   addAddon: (project: string, name: string, scope: string) => { firstRun?: string };
 }
@@ -77,7 +77,9 @@ const STEPS: ProjectSteps = {
   // The kit goes in the way a later update does, so the project starts with a
   // record of what was installed and `add-to-project.mts <project> kit` can
   // tell an untouched file from an edited one.
-  installKit: (project) => addToProject({ project, unit: KIT }),
+  // The scope is given, since the packages still carry the starter's when the
+  // kit goes in: the kit's copy of AGENTS.md is kept in the project's scope.
+  installKit: (project, scope) => addToProject({ project, unit: KIT, scope }),
   listAddons: () => listAddons(),
   addAddon: (project, name, scope) => addToProject({ project, unit: name, scope }),
 };
@@ -183,7 +185,7 @@ function writeProject(destination: string, scope: string, projectName: string, s
     filter: (source) => !SKIPPED_IN_STARTER.has(basename(source)),
   });
 
-  const { notes } = steps.installKit(destination);
+  const { notes } = steps.installKit(destination, scope);
 
   for (const file of listFiles(destination)) {
     if (!TEXT_FILE.test(basename(file)) || file.startsWith(join(destination, "tools"))) {

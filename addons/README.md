@@ -55,7 +55,11 @@ addons/<name>/
   its golden images, its settings. They are written when the add-on is first
   added and never touched again, so a later update cannot overwrite the
   project's work. A path ending in `/` names a whole folder. Every other file
-  belongs to the add-on, and an update replaces it.
+  belongs to the add-on, and an update replaces it. When a later version of
+  the add-on changes a starting file, the update names the project's file
+  under "Yours to change" and shows the lines that changed. For that it keeps
+  a copy of each text starting file in `tools/templates/`; an image gets no
+  copy and no notice.
 - `verify` is the one command that proves the add-on works in a project that
   has just received it.
 - `firstRun` is a command to run once after installing, before `verify`. It

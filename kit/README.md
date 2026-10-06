@@ -355,6 +355,43 @@ project has not installed, under "Still to do by hand". Until it is installed
 `eslint` stops with a message that says which package is missing and the
 command that adds it; it does not report a clean run.
 
+### What an update leaves to the project
+
+`add-to-project.mts <project> kit` replaces the kit's own files. Four files
+were written from a template the kit ships and then belong to the project, so
+an update never overwrites them:
+
+| The project's file | The kit's copy of its template |
+|---|---|
+| `.claude/settings.json` | `tools/arch/hooks/claude.settings.json` |
+| `.codex/hooks.json` | `tools/arch/hooks/codex.hooks.json` |
+| `AGENTS.md` | `tools/arch/templates/AGENTS.md.txt` |
+| `architecture.config.mts` | `tools/arch/templates/architecture.config.mts.txt` |
+
+When an update changes one of those templates it says so, under "Yours to
+change": the file, the lines of the template that changed, and what to do.
+
+- A file that is still the old template, word for word, gets the command that
+  takes the new one (`cp …`). The update does not run it.
+- A file with changes of its own gets "make this change by hand".
+- A gate that is new to the project is named with the options of
+  `architecture.config.mts` it reads. The list is `gates/gates.json`.
+
+The copies are ordinary kit files, so the record of what was installed
+already says when one changed, and the copy about to be replaced is the old
+text. Nothing else is stored.
+
+Limits:
+
+- It is said once, by the update that brings the change. A change that was
+  not made then is not repeated by the next update; `diff` the copy against
+  the project's file to see where the two stand.
+- The first update of a project whose kit predates this has no earlier copy
+  of `AGENTS.md` or of the example config to compare with, and no list of
+  gates. It says nothing about those; the two hook files are covered at once.
+- A new option of a gate the project already has shows up only as a changed
+  line of the example config.
+
 ### With a formatter
 
 No rule here is a formatting rule, so there is nothing for

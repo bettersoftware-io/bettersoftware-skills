@@ -55,6 +55,11 @@ node <plugin root>/scripts/add-to-project.mts <project> <unit>
   (which role each package plays, how to merge hook settings). Do them with
   the user, not for them.
 
+- If it prints "Yours to change", the update changed the template of a file
+  the project owns and left the project's file alone. Show the section
+  unchanged. Run a `cp` it gives only when the user agrees; make a change "by
+  hand" with the user, since the file holds their edits.
+
 ## 4. Prove it
 
 Run the lines the script prints under "Next", in order: `pnpm install`, the
@@ -66,6 +71,7 @@ edit the installed files to make it pass.
 
 1. What was written, removed and changed (the script's own summary).
 2. The result of each command in step 4.
-3. What is still to do by hand, if anything.
+3. What is still to do by hand, and what was listed under "Yours to change",
+   if anything.
 4. That the project's `AGENTS.md` now has a section for the unit, and that it
    is the place to read how to work with it.

@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { addToProject } from "./add-to-project.mts";
 import { createProject, parseArguments, ProjectError, projectReadme, type ProjectSteps } from "./create-project.mts";
 
 describe("creating a project from the starter", () => {
@@ -43,6 +44,17 @@ describe("creating a project from the starter", () => {
     expect(withOldScope).toEqual([]);
     expect(readFileSync(join(project, "packages/domain/package.json"), "utf8")).toContain('"@acme/domain"');
     expect(readFileSync(join(project, "pnpm-lock.yaml"), "utf8")).toContain("'@acme/domain'");
+  });
+
+  it("leaves a kit update with nothing to say about a project it has just created, under any scope", () => {
+    const { destination: project } = createProject({ target: createTarget("price-desk"), scope: "@acme" });
+
+    const update = addToProject({ project, unit: "kit" });
+
+    expect(update.files.written).toEqual([]);
+    expect(update.yours).toEqual([]);
+    expect(update.newGates).toEqual([]);
+    expect(readFileSync(join(project, "tools/arch/templates/AGENTS.md.txt"), "utf8")).toBe(readFileSync(join(project, "AGENTS.md"), "utf8"));
   });
 
   it("refuses a target that already holds files", () => {
