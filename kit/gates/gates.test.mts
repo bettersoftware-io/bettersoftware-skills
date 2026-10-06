@@ -536,6 +536,14 @@ describe("a #… import, read from the package's own package.json", () => {
     expect(resolveSubpathImport(root, "packages/domain", "#/a.ts")).toBe("packages/domain/src/a.ts");
   });
 
+  it("matches a pattern only by both of its ends, with something in between", () => {
+    const root = imports({ "#tests/*.ts": "./tests/*.mts" });
+
+    expect(resolveSubpathImport(root, "packages/domain", "#tests/host.css")).toBeUndefined();
+    expect(resolveSubpathImport(root, "packages/domain", "#tests/.ts")).toBeUndefined();
+    expect(resolveSubpathImport(root, "packages/domain", "#tests/a.ts")).toBe("packages/domain/tests/a.mts");
+  });
+
   it("is undefined for an alias nobody declared, a package with no manifest, and a specifier that is no alias", () => {
     const root = imports({ "#tests/*": "./tests/*", "#off": null });
 
@@ -560,6 +568,18 @@ describe("an ESLint command in a script", () => {
     expect(lenientLintCommands("eslint --max-warnings=0 .")).toEqual([]);
     expect(lenientLintCommands("eslint --max-warnings 05 .")).toEqual(["eslint --max-warnings 05 ."]);
     expect(lenientLintCommands("eslint --max-warnings 10 .")).toEqual(["eslint --max-warnings 10 ."]);
+  });
+
+  it("is judged in a project that has a root package.json and no workspace package", async () => {
+    const root = mkdtempSync(join(tmpdir(), "arch-scripts-"));
+
+    writeFileSync(join(root, "architecture.config.mts"), "export default { packages: {} };\n");
+    writeFileSync(join(root, "package.json"), JSON.stringify({ scripts: { lint: "eslint ." } }));
+
+    const result = await runGates({ root });
+
+    expect(result.skipped["package-scripts"]).toBeUndefined();
+    expect(result.findings.filter((finding) => finding.gate === "package-scripts")).toHaveLength(1);
   });
 
   it("leaves a fixer alone, and a command that only has eslint in its name", () => {
