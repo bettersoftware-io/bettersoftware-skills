@@ -42,7 +42,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        addon: [none, coverage, visual, performance, format-lint, ci-security, repo-hygiene, strict-lint]
+        addon: [none, coverage, visual, performance, format-lint, ci-security, repo-hygiene, strict-lint, agent-workflow]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:

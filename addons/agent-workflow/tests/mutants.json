@@ -1,0 +1,1528 @@
+[
+  {
+    "name": "git push -u origin worktree-fix",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "const GIT_OUTWARD = [\"push\"];",
+    "replace": "const GIT_OUTWARD = [\"pushed\"];",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"git push -u origin worktree-fix\""
+  },
+  {
+    "name": "gh pr merge 12 --merge",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "pr: [\"create\", \"merge\", ",
+    "replace": "pr: [\"create\", ",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"gh pr merge 12 --merge\""
+  },
+  {
+    "name": "gh run cancel 99",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "run: [\"rerun\", \"cancel\", \"delete\"],",
+    "replace": "run: [\"rerun\", \"delete\"],",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"gh run cancel 99\""
+  },
+  {
+    "name": "--method=DELETE",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "[\"POST\", \"PATCH\", \"PUT\", \"DELETE\"]",
+    "replace": "[\"POST\", \"PATCH\", \"PUT\"]",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"--method=DELETE\""
+  },
+  {
+    "name": "refs -XPUT",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "/^(?:--method=|-X)(.+)$/",
+    "replace": "/^(?:--method=)(.+)$/",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"refs -XPUT\""
+  },
+  {
+    "name": "--input body.json",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "\"--raw-field\", \"--input\"];",
+    "replace": "\"--raw-field\"];",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"--input body\\\\.json\""
+  },
+  {
+    "name": "not gh api repos/acme/app/pulls -X GET",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "    if (word === \"-X\" || word === \"--method\") {\n      return WRITE_METHODS.includes((words[index + 1] ?? \"\").toUpperCase());\n    }",
+    "replace": "    if ((word === \"-X\" || word === \"--method\") && WRITE_METHODS.includes((words[index + 1] ?? \"\").toUpperCase())) {\n      return true;\n    }",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"not gh api repos/acme/app/pulls -X GET\""
+  },
+  {
+    "name": "not git stash push",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "return GIT_OUTWARD.includes(skipGitOptions(words.slice(1))[0] ?? \"\");",
+    "replace": "return words.some((word) => GIT_OUTWARD.includes(word));",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"not git stash push\""
+  },
+  {
+    "name": "finds the push behind git's own options",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "GIT_OPTIONS_WITH_VALUE.includes(rest[0]) ? 2 : 1",
+    "replace": "1",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"finds the push behind git's own options\""
+  },
+  {
+    "name": "finds the group behind gh's own options",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "[\"-R\", \"--repo\"].includes(rest[0]) ? 2 : 1",
+    "replace": "1",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"finds the group behind gh's own options\""
+  },
+  {
+    "name": "looks past a variable set for the command",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "\"time\", \"command\"",
+    "replace": "\"command\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"looks past a variable set for the command\""
+  },
+  {
+    "name": "looks past a variable set for the command (path)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": ".split(\"/\").pop();",
+    "replace": ".split(\"\\0\").pop();",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"looks past a variable set for the command\""
+  },
+  {
+    "name": "looks past a variable set for the command (assignment)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": " || /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[0]))",
+    "replace": ")",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"looks past a variable set for the command\""
+  },
+  {
+    "name": "refuses ;",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "(steps > 1 || outward.length > 1)",
+    "replace": "(steps > 2 || outward.length > 1)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"refuses ;\""
+  },
+  {
+    "name": "refuses a newline",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "        this.skipHeredocBodies();\n        endStep();",
+    "replace": "        this.skipHeredocBodies();",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"refuses a newline\""
+  },
+  {
+    "name": "refuses ||",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "          this.position += 2;\n          endStep();",
+    "replace": "          this.position += 2;\n          endStage();",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"refuses \\\\|\\\\|\""
+  },
+  {
+    "name": "refuses & (background)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "this.position += this.text[this.position + 1] === \"&\" ? 2 : 1;\n          endStep();",
+    "replace": "this.position += this.text[this.position + 1] === \"&\" ? 2 : 1;\n          endStage();",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"refuses &\""
+  },
+  {
+    "name": "refuses a subshell",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "        this.position += 1;\n        groups += 1;",
+    "replace": "        this.position = this.text.length;\n        groups += 1;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"refuses a subshell\""
+  },
+  {
+    "name": "refuses a condition",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "[\"then\", \"do\", ",
+    "replace": "[\"do\", ",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"refuses a condition\""
+  },
+  {
+    "name": "refuses a loop",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "[\"then\", \"do\", ",
+    "replace": "[\"then\", ",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"refuses a loop\""
+  },
+  {
+    "name": "lets through a pipe into a filter",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "this.position += this.text[this.position + 1] === \"&\" ? 2 : 1;\n          endStage();",
+    "replace": "this.position += this.text[this.position + 1] === \"&\" ? 2 : 1;\n          endStep();",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"lets through a pipe into a filter\""
+  },
+  {
+    "name": "lets through a redirection",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "|>>|>&|>\\||",
+    "replace": "|>>|>\\||",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"lets through a redirection\""
+  },
+  {
+    "name": "lets through a line continued with a backslash",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "this.text[this.position + 1] === \"\\n\") {\n        this.position += 2;\n      } else if (char === \"\\n\") {",
+    "replace": "this.text[this.position + 1] === \"\\n\") {\n        this.position += 1;\n      } else if (char === \"\\n\") {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"lets through a line continued with a backslash\""
+  },
+  {
+    "name": "lets through a comment after it",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "} else if (char === \"#\") {",
+    "replace": "} else if (char === \"#\" && this.position < 0) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"lets through a comment after it\""
+  },
+  {
+    "name": "refuses two outward steps joined by a pipe",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "(steps > 1 || outward.length > 1)",
+    "replace": "(steps > 1)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"refuses two outward steps joined by a pipe\""
+  },
+  {
+    "name": "names every outward step it found",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "words.slice(0, 3).join(\" \")",
+    "replace": "words.slice(0, 2).join(\" \")",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"names every outward step it found\""
+  },
+  {
+    "name": "is not a step: a commit message in double quotes",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "      if (char === '\"') {\n        this.position += 1;\n\n        return value;",
+    "replace": "      if (char === '\"' || char === \" \") {\n        this.position += 1;\n\n        return value;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"is not a step: a commit message in double quotes\""
+  },
+  {
+    "name": "is not a step: a commit message in single quotes",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "        value += this.text.slice(this.position + 1, end);\n        this.position = end + 1;",
+    "replace": "        value += \"\";\n        this.position += 1;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"is not a step: a commit message in single quotes\""
+  },
+  {
+    "name": "is not a step: an escaped quote inside the message",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": ": `\\\\${next}`;\n        this.position += 2;",
+    "replace": ": `\\\\${next}`;\n        this.position += 1;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"is not a step: an escaped quote inside the message\""
+  },
+  {
+    "name": "is not a step: a commit message in a heredoc",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "if (operator === \"<<\" || operator === \"<<-\") {",
+    "replace": "if (operator === \"<<-\") {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"is not a step: a commit message in a heredoc\""
+  },
+  {
+    "name": "is not a step: a heredoc that strips tabs",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "stripTabs: operator === \"<<-\" });",
+    "replace": "stripTabs: false });",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"is not a step: a heredoc that strips tabs\""
+  },
+  {
+    "name": "is not a step: a comment",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "} else if (char === \"#\") {",
+    "replace": "} else if (char === \"#\" && this.position < 0) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"is not a step: a comment\""
+  },
+  {
+    "name": "still sees the push after a heredoc ends",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "        this.skipHeredocBodies();\n        endStep();",
+    "replace": "        this.skipHeredocBodies();",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"still sees the push after a heredoc ends\""
+  },
+  {
+    "name": "reads a heredoc opened on the same line as the next step",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "this.heredocs.splice(0)",
+    "replace": "this.heredocs.splice(1)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"reads a heredoc opened on the same line as the next step\""
+  },
+  {
+    "name": "lets a pull request take its body from a heredoc",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "  for (const nested of script.nested) {\n    const inner = judgeScript(nested);\n",
+    "replace": "  for (const nested of script.nested) {\n    const inner = judgeScript(nested);\n\n    steps += 1;\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"lets a pull request take its body from a heredoc\""
+  },
+  {
+    "name": "refuses the same pull request once a push is joined to it",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "chained: chained || (outward.length > 0 && (steps > 1 || outward.length > 1))",
+    "replace": "chained",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"refuses the same pull request once a push is joined to it\""
+  },
+  {
+    "name": "finds an outward step inside a substitution",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "    outward.push(...inner.outward);\n    chained ||= inner.chained;\n  }\n\n  // One outward",
+    "replace": "    chained ||= inner.chained;\n  }\n\n  // One outward",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"finds an outward step inside a substitution\""
+  },
+  {
+    "name": "counts a lone outward step inside a substitution as one step",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "  for (const nested of script.nested) {\n    const inner = judgeScript(nested);\n",
+    "replace": "  for (const nested of script.nested) {\n    const inner = judgeScript(nested);\n\n    steps += 1;\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"counts a lone outward step inside a substitution as one step\""
+  },
+  {
+    "name": "refuses an outward step that takes its argument from another",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "(steps > 1 || outward.length > 1)",
+    "replace": "(steps > 1)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"refuses an outward step that takes its argument from another\""
+  },
+  {
+    "name": "reads what a shell is asked to run",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "/^-[a-z]*c[a-z]*$/",
+    "replace": "/^-c$/",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"reads what a shell is asked to run\""
+  },
+  {
+    "name": "reads what a shell is asked to run (eval)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "if (program === \"eval\") {",
+    "replace": "if (program === \"evaluate\") {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"reads what a shell is asked to run\""
+  },
+  {
+    "name": "has no verdict: a quote that never closes",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "    if (error instanceof ShellError) {\n      return undefined;\n    }\n\n    throw error;\n  }\n}\n\nfunction judgeScript",
+    "replace": "    if (error instanceof ShellError) {\n      return { outward: [], chained: false };\n    }\n\n    throw error;\n  }\n}\n\nfunction judgeScript",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"has no verdict: a quote that never closes\""
+  },
+  {
+    "name": "has no verdict: a substitution that never closes",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "        if (closer !== undefined) {\n          throw",
+    "replace": "        if (closer !== undefined && this.position < 0) {\n          throw",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"has no verdict: a substitution that never closes\""
+  },
+  {
+    "name": "has no verdict: a heredoc that never ends",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "        if (this.position >= this.text.length) {\n          throw new ShellError(`the heredoc",
+    "replace": "        if (this.position >= this.text.length) {\n          break;\n          throw new ShellError(`the heredoc",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"has no verdict: a heredoc that never ends\""
+  },
+  {
+    "name": "splits words, drops redirections",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "/^\\d+$/.test(word) &&",
+    "replace": "/^\\d+x$/.test(word) &&",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"splits words, drops redirections\""
+  },
+  {
+    "name": "keeps a hash inside a word, and a here-string out of the words",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "&>>?|<<<|<<-?",
+    "replace": "&>>?|<<-?",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"keeps a hash inside a word, and a here-string out of the words\""
+  },
+  {
+    "name": "keeps a parameter expansion whole outside quotes",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "value += this.text.slice(this.position, end + 1);",
+    "replace": "value += \"\";",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"keeps a parameter expansion whole outside quotes\""
+  },
+  {
+    "name": "keeps a parameter expansion whole outside quotes (skipped as one)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "      } else if (char === \"$\" && this.text[this.position + 1] === \"{\") {\n        const end",
+    "replace": "      } else if (char === \"$\" && this.text[this.position + 1] === \"{\" && this.position < 0) {\n        const end",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"keeps a parameter expansion whole outside quotes\""
+  },
+  {
+    "name": "keeps a parameter and an arithmetic expansion as text",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/shell.mts",
+    "find": "        script.nested.push(this.script(\")\"));\n        value += \"$(…)\";\n      } else if (char === \"$\" && this.text[this.position + 1] === \"{\") {",
+    "replace": "        script.nested.push(this.script(\")\"));\n        value += \"\";\n      } else if (char === \"$\" && this.text[this.position + 1] === \"{\") {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"keeps a parameter and an arithmetic expansion as text\""
+  },
+  {
+    "name": "reads the command from a Claude Code payload, and from a list of words",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "word.replaceAll(\"'\", \"'\\\\''\")",
+    "replace": "word",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"reads the command from a Claude Code payload, and from a list of words\""
+  },
+  {
+    "name": "refuses a chain and says which step is outward",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "(${verdict.outward.join(\", \")})",
+    "replace": "()",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"refuses a chain and says which step is outward\""
+  },
+  {
+    "name": "refuses a chain sent as a list of words",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "Array.isArray(command) && command.every((word) => typeof word === \"string\")",
+    "replace": "command === null",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"refuses a chain sent as a list of words\""
+  },
+  {
+    "name": "says nothing about a lone outward step",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "if (verdict === undefined || !verdict.chained) {",
+    "replace": "if (verdict === undefined || verdict.outward.length === 0) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"says nothing about a lone outward step\""
+  },
+  {
+    "name": "replies in the shape both hosts read",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "permissionDecision: \"deny\", permissionDecisionReason",
+    "replace": "permissionDecision: \"block\", permissionDecisionReason",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"replies in the shape both hosts read\""
+  },
+  {
+    "name": "prints nothing for a command it lets through",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "  if (reason) {\n    console.log(",
+    "replace": "  if (reason || true) {\n    console.log(",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"prints nothing for a command it lets through\""
+  },
+  {
+    "name": "lets a call through when it is sent nothing at all",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "readFileSync(0, \"utf8\") || \"{}\"",
+    "replace": "readFileSync(0, \"utf8\")",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"lets a call through when it is sent nothing at all\""
+  },
+  {
+    "name": "2025-12-29T00:00:00Z is in 2026-W01",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/week.mts",
+    "find": "new Date(monday + 3 * DAY_MS)",
+    "replace": "new Date(monday)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/week.test.mts --testNamePattern=\"2025-12-29T00:00:00Z is in 2026-W01\""
+  },
+  {
+    "name": "2026-10-04T23:59:59Z is in 2026-W40",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/week.mts",
+    "find": "end: toDay(monday + 6 * DAY_MS)",
+    "replace": "end: toDay(monday + 7 * DAY_MS)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/week.test.mts --testNamePattern=\"2026-10-04T23:59:59Z is in 2026-W40\""
+  },
+  {
+    "name": "reads the day in UTC",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/week.mts",
+    "find": "Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())",
+    "replace": "Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())",
+    "test": "pnpm vitest run addons/agent-workflow/tests/week.test.mts --testNamePattern=\"reads the day in UTC\""
+  },
+  {
+    "name": "2021-W01 reads back as itself",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/week.mts",
+    "find": "Date.UTC(Number(match[1]), 0, 4)",
+    "replace": "Date.UTC(Number(match[1]), 0, 1)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/week.test.mts --testNamePattern=\"2021-W01 reads back as itself\""
+  },
+  {
+    "name": "gives the week's Monday and Sunday",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/week.mts",
+    "find": "(Number(match[2]) - 1) * 7",
+    "replace": "Number(match[2]) * 7",
+    "test": "pnpm vitest run addons/agent-workflow/tests/week.test.mts --testNamePattern=\"gives the week's Monday and Sunday\""
+  },
+  {
+    "name": "refuses \"2026-W54\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/week.mts",
+    "find": "  if (week.name !== name) {",
+    "replace": "  if (week.name === \"\") {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/week.test.mts --testNamePattern=\"refuses \\\"2026-W54\\\"\""
+  },
+  {
+    "name": "refuses \"2026-40\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/week.mts",
+    "find": "  if (match === null) {",
+    "replace": "  if (match === null && name === \"\") {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/week.test.mts --testNamePattern=\"refuses \\\"2026-40\\\"\""
+  },
+  {
+    "name": "is the week before the one now is in",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/week.mts",
+    "find": "startOf(weekOf(now)) - DAY_MS",
+    "replace": "startOf(weekOf(now)) - 8 * DAY_MS",
+    "test": "pnpm vitest run addons/agent-workflow/tests/week.test.mts --testNamePattern=\"is the week before the one now is in\""
+  },
+  {
+    "name": "crosses a year",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/week.mts",
+    "find": "startOf(weekOf(now)) - DAY_MS",
+    "replace": "startOf(weekOf(now)) + DAY_MS",
+    "test": "pnpm vitest run addons/agent-workflow/tests/week.test.mts --testNamePattern=\"crosses a year\""
+  },
+  {
+    "name": "holds its first instant and not the next Monday's",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/week.mts",
+    "find": "time < endOf(week)",
+    "replace": "time <= endOf(week)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/week.test.mts --testNamePattern=\"holds its first instant and not the next Monday's\""
+  },
+  {
+    "name": "ends where the next one starts",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/week.mts",
+    "find": "  return startOf(week) + 7 * DAY_MS;\n}\n\n/** True when",
+    "replace": "  return startOf(week) + 6 * DAY_MS;\n}\n\n/** True when",
+    "test": "pnpm vitest run addons/agent-workflow/tests/week.test.mts --testNamePattern=\"ends where the next one starts\""
+  },
+  {
+    "name": "finds each week's heading",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/changelog.mts",
+    "find": "/^## (\\d{4}-W\\d{2})\\b.*$/gm",
+    "replace": "/^### (\\d{4}-W\\d{2})\\b.*$/gm",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"finds each week's heading\""
+  },
+  {
+    "name": "takes a week's section up to the next week",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/changelog.mts",
+    "find": "body.search(/^## /m)",
+    "replace": "body.search(/^# /m)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"takes a week's section up to the next week\""
+  },
+  {
+    "name": "does not take a deeper heading for the end of a week",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/changelog.mts",
+    "find": "body.search(/^## /m)",
+    "replace": "body.search(/^##/m)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"does not take a deeper heading for the end of a week\""
+  },
+  {
+    "name": "tells a citation from the definition",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/changelog.mts",
+    "find": "/\\[#(\\d+)\\](?!:)/g",
+    "replace": "/\\[#(\\d+)\\]/g",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"tells a citation from the definition\""
+  },
+  {
+    "name": "passes when every merged pull request is cited",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/changelog.mts",
+    "find": "merged.filter((number) => !cited.includes(number))",
+    "replace": "merged.filter((number) => cited.includes(number))",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"passes when every merged pull request is cited\""
+  },
+  {
+    "name": "names a merged pull request the week does not cite",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/changelog.mts",
+    "find": "[...numbers].sort((a, b) => a - b)",
+    "replace": "[...numbers]",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"names a merged pull request the week does not cite\""
+  },
+  {
+    "name": "does not count a citation in another week's section",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/changelog.mts",
+    "find": "const cited = citationsIn(section);",
+    "replace": "const cited = citationsIn(text);",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"does not count a citation in another week's section\""
+  },
+  {
+    "name": "names a citation with no link definition",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/changelog.mts",
+    "find": "if (undefinedCitations.length > 0) {",
+    "replace": "if (undefinedCitations.length > 1) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"names a citation with no link definition\""
+  },
+  {
+    "name": "names a definition that points at another pull request",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/changelog.mts",
+    "find": "`/(?:pull|issues)/${number}$`",
+    "replace": "`/(?:pull|issues)/${number}`",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"names a definition that points at another pull request\""
+  },
+  {
+    "name": "accepts a definition that points at an issue",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/changelog.mts",
+    "find": "`/(?:pull|issues)/${number}$`",
+    "replace": "`/(?:pull)/${number}$`",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"accepts a definition that points at an issue\""
+  },
+  {
+    "name": "names definitions that are out of order, and one given twice",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/changelog.mts",
+    "find": "definition.number <= (definitions",
+    "replace": "definition.number < (definitions",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"names definitions that are out of order, and one given twice\""
+  },
+  {
+    "name": "fails a week with merged pull requests and no heading",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/changelog.mts",
+    "find": "    if (merged.length > 0) {\n      problems.push(`there is no",
+    "replace": "    if (merged.length >= 0) {\n      problems.push(`there is no",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"fails a week with merged pull requests and no heading\""
+  },
+  {
+    "name": "are those after the newest one in the file",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/changelog.mts",
+    "find": "startOf(week) <= startOf(current)",
+    "replace": "startOf(week) < startOf(current)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"are those after the newest one in the file\""
+  },
+  {
+    "name": "is the current week alone when the file already has it",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/changelog.mts",
+    "find": "if (newest.name === current.name) {",
+    "replace": "if (newest.name === \"\") {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"is the current week alone when the file already has it\""
+  },
+  {
+    "name": "goes by the newest heading",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/changelog.mts",
+    "find": ".sort((a, b) => startOf(b) - startOf(a))[0]",
+    "replace": "[0]",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"goes by the newest heading\""
+  },
+  {
+    "name": "is the last finished week and the current one",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/changelog.mts",
+    "find": "return [lastFinishedWeek(now), current];",
+    "replace": "return [current];",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"is the last finished week and the current one\""
+  },
+  {
+    "name": "lists the weeks to write, with their first and last day",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/changelog.mts",
+    "find": "return `${week.name}  ${week.start}..${week.end}`;",
+    "replace": "return `${week.name}`;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"lists the weeks to write, with their first and last day\""
+  },
+  {
+    "name": "asks gh for the week's merged pull requests",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/changelog.mts",
+    "find": "\"--state\", \"merged\"",
+    "replace": "\"--state\", \"all\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"asks gh for the week's merged pull requests\""
+  },
+  {
+    "name": "lists what was merged in the week, oldest first",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/changelog.mts",
+    "find": "found.filter(({ mergedAt }) => isInWeek(week, mergedAt)).sort(",
+    "replace": "found.sort(",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"lists what was merged in the week, oldest first\""
+  },
+  {
+    "name": "lists what was merged in the week, oldest first (order)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/changelog.mts",
+    "find": ".sort((a, b) => a.mergedAt.localeCompare(b.mergedAt))",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"lists what was merged in the week, oldest first\""
+  },
+  {
+    "name": "passes a week whose merged pull requests are all cited",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/changelog.mts",
+    "find": "return problems.length === 0 ? 0 : 1;",
+    "replace": "return problems.length === 0 ? 1 : 1;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"passes a week whose merged pull requests are all cited\""
+  },
+  {
+    "name": "fails a week with a merged pull request it does not cite",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/changelog.mts",
+    "find": "return problems.length === 0 ? 0 : 1;",
+    "replace": "return problems.length === 0 ? 0 : 0;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"fails a week with a merged pull request it does not cite\""
+  },
+  {
+    "name": "takes the numbers from --merged without asking gh",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/changelog.mts",
+    "find": "const merged = given === -1 ? ",
+    "replace": "const merged = given !== -2 ? ",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"takes the numbers from --merged without asking gh\""
+  },
+  {
+    "name": "judges nothing, and says so, when gh is not installed",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/changelog.mts",
+    "find": "Nothing was judged`);\n\n      return 2;",
+    "replace": "Nothing was judged`);\n\n      return 0;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"judges nothing, and says so, when gh is not installed\""
+  },
+  {
+    "name": "judges nothing, and says so, when gh returned as many as it will",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/changelog.mts",
+    "find": "if (found.length >= LIMIT) {",
+    "replace": "if (found.length > LIMIT) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"judges nothing, and says so, when gh returned as many as it will\""
+  },
+  {
+    "name": "judges nothing, and says so, when --merged holds something else",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/changelog.mts",
+    "find": "numbers.some((number) => !Number.isInteger(number) || number <= 0)",
+    "replace": "numbers.some((number) => number <= 0)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"judges nothing, and says so, when --merged holds something else\""
+  },
+  {
+    "name": "judges nothing, and says so, when there is no CHANGELOG.md",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/changelog.mts",
+    "find": "  if (!existsSync(file)) {\n    throw new ChangelogError(\"there is no CHANGELOG.md",
+    "replace": "  if (existsSync(file)) {\n    throw new ChangelogError(\"there is no CHANGELOG.md",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"judges nothing, and says so, when there is no CHANGELOG\\\\.md\""
+  },
+  {
+    "name": "prints how it is used, and does not pass",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/changelog.mts",
+    "find": "  return 2;\n}\n\n/** The pull requests merged",
+    "replace": "  return 0;\n}\n\n/** The pull requests merged",
+    "test": "pnpm vitest run addons/agent-workflow/tests/changelog.test.mts --testNamePattern=\"prints how it is used, and does not pass\""
+  },
+  {
+    "name": "tags the last commit that reached the branch before Monday",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/close-week.mts",
+    "find": "new Date(endOf(week) - 1000)",
+    "replace": "new Date(endOf(week) + 7200 * 1000)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/close-week.test.mts --testNamePattern=\"tags the last commit that reached the branch before Monday\""
+  },
+  {
+    "name": "leaves a commit made at Monday 00:00:00 exactly",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/close-week.mts",
+    "find": "new Date(endOf(week) - 1000)",
+    "replace": "new Date(endOf(week))",
+    "test": "pnpm vitest run addons/agent-workflow/tests/close-week.test.mts --testNamePattern=\"leaves a commit made at Monday 00:00:00 exactly\""
+  },
+  {
+    "name": "follows the branch itself",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/close-week.mts",
+    "find": "\"-1\", \"--first-parent\", ",
+    "replace": "\"-1\", ",
+    "test": "pnpm vitest run addons/agent-workflow/tests/close-week.test.mts --testNamePattern=\"follows the branch itself\""
+  },
+  {
+    "name": "creates the tag through the API",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/close-week.mts",
+    "find": "\"-f\", \"type=commit\"",
+    "replace": "\"-f\", \"type=tree\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/close-week.test.mts --testNamePattern=\"creates the tag through the API\""
+  },
+  {
+    "name": "opens an issue that asks for the week's entry",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/close-week.mts",
+    "find": "\"--title\", `Changelog: write ${week.name}`",
+    "replace": "\"--title\", `Changelog ${week.name}`",
+    "test": "pnpm vitest run addons/agent-workflow/tests/close-week.test.mts --testNamePattern=\"opens an issue that asks for the week's entry\""
+  },
+  {
+    "name": "opens an issue that asks for the week's entry (search)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/close-week.mts",
+    "find": "`merged:${week.start}..${week.end}`, \"--json\", \"number\"",
+    "replace": "`merged:${week.start}`, \"--json\", \"number\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/close-week.test.mts --testNamePattern=\"opens an issue that asks for the week's entry\""
+  },
+  {
+    "name": "opens no issue for a week in which nothing was merged",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/close-week.mts",
+    "find": "if (merged === 0) {",
+    "replace": "if (merged < 0) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/close-week.test.mts --testNamePattern=\"opens no issue for a week in which nothing was merged\""
+  },
+  {
+    "name": "does nothing at all when the week's tag exists",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/close-week.mts",
+    "find": "if (existing.status === 0) {",
+    "replace": "if (existing.status === 99) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/close-week.test.mts --testNamePattern=\"does nothing at all when the week's tag exists\""
+  },
+  {
+    "name": "creates nothing when it cannot tell whether the tag exists",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/close-week.mts",
+    "find": "if (!/404|Not Found/i.test(existing.stderr)) {",
+    "replace": "if (existing.stderr === \"\") {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/close-week.test.mts --testNamePattern=\"creates nothing when it cannot tell whether the tag exists\""
+  },
+  {
+    "name": "tags nothing, and does not fail, when the branch has no commit that old",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/close-week.mts",
+    "find": "if (sha === \"\") {",
+    "replace": "if (sha === \"x\") {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/close-week.test.mts --testNamePattern=\"tags nothing, and does not fail, when the branch has no commit that old\""
+  },
+  {
+    "name": "when GitHub refuses the tag object",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/close-week.mts",
+    "find": "if (tag.status !== 0 || tag.stdout.trim() === \"\") {",
+    "replace": "if (tag.status === 99) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/close-week.test.mts --testNamePattern=\"when GitHub refuses the tag object\""
+  },
+  {
+    "name": "when GitHub refuses the tag",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/close-week.mts",
+    "find": "if (ref.status !== 0) {",
+    "replace": "if (ref.status === 99) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/close-week.test.mts --testNamePattern=\"when GitHub refuses the tag\""
+  },
+  {
+    "name": "when GitHub refuses the count of merged pull requests",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/close-week.mts",
+    "find": "if (listed.status !== 0) {",
+    "replace": "if (listed.status === 99) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/close-week.test.mts --testNamePattern=\"when GitHub refuses the count of merged pull requests\""
+  },
+  {
+    "name": "when GitHub refuses the issue",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/close-week.mts",
+    "find": "if (issue.status !== 0) {",
+    "replace": "if (issue.status === 99) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/close-week.test.mts --testNamePattern=\"when GitHub refuses the issue\""
+  },
+  {
+    "name": "does not start without a repository name",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/close-week.mts",
+    "find": "/^[\\w.-]+\\/[\\w.-]+$/",
+    "replace": "/^[\\w.-]+\\/[\\w.-]+/",
+    "test": "pnpm vitest run addons/agent-workflow/tests/close-week.test.mts --testNamePattern=\"does not start without a repository name\""
+  },
+  {
+    "name": "is cut from the remote's main as it is now",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/new-worktree.mts",
+    "find": "const fetched = git(\"fetch\", REMOTE, base);",
+    "replace": "const fetched = git(\"rev-parse\", \"HEAD\");",
+    "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"is cut from the remote's main as it is now\""
+  },
+  {
+    "name": "is not cut from HEAD",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/new-worktree.mts",
+    "find": "path, `${REMOTE}/${base}`);",
+    "replace": "path, \"HEAD\");",
+    "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"is not cut from HEAD\""
+  },
+  {
+    "name": "is not cut from a local main that is ahead",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/new-worktree.mts",
+    "find": "path, `${REMOTE}/${base}`);",
+    "replace": "path, base);",
+    "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"is not cut from a local main that is ahead\""
+  },
+  {
+    "name": "goes beside the project, on a branch named for it",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/new-worktree.mts",
+    "find": "\"add\", \"--no-track\", \"-b\"",
+    "replace": "\"add\", \"--track\", \"-b\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"goes beside the project, on a branch named for it\""
+  },
+  {
+    "name": "goes beside the project (path)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/new-worktree.mts",
+    "find": "`${basename(project)}-worktrees`, name)",
+    "replace": "`${basename(project)}-worktree`, name)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"goes beside the project, on a branch named for it\""
+  },
+  {
+    "name": "goes beside the main checkout when it is asked for from inside another worktree",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/new-worktree.mts",
+    "find": "(listed.stdout.split(\"\\n\")[0] ?? \"\")",
+    "replace": "(listed.stdout.split(\"\\n\").findLast((line) => line.startsWith(\"worktree \")) ?? \"\")",
+    "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"goes beside the main checkout when it is asked for from inside another worktree\""
+  },
+  {
+    "name": "is cut from the branch origin calls its default",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/new-worktree.mts",
+    "find": "? head.stdout.trim().slice(REMOTE.length + 1) : \"main\"",
+    "replace": "? \"main\" : \"main\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"is cut from the branch origin calls its default\""
+  },
+  {
+    "name": "is cut from the branch origin calls its default (--base)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/new-worktree.mts",
+    "find": "const base = baseAt === -1 ? defaultBranch(git) : (argv[baseAt + 1] as string);",
+    "replace": "const base = defaultBranch(git);",
+    "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"is cut from the branch origin calls its default\""
+  },
+  {
+    "name": "says the worktree is not ready, and how to make it so",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/new-worktree.mts",
+    "find": "if (!argv.includes(\"--ready\")) {",
+    "replace": "if (argv.includes(\"--never\")) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"says the worktree is not ready, and how to make it so\""
+  },
+  {
+    "name": "installs, proves the worktree with the fast gate",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/new-worktree.mts",
+    "find": "  if (runLong(\"pnpm\", [proof], path).status !== 0) {",
+    "replace": "  if (runLong(\"pnpm\", [\"test\"], path).status !== 0) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"installs, proves the worktree with the fast gate\""
+  },
+  {
+    "name": "says NOT READY and fails when the install fails",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/new-worktree.mts",
+    "find": "if (runLong(\"pnpm\", [\"install\"], path).status !== 0) {",
+    "replace": "if (runLong(\"pnpm\", [\"install\"], path).status === 99) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"says NOT READY and fails when the install fails\""
+  },
+  {
+    "name": "says NOT READY and fails when the gate fails",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/new-worktree.mts",
+    "find": "  if (runLong(\"pnpm\", [proof], path).status !== 0) {",
+    "replace": "  if (runLong(\"pnpm\", [proof], path).status === 99) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"says NOT READY and fails when the gate fails\""
+  },
+  {
+    "name": "does not call a worktree ready when the project has nothing to prove it with",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/new-worktree.mts",
+    "find": "scripts?.[\"gate:fast\"] === undefined ? undefined : \"gate:fast\"",
+    "replace": "scripts === null ? undefined : \"gate:fast\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"does not call a worktree ready when the project has nothing to prove it with\""
+  },
+  {
+    "name": "is refused when the folder is there already",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/new-worktree.mts",
+    "find": "  if (existsSync(path)) {",
+    "replace": "  if (path === \"\") {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"is refused when the folder is there already\""
+  },
+  {
+    "name": "is refused when the branch is there already",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/new-worktree.mts",
+    "find": "`refs/heads/${branch}`).status === 0) {",
+    "replace": "`refs/heads/${branch}`).status === 99) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"is refused when the branch is there already\""
+  },
+  {
+    "name": "is not made from an old copy of the remote's main when the fetch fails",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/new-worktree.mts",
+    "find": "  if (fetched.status !== 0) {",
+    "replace": "  if (fetched.status === 99) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"is not made from an old copy of the remote's main when the fetch fails\""
+  },
+  {
+    "name": "is not made outside a git repository",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/new-worktree.mts",
+    "find": "  if (listed.status !== 0) {",
+    "replace": "  if (listed.status === 99) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"is not made outside a git repository\""
+  },
+  {
+    "name": "which names no worktree",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/new-worktree.mts",
+    "find": "/^[A-Za-z0-9][A-Za-z0-9._-]*$/",
+    "replace": "/^[A-Za-z0-9.][A-Za-z0-9._/-]*$/",
+    "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"which names no worktree\""
+  },
+  {
+    "name": "which names no worktree (two names)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/new-worktree.mts",
+    "find": "names.length !== 1 || ",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"which names no worktree\""
+  },
+  {
+    "name": "which names no worktree (--base alone)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/new-worktree.mts",
+    "find": " || (baseAt !== -1 && argv[baseAt + 1] === undefined)",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"which names no worktree\""
+  },
+  {
+    "name": "passes a project that has the hook in both hosts' settings",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "command.includes(HOOK_SCRIPT))",
+    "replace": "command === HOOK_SCRIPT)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"passes a project that has the hook in both hosts' settings\""
+  },
+  {
+    "name": "says a command is usable once the add-on it needs is recorded",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "needs !== undefined && !installed.includes(needs)",
+    "replace": "needs !== undefined",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"says a command is usable once the add-on it needs is recorded\""
+  },
+  {
+    "name": "settings exist and do not register the hook",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "      fail(`${host}: ${path} does not register",
+    "replace": "      report(`${host}: ${path} does not register",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"settings exist and do not register the hook\""
+  },
+  {
+    "name": "does not take a hook registered for another event as registered",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "| undefined)?.PreToolUse;",
+    "replace": "| undefined)?.[\"PostToolUse\" as \"PreToolUse\"];",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"does not take a hook registered for another event as registered\""
+  },
+  {
+    "name": "fails a settings file that holds no JSON object",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "      fail(`${host}: ${path} is not a JSON object",
+    "replace": "      report(`FAIL ${host}: ${path} is not a JSON object",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails a settings file that holds no JSON object\""
+  },
+  {
+    "name": "skips a host whose settings file is not there",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "      report(`SKIP ${host}: there is no",
+    "replace": "      fail(`SKIP ${host}: there is no",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"skips a host whose settings file is not there\""
+  },
+  {
+    "name": "does not pass when neither host has a settings file",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "  if (judged === 0) {",
+    "replace": "  if (judged < 0) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"does not pass when neither host has a settings file\""
+  },
+  {
+    "name": "notes a routine step the project chose not to pre-approve",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "if (missingAsk.length > 0 && preApprovedPushes.length > 0) {",
+    "replace": "if (missingAllow.length > 0 || (missingAsk.length > 0 && preApprovedPushes.length > 0)) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"notes a routine step the project chose not to pre-approve\""
+  },
+  {
+    "name": "fails when a push is pre-approved and a forced push is not set to ask",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "if (missingAsk.length > 0 && preApprovedPushes.length > 0) {",
+    "replace": "if (missingAsk.length > 1 && preApprovedPushes.length > 0) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when a push is pre-approved and a forced push is not set to ask\""
+  },
+  {
+    "name": "fails when a push is pre-approved (exit code)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "      failed = judgePermissions(settings, report) || failed;",
+    "replace": "      judgePermissions(settings, report);",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when a push is pre-approved and a forced push is not set to ask\""
+  },
+  {
+    "name": "passes a project that pre-approves no push and has no ask rule",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "if (missingAsk.length > 0 && preApprovedPushes.length > 0) {",
+    "replace": "if (missingAsk.length > 0) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"passes a project that pre-approves no push and has no ask rule\""
+  },
+  {
+    "name": "fails when the hook does not refuse the chain",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "refused.status !== 0 || !refused.stdout.includes('\"permissionDecision\":\"deny\"')",
+    "replace": "refused.status !== 0",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when the hook does not refuse the chain\""
+  },
+  {
+    "name": "fails when the hook crashes after it replied",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "refused.status !== 0 || !refused.stdout.includes('\"permissionDecision\":\"deny\"')",
+    "replace": "!refused.stdout.includes('\"permissionDecision\":\"deny\"')",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when the hook crashes after it replied\""
+  },
+  {
+    "name": "fails when the hook refuses a lone push",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "allowed.status !== 0 || allowed.stdout.trim() !== \"\"",
+    "replace": "allowed.status !== 0",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when the hook refuses a lone push\""
+  },
+  {
+    "name": "fails when a command file is gone",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "if (!existsSync(join(root, \".claude/commands/workflow\", `${command}.md`))) {",
+    "replace": "if (command === \"\") {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when a command file is gone\""
+  },
+  {
+    "name": "says the hook is missing when it is asked to run one that is not there",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "    if (!existsSync(file)) {\n      return { status: 127",
+    "replace": "    if (file === \"\") {\n      return { status: 127",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"says the hook is missing when it is asked to run one that is not there\""
+  },
+  {
+    "name": "answers from the installer's record",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/requires.mts",
+    "find": "? Object.keys(record) : undefined",
+    "replace": "? [] : undefined",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"answers from the installer's record\""
+  },
+  {
+    "name": "stops, and says how to add it, when the add-on is not there",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/requires.mts",
+    "find": "if (!installed.includes(addon)) {",
+    "replace": "if (installed.includes(\"\")) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"stops, and says how to add it, when the add-on is not there\""
+  },
+  {
+    "name": "stops when the record is a list",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/requires.mts",
+    "find": " && !Array.isArray(record)",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"stops when the record is a list\""
+  },
+  {
+    "name": "stops when the record is missing",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/requires.mts",
+    "find": "  if (installed === undefined) {",
+    "replace": "  if (installed === null) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"stops when the record is missing\""
+  },
+  {
+    "name": "stops when it is not told which add-on",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/requires.mts",
+    "find": "if (addon === undefined || addon === \"\") {",
+    "replace": "if (addon === \"\") {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"stops when it is not told which add-on\""
+  },
+  {
+    "name": "is offered, not recommended",
+    "file": "addons/agent-workflow/addon.json",
+    "find": "\"recommended\": false",
+    "replace": "\"recommended\": true",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"is offered, not recommended\""
+  },
+  {
+    "name": "adds scripts that each run a tool it ships",
+    "file": "addons/agent-workflow/addon.json",
+    "find": "\"node tools/agent-workflow/new-worktree.mts\"",
+    "replace": "\"node tools/agent-workflow/new-worktrees.mts\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"adds scripts that each run a tool it ships\""
+  },
+  {
+    "name": "installs no package and joins no gate",
+    "file": "addons/agent-workflow/addon.json",
+    "find": "\"fast\": [],",
+    "replace": "\"fast\": [\"pnpm agent-workflow:check\"],",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"installs no package and joins no gate\""
+  },
+  {
+    "name": "leaves CHANGELOG.md to the project once it is written",
+    "file": "addons/agent-workflow/addon.json",
+    "find": "\"CHANGELOG.md\"\n  ],",
+    "replace": "\"CHANGELOG.md\", \"tools/agent-workflow/lib/host.mts\"\n  ],",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"leaves CHANGELOG\\\\.md to the project once it is written\""
+  },
+  {
+    "name": "asks each host for the same entries the project's own check looks for",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "  \"Bash(gh pr merge *)\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"asks each host for the same entries the project's own check looks for\""
+  },
+  {
+    "name": "asks each host for the same entries (codex command)",
+    "file": "addons/agent-workflow/addon.json",
+    "find": "\"command\": \"node tools/agent-workflow/hooks/split-outward-commands.mts\"",
+    "replace": "\"command\": \"node \\\"$CLAUDE_PROJECT_DIR/tools/agent-workflow/hooks/split-outward-commands.mts\\\" \"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"asks each host for the same entries the project's own check looks for\""
+  },
+  {
+    "name": "runs without a prompt: git push origin worktree-rates-filter",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "  \"Bash(git push origin worktree-*)\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"runs without a prompt: git push origin worktree-rates-filter\""
+  },
+  {
+    "name": "always asks: git push -f origin worktree-a",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "  \"Bash(git push -f*)\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"always asks: git push -f origin worktree-a\""
+  },
+  {
+    "name": "always asks: git push origin worktree-a --force-with-lease",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "\"Bash(git push *--force*)\"",
+    "replace": "\"Bash(git push * --force *)\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"always asks: git push origin worktree-a --force-with-lease\""
+  },
+  {
+    "name": "always asks: git push origin +worktree-a",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "  \"Bash(git push * +*)\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"always asks: git push origin \\\\+worktree-a\""
+  },
+  {
+    "name": "always asks: git push origin worktree-a:main",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "  \"Bash(git push *:*)\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"always asks: git push origin worktree-a:main\""
+  },
+  {
+    "name": "is left to the host's own judgement: git push origin main",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "\"Bash(git push origin worktree-*)\"",
+    "replace": "\"Bash(git push origin *)\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"is left to the host's own judgement: git push origin main\""
+  },
+  {
+    "name": "does not ask about a branch only because its name holds the letters of a flag",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "\"Bash(git push * -f*)\"",
+    "replace": "\"Bash(git push *-f*)\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"does not ask about a branch only because its name holds the letters of a flag\""
+  },
+  {
+    "name": "pins every action by a full commit hash",
+    "file": "addons/agent-workflow/files/.github/workflows/weekly-tag.yml",
+    "find": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7",
+    "replace": "actions/checkout@v7",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"pins every action by a full commit hash\""
+  },
+  {
+    "name": "uses the same pins as the starter's own workflow",
+    "file": "addons/agent-workflow/files/.github/workflows/weekly-tag.yml",
+    "find": "setup-node@820762786026740c76f36085b0efc47a31fe5020",
+    "replace": "setup-node@820762786026740c76f36085b0efc47a31fe5021",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"uses the same pins as the starter's own workflow\""
+  },
+  {
+    "name": "can only read by default",
+    "file": "addons/agent-workflow/files/.github/workflows/weekly-tag.yml",
+    "find": "  cancel-in-progress: false\n\npermissions:\n  contents: read",
+    "replace": "  cancel-in-progress: false\n\npermissions:\n  contents: write",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"can only read by default\""
+  },
+  {
+    "name": "can only read by default (job)",
+    "file": "addons/agent-workflow/files/.github/workflows/weekly-tag.yml",
+    "find": "      pull-requests: read #",
+    "replace": "      pull-requests: write #",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"can only read by default\""
+  },
+  {
+    "name": "never runs twice at once",
+    "file": "addons/agent-workflow/files/.github/workflows/weekly-tag.yml",
+    "find": "cancel-in-progress: false",
+    "replace": "cancel-in-progress: true",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"never runs twice at once\""
+  },
+  {
+    "name": "does not leave the token in the checkout",
+    "file": "addons/agent-workflow/files/.github/workflows/weekly-tag.yml",
+    "find": "persist-credentials: false",
+    "replace": "persist-credentials: true",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"does not leave the token in the checkout\""
+  },
+  {
+    "name": "puts no expression in a command line",
+    "file": "addons/agent-workflow/files/.github/workflows/weekly-tag.yml",
+    "find": "run: node tools/agent-workflow/close-week.mts",
+    "replace": "run: node tools/agent-workflow/close-week.mts \"${{ github.repository }}\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"puts no expression in a command line\""
+  },
+  {
+    "name": "installs nothing before the step that holds the token",
+    "file": "addons/agent-workflow/files/.github/workflows/weekly-tag.yml",
+    "find": "      # Plain Node, no dependency installed",
+    "replace": "      - run: corepack enable\n\n      # Plain Node, no dependency installed",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"installs nothing before the step that holds the token\""
+  },
+  {
+    "name": "are the three the check knows about",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "  changelog: undefined,\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"are the three the check knows about\""
+  },
+  {
+    "name": "changelog says what it does, and what it may run",
+    "file": "addons/agent-workflow/files/.claude/commands/workflow/changelog.md",
+    "find": "allowed-tools: ",
+    "replace": "tools: ",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"changelog says what it does, and what it may run\""
+  },
+  {
+    "name": "coverage-backfill runs nothing before it is read",
+    "file": "addons/agent-workflow/files/.claude/commands/workflow/coverage-backfill.md",
+    "find": "## 0. This needs the coverage add-on\n",
+    "replace": "## 0. This needs the coverage add-on\n\n!`git status --short`\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"coverage-backfill runs nothing before it is read\""
+  },
+  {
+    "name": "visual-tolerance-audit tells a host that does not fill in the arguments",
+    "file": "addons/agent-workflow/files/.claude/commands/workflow/visual-tolerance-audit.md",
+    "find": "host does not fill it in",
+    "replace": "host fills it in",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"visual-tolerance-audit tells a host that does not fill in the arguments\""
+  },
+  {
+    "name": "coverage-backfill first asks whether the coverage add-on is there",
+    "file": "addons/agent-workflow/files/.claude/commands/workflow/coverage-backfill.md",
+    "find": "node tools/agent-workflow/requires.mts coverage",
+    "replace": "node tools/agent-workflow/requires.mts visual",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"coverage-backfill first asks whether the coverage add-on is there\""
+  },
+  {
+    "name": "visual-tolerance-audit first asks whether the visual add-on is there",
+    "file": "addons/agent-workflow/files/.claude/commands/workflow/visual-tolerance-audit.md",
+    "find": "## 0. This needs the visual add-on",
+    "replace": "## 1a. This needs the visual add-on",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"visual-tolerance-audit first asks whether the visual add-on is there\""
+  },
+  {
+    "name": "needs no other add-on for the changelog",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "  changelog: undefined,",
+    "replace": "  changelog: \"coverage\",",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"needs no other add-on for the changelog\""
+  },
+  {
+    "name": "changelog names only scripts that this add-on",
+    "file": "addons/agent-workflow/files/.claude/commands/workflow/changelog.md",
+    "find": "pnpm changelog weeks",
+    "replace": "pnpm changelogs weeks",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"changelog names only scripts that this add-on\""
+  },
+  {
+    "name": "coverage-backfill names only scripts that this add-on",
+    "file": "addons/agent-workflow/files/.claude/commands/workflow/coverage-backfill.md",
+    "find": "pnpm coverage:gaps --limit 30",
+    "replace": "pnpm coverage:rank --limit 30",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"coverage-backfill names only scripts that this add-on\""
+  },
+  {
+    "name": "visual-tolerance-audit names only scripts that this add-on",
+    "file": "addons/agent-workflow/files/.claude/commands/workflow/visual-tolerance-audit.md",
+    "find": "pnpm visual:jitter --runs 5",
+    "replace": "pnpm visual:noise --runs 5",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"visual-tolerance-audit names only scripts that this add-on\""
+  },
+  {
+    "name": "changelog has a skill of the same name for Codex",
+    "file": "addons/agent-workflow/files/.agents/skills/workflow-changelog/SKILL.md",
+    "find": "name: workflow-changelog",
+    "replace": "name: changelog",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"changelog has a skill of the same name for Codex\""
+  },
+  {
+    "name": "has no skill for Codex without a command behind it",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "  \"visual-tolerance-audit\": \"visual\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"has no skill for Codex without a command behind it\""
+  },
+  {
+    "name": "names only scripts the add-on adds or the starter has",
+    "file": "addons/agent-workflow/AGENTS.section.md",
+    "find": "pnpm worktree <name> [--ready] ",
+    "replace": "pnpm worktrees <name> [--ready]",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"names only scripts the add-on adds or the starter has\""
+  },
+  {
+    "name": "points at command files that are shipped",
+    "file": "addons/agent-workflow/AGENTS.section.md",
+    "find": "`.claude/commands/workflow/coverage-backfill.md` (needs",
+    "replace": "`.claude/commands/workflow/coverage.md` (needs",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"points at command files that are shipped\""
+  },
+  {
+    "name": "states each pre-approved form as the rules have it",
+    "file": "addons/agent-workflow/AGENTS.section.md",
+    "find": "`gh pr merge …`",
+    "replace": "`gh pr squash …`",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"states each pre-approved form as the rules have it\""
+  },
+  {
+    "name": "has no week yet, and passes its own check",
+    "file": "addons/agent-workflow/files/CHANGELOG.md",
+    "find": "Every merged pull request is cited by its number",
+    "replace": "Every merged pull request [#12] is cited by its number",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"has no week yet, and passes its own check\""
+  },
+  {
+    "name": "merges its hook and its rules into both hosts' settings",
+    "file": "scripts/add-to-project.mts",
+    "find": "Object.entries(manifest.hostSettings ?? {})",
+    "replace": "Object.entries({} as Record<string, Json>)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"merges its hook and its rules into both hosts' settings\""
+  },
+  {
+    "name": "leaves both settings files byte for byte as they were when it is added a second time",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "    return commands.length > 0 && commands.every((command) => hookCommands(existing).includes(command));",
+    "replace": "    return commands.length < 0;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"leaves both settings files byte for byte as they were when it is added a second time\""
+  },
+  {
+    "name": "never drops a rule, a hook or a setting the project added",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "const merged: { [key: string]: Json } = { ...current };",
+    "replace": "const merged: { [key: string]: Json } = {};",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"never drops a rule, a hook or a setting the project added\""
+  },
+  {
+    "name": "adds a rule again that the project took out",
+    "file": "scripts/add-to-project.mts",
+    "find": "Object.entries(manifest.hostSettings ?? {})",
+    "replace": "Object.entries({} as Record<string, Json>)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"adds a rule again that the project took out\""
+  },
+  {
+    "name": "proves itself in the project it was just added to",
+    "file": "addons/agent-workflow/addon.json",
+    "find": "\"agent-workflow:check\": \"node tools/agent-workflow/check.mts\"",
+    "replace": "\"agent-workflow:check\": \"node tools/agent-workflow/requires.mts\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"proves itself in the project it was just added to\""
+  },
+  {
+    "name": "fails that proof once the hook is taken out",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "      fail(`${host}: ${path} does not register",
+    "replace": "      report(`${host}: ${path} does not register",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"fails that proof once the hook is taken out\""
+  },
+  {
+    "name": "writes the changelog once, the commands, the skills for Codex and the workflow",
+    "file": "addons/agent-workflow/addon.json",
+    "find": "\"CHANGELOG.md\"\n  ],",
+    "replace": "\"CHANGELOG\"\n  ],",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"writes the changelog once, the commands, the skills for Codex and the workflow\""
+  },
+  {
+    "name": "adds a rule the list lacks, after the ones the project has",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "merged.push(entry);",
+    "replace": "merged.unshift(entry);",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"adds a rule the list lacks, after the ones the project has\""
+  },
+  {
+    "name": "adds a key the project lacks, at any depth",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "return [`${path.join(\".\")}: ${String(value)}`];",
+    "replace": "return [path.join(\".\")];",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"adds a key the project lacks, at any depth\""
+  },
+  {
+    "name": "keeps the project's value where both have one",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "return { merged: current, added: [] };",
+    "replace": "return { merged: wanted, added: [] };",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"keeps the project's value where both have one\""
+  },
+  {
+    "name": "keeps the project's value where the two are of different kinds",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "if (Array.isArray(current) && Array.isArray(wanted)) {",
+    "replace": "if (Array.isArray(wanted)) {",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"keeps the project's value where the two are of different kinds\""
+  },
+  {
+    "name": "never removes a rule, a hook or a key the project has",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "const merged: { [key: string]: Json } = { ...current };",
+    "replace": "const merged: { [key: string]: Json } = {};",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"never removes a rule, a hook or a key the project has\""
+  },
+  {
+    "name": "changes nothing the second time",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "if (!merged.some((existing) => isSameEntry(existing, entry, path))) {",
+    "replace": "if (merged.length >= 0) {",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"changes nothing the second time\""
+  },
+  {
+    "name": "does not change what it was given",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "const merged = [...current];",
+    "replace": "const merged = current;",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"does not change what it was given\""
+  },
+  {
+    "name": "counts a hook as there when its command is",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "  if (path[0] === \"hooks\" && path.length === 2) {\n    const commands",
+    "replace": "  if (path[0] === \"hooks\" && path.length === 9) {\n    const commands",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"counts a hook as there when its command is\""
+  },
+  {
+    "name": "adds a hook beside another event's hook",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "return hookCommands(value).map((command) => `${path.join(\".\")}: ${command}`);",
+    "replace": "return hookCommands(value);",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"adds a hook beside another event's hook\""
+  },
+  {
+    "name": "adds an object to a list only when no equal one is there",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "return a.length === b.length && a.every(",
+    "replace": "return a.every(",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"adds an object to a list only when no equal one is there\""
+  },
+  {
+    "name": "returns the object it holds",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "  return parsed;\n}",
+    "replace": "  return {};\n}",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"returns the object it holds\""
+  },
+  {
+    "name": "refuses text that is not JSON, and JSON that is not an object",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "  if (!isObject(parsed)) {",
+    "replace": "  if (parsed === null) {",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"refuses text that is not JSON, and JSON that is not an object\""
+  },
+  {
+    "name": "merges its entries into a host's settings file",
+    "file": "scripts/add-to-project.mts",
+    "find": "settingsChanges.push(...added.map((entry) => `${path}: ${entry}`));",
+    "replace": "settingsChanges.push(...added);",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts --testNamePattern=\"merges its entries into a host's settings file\""
+  },
+  {
+    "name": "leaves a host's settings file byte for byte as it was",
+    "file": "scripts/add-to-project.mts",
+    "find": "      if (added.length > 0) {\n        plan.writes.push(",
+    "replace": "      if (added.length >= 0) {\n        plan.writes.push(",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts --testNamePattern=\"leaves a host's settings file byte for byte as it was\""
+  },
+  {
+    "name": "creates a host's settings file that is not there",
+    "file": "scripts/add-to-project.mts",
+    "find": "    const file = join(project, path);\n\n    try {\n      const current",
+    "replace": "    const file = join(project, path);\n\n    if (!existsSync(file)) {\n      continue;\n    }\n\n    try {\n      const current",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts --testNamePattern=\"creates a host's settings file that is not there\""
+  },
+  {
+    "name": "leaves a settings file it cannot read as it is",
+    "file": "scripts/add-to-project.mts",
+    "find": "plan.notes.push(`${error.message}, so nothing was merged into it. Add by hand: ${JSON.stringify(wanted)}`);",
+    "replace": "plan.notes.push(error.message);",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts --testNamePattern=\"leaves a settings file it cannot read as it is\""
+  },
+  {
+    "name": "leaves a settings file it cannot read as it is (catch)",
+    "file": "scripts/add-to-project.mts",
+    "find": "      if (!(error instanceof SettingsError)) {\n        throw error;\n      }",
+    "replace": "      if (error instanceof SettingsError) {\n        throw error;\n      }",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts --testNamePattern=\"leaves a settings file it cannot read as it is\""
+  },
+  {
+    "name": "goes on, and says what is missing, when the host does not let its settings file be written",
+    "file": "scripts/add-to-project.mts",
+    "find": "    if (writeUnlessProtected(destination, path, content)) {",
+    "replace": "    if (writeProjectFile(destination, path, content) === undefined) {",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts --testNamePattern=\"goes on, and says what is missing, when the host does not let its settings file be written\""
+  },
+  {
+    "name": "never merges into a settings file that is a link out of the project",
+    "file": "scripts/add-to-project.mts",
+    "find": "    assertInside(project, path);\n\n    const file = join(project, path);",
+    "replace": "    const file = join(project, path);",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts --testNamePattern=\"never merges into a settings file that is a link out of the project\""
+  },
+  {
+    "name": "installs the rest, and records nothing for a file the host keeps it from writing",
+    "file": "scripts/lib/install.mts",
+    "find": "        .filter(([path]) => !outcome.refused.includes(path))\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts --testNamePattern=\"installs the rest, and records nothing for a file the host keeps it from writing\""
+  },
+  {
+    "name": "installs the rest (written list)",
+    "file": "scripts/lib/install.mts",
+    "find": "  outcome.written = outcome.written.filter((path) => !outcome.refused.includes(path));\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts --testNamePattern=\"installs the rest, and records nothing for a file the host keeps it from writing\""
+  },
+  {
+    "name": "still stops when a file outside a host's folder cannot be written",
+    "file": "scripts/lib/install.mts",
+    "find": "if (!HOST_FOLDER.test(path) || !isRefusal(error)) {",
+    "replace": "if (!isRefusal(error)) {",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts --testNamePattern=\"still stops when a file outside a host's folder cannot be written\""
+  },
+  {
+    "name": "goes on, and says so, when the host does not let it write a hook file",
+    "file": "scripts/lib/install.mts",
+    "find": "[\"EPERM\", \"EACCES\", \"EROFS\"].includes(",
+    "replace": "[\"EROFS\"].includes(",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts --testNamePattern=\"goes on, and says so, when the host does not let it write a hook file\""
+  }
+]

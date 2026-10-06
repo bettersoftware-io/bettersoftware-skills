@@ -14,12 +14,14 @@ import { fileURLToPath } from "node:url";
 
 import { isMainModule } from "../kit/gates/lib/files.mts";
 import { LINT_DEPENDENCIES } from "../kit/lint-dependencies.mts";
+import { type Json, mergeSettings, parseSettings, SettingsError } from "./lib/host-settings.mts";
 import {
   assertInside,
   type InstallOutcome,
   InstallError,
   installedUnits,
   installFiles,
+  isRefusal,
   readFileSet,
   rewriteScope,
   writeProjectFile,
@@ -53,6 +55,8 @@ export interface AddResult {
   files: InstallOutcome;
   /** One line per change made to a package.json. */
   packageChanges: string[];
+  /** One line per entry merged into a host's settings file. */
+  settingsChanges: string[];
   agents: "added" | "updated" | "unchanged" | "none";
   /** Files written once for the project to own: the kit's set-up files, an add-on's starting files. */
   created: string[];
@@ -87,6 +91,12 @@ interface AddonManifest {
    * changes (a package scope of another length moves where a line wraps).
    */
   firstRun?: string;
+  /**
+   * Entries to merge into a host's settings file, keyed by the file's path:
+   * a hook to register, a permission rule. Merged, never written over: see
+   * `lib/host-settings.mts`.
+   */
+  hostSettings?: Record<string, Json>;
   /** True for an add-on a new project should take unless it has a reason not to. */
   recommended?: boolean;
 }
@@ -112,7 +122,7 @@ export function addToProject({ project, unit, force = false, scope, repository =
 
     const outcome = installFiles(destination, KIT, files, force);
 
-    return { unit, files: outcome, agents: "none", ...setUpKit(destination, repository) };
+    return { unit, files: outcome, agents: "none", settingsChanges: [], ...setUpKit(destination, repository) };
   }
 
   const addon = join(repository, "addons", unit);
@@ -134,6 +144,7 @@ export function addToProject({ project, unit, force = false, scope, repository =
   assertInside(destination, "AGENTS.md");
 
   const packagePlan = planPackageChanges(destination, manifest, force);
+  const settingsPlan = planHostSettings(destination, manifest);
   const source = join(addon, "files");
   const files = existsSync(source) ? rewriteScope(readFileSet(source, ""), STARTER_SCOPE, projectScope) : new Map<string, Buffer>();
   const starting = takeStartingFiles(files, manifest.startingFiles ?? []);
@@ -162,7 +173,73 @@ export function addToProject({ project, unit, force = false, scope, repository =
     ? writeAgentsSection(destination, unit, readFileSync(section, "utf8").replaceAll(`${STARTER_SCOPE}/`, `${projectScope}/`))
     : "none";
 
-  return { unit, files: outcome, packageChanges: packagePlan.changes, agents, created, notes: [], firstRun: manifest.firstRun, verify: manifest.verify };
+  const notes = [
+    ...settingsPlan.notes,
+    ...outcome.refused.map(
+      (path) => `${path} could not be written: the host this ran under keeps that folder read-only. Outside it, run this script again`,
+    ),
+  ];
+  const settingsChanges: string[] = [];
+
+  for (const { path, content, added } of settingsPlan.writes) {
+    if (writeUnlessProtected(destination, path, content)) {
+      settingsChanges.push(...added.map((entry) => `${path}: ${entry}`));
+    } else {
+      notes.push(
+        `${path} could not be written: the host this ran under keeps that folder read-only. Outside it, run this script again; until then these are missing there: ${added.join("; ")}`,
+      );
+    }
+  }
+
+  return {
+    unit,
+    files: outcome,
+    packageChanges: packagePlan.changes,
+    settingsChanges,
+    agents,
+    created,
+    notes,
+    firstRun: manifest.firstRun,
+    verify: manifest.verify,
+  };
+}
+
+interface SettingsPlan {
+  writes: { path: string; content: string; added: string[] }[];
+  notes: string[];
+}
+
+/**
+ * Works out what each host settings file would gain. A file that is missing
+ * is created with the add-on's entries alone. A file that cannot be read as
+ * JSON is left as it is, and a note says what to add by hand: the project's
+ * file is never replaced.
+ */
+function planHostSettings(project: string, manifest: AddonManifest): SettingsPlan {
+  const plan: SettingsPlan = { writes: [], notes: [] };
+
+  for (const [path, wanted] of Object.entries(manifest.hostSettings ?? {})) {
+    assertInside(project, path);
+
+    const file = join(project, path);
+
+    try {
+      const current = existsSync(file) ? parseSettings(readFileSync(file, "utf8"), path) : {};
+      const { merged, added } = mergeSettings(current, wanted);
+
+      if (added.length > 0) {
+        plan.writes.push({ path, content: `${JSON.stringify(merged, null, 2)}\n`, added });
+      }
+    } catch (error) {
+      if (!(error instanceof SettingsError)) {
+        throw error;
+      }
+
+      plan.notes.push(`${error.message}, so nothing was merged into it. Add by hand: ${JSON.stringify(wanted)}`);
+    }
+  }
+
+  return plan;
 }
 
 /**
@@ -177,7 +254,7 @@ export function writeUnlessProtected(project: string, path: string, content: str
 
     return true;
   } catch (error) {
-    if (["EPERM", "EACCES", "EROFS"].includes((error as NodeJS.ErrnoException).code ?? "")) {
+    if (isRefusal(error)) {
       return false;
     }
 
@@ -477,6 +554,7 @@ function describe(result: AddResult, project: string): string {
     ...files.kept.map((path) => `  kept     ${path} (no longer shipped, but edited in the project)`),
     ...result.created.map((path) => `  created  ${path}`),
     ...result.packageChanges.map((change) => `  changed  ${change}`),
+    ...result.settingsChanges.map((change) => `  merged   ${change}`),
   ];
 
   if (result.agents === "added" || result.agents === "updated") {
