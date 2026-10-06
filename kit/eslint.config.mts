@@ -32,7 +32,7 @@ import { noRealSleepsInTests } from "./eslint-rules/no-real-sleeps-in-tests.mts"
 import { noRenderFunctions } from "./eslint-rules/no-render-functions.mts";
 import { oneImportPerModule } from "./eslint-rules/one-import-per-module.mts";
 import { pageObjectsOwnTheirComponent } from "./eslint-rules/page-objects-own-their-component.mts";
-import { type ArchitectureConfig, CONFIG_FILES, type Role } from "./gates/lib/config.mts";
+import { type ArchitectureConfig, CONFIG_FILES, type PackageDeclaration, type Role } from "./gates/lib/config.mts";
 import { type LintDependency, REACT_HOOKS } from "./lint-dependencies.mts";
 
 export const architecturePlugin: TSESLint.FlatConfig.Plugin = {
@@ -220,10 +220,15 @@ function stripSlashes(path: string): string {
   return path.replace(/^\.?\/+/, "").replace(/\/+$/, "");
 }
 
-// The source files of every package with one of these roles.
-function sourceOf(config: ArchitectureConfig | undefined, roles: Role[], extensions: string): string[] {
+// The source files of every package with one of these roles, and, when asked, only those that pass `only`.
+function sourceOf(
+  config: ArchitectureConfig | undefined,
+  roles: Role[],
+  extensions: string,
+  only: (declared: PackageDeclaration) => boolean = () => true,
+): string[] {
   return Object.entries(config?.packages ?? {})
-    .filter(([, declared]) => roles.includes(declared.role))
+    .filter(([, declared]) => roles.includes(declared.role) && only(declared))
     .map(([path]) => `${stripSlashes(path)}/src/**/*.${extensions}`);
 }
 
@@ -234,6 +239,7 @@ function sourceOf(config: ArchitectureConfig | undefined, roles: Role[], extensi
 export function architectureLint(config: ArchitectureConfig | undefined = readDeclaredLayers()): TSESLint.FlatConfig.ConfigArray {
   const clientMarkup = sourceOf(config, ["client"], "tsx");
   const clientSource = sourceOf(config, ["client"], "{ts,tsx}");
+  const compiledSource = sourceOf(config, ["client"], "{ts,tsx}", ({ reactCompiler }) => reactCompiler === true);
   const bindingsSource = sourceOf(config, ["bindings"], "{ts,tsx}");
 
   return [
@@ -335,6 +341,44 @@ export function architectureLint(config: ArchitectureConfig | undefined = readDe
           } satisfies TSESLint.FlatConfig.Config,
         ]),
     ...(clientSource.length === 0 ? [] : [reactRules(clientSource)]),
+    ...(compiledSource.length === 0
+      ? []
+      : [
+          {
+            // A client that declares `reactCompiler: true` has the React
+            // Compiler in its build, which memoizes every derived value and
+            // every callback. A hand-written `useMemo` is then noise the
+            // compiler repeats, with a dependency list that can drift from
+            // what the code reads. The ban is what makes relying on the
+            // compiler real; `check-react-policies.mts` fails when the
+            // declaration and the build disagree.
+            //
+            // Not applied to a client without the declaration: there nothing
+            // would replace the memoization. Tests and page objects are out of
+            // scope: nothing compiles them.
+            //
+            // `no-restricted-imports` and not `no-restricted-syntax`: a later
+            // block replaces a rule's options, and this rule has no other
+            // block on these files.
+            files: compiledSource,
+            ignores: ["**/__tests__/**", ...TESTS, ...PAGE_OBJECTS],
+            rules: {
+              "no-restricted-imports": [
+                "error",
+                {
+                  paths: [
+                    {
+                      name: "react",
+                      importNames: MEMOIZATION_IMPORTS,
+                      message:
+                        "Manual memoization is banned here: the React Compiler memoizes at build time. Write the plain value, or a function declaration for a callback. For an instance built once (not a cache), use useRef with `if (ref.current === null)`. A default React import is banned for the same reason: it is the one form that could reach React.useMemo unseen. Use named imports.",
+                    },
+                  ],
+                },
+              ],
+            },
+          } satisfies TSESLint.FlatConfig.Config,
+        ]),
     ...(bindingsSource.length === 0
       ? []
       : [
@@ -343,7 +387,10 @@ export function architectureLint(config: ArchitectureConfig | undefined = readDe
             // A `useMemo` there is a sign that logic has moved into the
             // bridge: it belongs in the core (a presenter or a state machine)
             // or in a pure function. So the bridge stays free of manual
-            // memoization by design. Tests are out of scope.
+            // memoization by design. That is a different reason from a
+            // client's, and it holds whether or not a compiler ever reads
+            // this package (where packages export their source, a client's
+            // build compiles it too). Tests are out of scope.
             files: bindingsSource,
             ignores: ["**/__tests__/**", ...TESTS],
             rules: {
@@ -461,8 +508,8 @@ function javascriptBan(config: ArchitectureConfig | undefined): TSESLint.FlatCon
  * level and in the same order on every render, an effect lists what it reads,
  * and a component stays pure (no mutation of props or state, no ref read
  * during render, no state set during render). The preset also holds the
- * checks the React Compiler relies on; a component that passes them can be
- * compiled later without a rewrite.
+ * checks the React Compiler relies on: it skips a component that breaks one,
+ * without a word, so these are what keep a component compiled.
  *
  * Scoped to a client's `src`: in any other package a function whose name
  * happens to start with `use` (a use case) would be read as a hook.

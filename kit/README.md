@@ -17,6 +17,8 @@ directly by stripping the types, which needs Node 22.18 or later, and
 |---|---|---|
 | `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction, the paths the agent instructions name, the task cache, every package's scripts, where the Node floor is declared, the one app harness, test ids, types-only packages | Node; `dependency-cruiser` for the dependency gate |
 | `eslint.config.mts` + `eslint-rules/` | Thirteen AST lint rules of its own (naming, reading order, fixtures, page objects, no real sleeps in tests, one import per module), and the settings of ESLint's rules that go with them: function declarations, blank lines, named object types, no CommonJS, React's hook rules | `eslint`, `typescript-eslint`, `eslint-plugin-react-hooks` |
+| `check-react-policies.mts` | Every package that imports React is under the lint rules for its role, and a client's `reactCompiler` matches its build | `eslint` |
+| `check-compiler.mts` | The React Compiler still memoizes each function a client lists as relying on it | `@babel/core` and `babel-plugin-react-compiler` in the client |
 | `ci/enable-corepack.mts` | Nothing: it gives a workflow the pnpm that `packageManager` pins, on a Node that no longer ships Corepack | `npm`, which ships with Node |
 | `hooks/after-edit.mts` | Runs the per-file gates on the file an agent just wrote | Claude Code or Codex |
 | `hooks/before-stop.mts` | Refuses to let an agent finish while `gate:full` is red, on any tree that has not already passed it | Claude Code or Codex; git |
@@ -388,6 +390,7 @@ The block holds three kinds of rule. Each has its reason beside it in
 | | `no-restricted-syntax` on the whole file | Every `.js`, `.mjs`, `.cjs`, `.jsx` and `.cts` file. The exemptions are `javascriptAllowed` in the architecture config |
 | By role | `eslint-plugin-react-hooks` (its `recommended-latest` rules, all as errors); no `style={{…}}` | The `src` of a `client` package |
 | | No `useMemo`, `useCallback`, `memo` or default React import | The `src` of a `bindings` package, tests left out |
+| | The same four, for another reason: the React Compiler memoizes | The `src` of a `client` package that declares `reactCompiler: true`, tests and page objects left out |
 
 ### Rules that follow a role
 
@@ -399,6 +402,79 @@ applied, and a JavaScript file has no exemption.
 
 The hook rules are held to a client because a function named `useCase` in any
 other package would be read as a hook.
+
+### The React Compiler, and the two checks that hold it
+
+A client whose build runs the React Compiler says so:
+
+```ts
+"packages/client-react": {
+  role: "client",
+  reactCompiler: true,
+  compilerTracked: [
+    { file: "src/ui/PriceList.tsx", fn: "PriceRowView" },
+    { file: "src/ui/Chart.tsx", fn: "Chart", values: ["path"] },
+  ],
+},
+```
+
+With that, the lint bans `useMemo`, `useCallback`, `memo` and the default
+React import in the client's source: the compiler memoizes, and a hand-written
+memo is noise whose dependency list can drift. A client without the
+declaration is not banned from anything, since nothing would memoize in its
+place. The bindings are banned either way, for their own reason: a memo there
+means logic has moved into the bridge.
+
+The compiler skips what it cannot compile and says nothing, and a rule set by
+role can be missing for a package with every run green. Two scripts check
+both. Neither is part of `gates/run.mts`: one needs ESLint, the other the
+client's own Babel, and each runs in the project root.
+
+```json
+"check:react-policies": "node tools/arch/check-react-policies.mts",
+"check:compiler": "node tools/arch/check-compiler.mts"
+```
+
+**`check-react-policies.mts`** finds every package whose production source
+imports `react`, and fails when:
+
+- the package is neither a client nor the bindings, so it gets none of React's
+  lint rules. A package that is meant to have none is listed with the reason:
+  `reactWithoutPolicies: { "packages/icons": "generated, never edited by hand" }`;
+- a client declares `reactCompiler: true` and its `vite.config.ts` does not run
+  the compiler, or runs it and does not declare it;
+- ESLint, asked about a real file of the package, does not resolve the rule at
+  error: the hook rules and the inline-style ban for a client, the memoization
+  ban for the bindings and for a client with the compiler. ESLint keeps one
+  set of options per rule, so a later block in the project's own config that
+  sets `no-restricted-imports` or `no-restricted-syntax` replaces the kit's.
+
+**`check-compiler.mts`** compiles each file under `compilerTracked` with the
+compiler the client installs, and fails when the function is not compiled,
+when it memoizes fewer values than `minMemoValues` (default 1), or when a
+value named in `values` is computed on every render. Use `values` for a value
+that used to be a `useMemo` or a `useCallback`: a function can compile and
+still leave one value out of every cache.
+
+Both print `SKIP` when there is nothing to judge (no package imports React; no
+client declares the compiler, or none tracks a function), and exit 2 when they
+cannot run (no ESLint config; the compiler is not installed in the client).
+
+Limits:
+
+- A component that takes its hooks out of a value, as with
+  `const { usePrices } = useViewModel()`, is never compiled: the compiler
+  needs each hook to be the same function on every render. Such a component
+  stays thin and hands props to components that take only props.
+- `check-react-policies.mts` reads the compiler from the text of
+  `vite.config.ts` (a call of `reactCompilerPreset`, or the plugin's name in
+  a string). A build configured some other way is reported as not running it.
+- It asks ESLint about one production file per package, and one `.tsx`. A
+  rule switched off for a single other file is not seen.
+- `check-compiler.mts` reads the compiled text. A value compiled to a
+  `function name(…)` declaration is reported as a shape it cannot classify,
+  never as memoized.
+- Tests are not compiled, so no test runs the compiled components.
 
 ### A dependency the project does not have
 
@@ -472,4 +548,5 @@ pnpm test
 ```
 
 The gate and hook tests run against five fixture projects in `gates/fixtures/`
-(`clean`, `broken`, `dormant`, `javascript`, `no-workspace`).
+(`clean`, `broken`, `dormant`, `javascript`, `no-workspace`). The two React
+checks run against two more, `react-clean` and `react-broken`.

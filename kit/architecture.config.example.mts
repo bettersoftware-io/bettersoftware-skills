@@ -45,7 +45,18 @@ const config: ArchitectureConfig = {
     // A client holds two folders: `src/app` (composition root) and `src/ui`
     // (dumb UI). Override with `app`, `ui`, `uiBridge` and `entry` if needed.
     // `testIds` is the file in `ui` that holds every test id (the default).
-    "packages/client-react": { role: "client", testIds: "testids.ts" },
+    //
+    // `reactCompiler: true` says the client's build runs the React Compiler.
+    // The lint then bans useMemo, useCallback and memo in its source, and
+    // `check-react-policies.mts` fails if the build does not run it.
+    // `compilerTracked` lists the functions that rely on it, for
+    // `check-compiler.mts`. Leave both out for a client without the compiler.
+    "packages/client-react": {
+      role: "client",
+      testIds: "testids.ts",
+      reactCompiler: true,
+      compilerTracked: [{ file: "src/ui/PriceList.tsx", fn: "PriceRowView" }],
+    },
 
     "packages/server": { role: "server" },
 
@@ -80,6 +91,10 @@ const config: ArchitectureConfig = {
     "react-dom": ["packages/react-bindings", "packages/client-react"],
     ws: ["packages/server"],
   },
+
+  // A package that imports React and is neither a client nor the bindings
+  // gets none of React's lint rules. List it here with the reason.
+  reactWithoutPolicies: {},
 };
 
 export default config;

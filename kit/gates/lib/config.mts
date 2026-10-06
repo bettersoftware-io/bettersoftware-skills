@@ -26,6 +26,10 @@ export interface PackageDeclaration {
   entry?: string[];
   /** client only: the file in `ui` that holds every test id. */
   testIds?: string;
+  /** client only: the build runs the React Compiler, so the lint bans manual memoization. */
+  reactCompiler?: boolean;
+  /** client only: what relies on the compiler to memoize. `check-compiler.mts` holds the compiler to each. */
+  compilerTracked?: CompilerTracked[];
   /** Production code here uses no Node built-in. On by default for a domain. */
   noNodeBuiltins?: boolean;
   /** This package exports types and no runtime value. */
@@ -36,6 +40,17 @@ export interface PackageDeclaration {
   compose?: string;
   /** core only: the one test helper that may call `compose`. */
   appHarness?: string;
+}
+
+export interface CompilerTracked {
+  /** From the package's folder. */
+  file: string;
+  /** The component or hook, by name. */
+  fn: string;
+  /** Values in it that must each be memoized. Without them: the function memoizes at least `minMemoValues` values. */
+  values?: string[];
+  /** Default 1. */
+  minMemoValues?: number;
 }
 
 export interface ArchitectureConfig {
@@ -62,6 +77,8 @@ export interface ArchitectureConfig {
   packagesWithoutTests?: Record<string, string>;
   /** npm package → the only packages that may import it. A trailing `/` means "any package under this scope". */
   vendorOnlyIn?: Record<string, string[]>;
+  /** Package path → the reason it imports React and gets none of the lint rules a client or the bindings get. */
+  reactWithoutPolicies?: Record<string, string>;
 }
 
 export type ResolvedConfig = Required<ArchitectureConfig>;
@@ -152,6 +169,7 @@ const DEFAULTS: Omit<ResolvedConfig, "packages"> = {
   tasksThatReadNothingUpstream: {},
   packagesWithoutTests: {},
   vendorOnlyIn: {},
+  reactWithoutPolicies: {},
 };
 
 const CLIENT_DEFAULTS = {
@@ -216,6 +234,7 @@ export async function loadConfig(root: string, configFile?: string): Promise<Pro
       ...declared,
       packages,
       packagesWithoutTests: withPlainPaths(declared.packagesWithoutTests ?? {}),
+      reactWithoutPolicies: withPlainPaths(declared.reactWithoutPolicies ?? {}),
       vendorOnlyIn: Object.fromEntries(
         Object.entries(declared.vendorOnlyIn ?? {}).map(([vendor, paths]) => [vendor, paths.map(stripSlashes)]),
       ),
