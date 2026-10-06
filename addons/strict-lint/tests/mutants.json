@@ -446,5 +446,26 @@
     "find": "messages.map(",
     "replace": "messages.filter((entry) => (entry as { severity?: number }).severity === 2).map(",
     "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"fails on a warning too\""
+  },
+  {
+    "name": "typed: a hidden root folder is not judged",
+    "file": "addons/strict-lint/files/tools/strict-lint/eslint.typed.base.mts",
+    "find": "  \".*/**\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"does not judge a file in a hidden folder at the project root\""
+  },
+  {
+    "name": "typed: a hidden folder inside a package is",
+    "file": "addons/strict-lint/files/tools/strict-lint/eslint.typed.base.mts",
+    "find": "  \".*/**\",\n",
+    "replace": "  \"**/.*/**\",\n",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"still judges a hidden folder inside a package\""
+  },
+  {
+    "name": "typed: a visible root folder is",
+    "file": "addons/strict-lint/files/tools/strict-lint/eslint.typed.base.mts",
+    "find": "  \".*/**\",\n",
+    "replace": "  \"*/**\",\n  \"!packages/**\",\n",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"still judges a file in a visible folder at the root\""
   }
 ]

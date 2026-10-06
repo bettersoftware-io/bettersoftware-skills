@@ -30,6 +30,15 @@ const SKIPPED_DIRECTORIES = new Set([
 export const INSTALLED_TOOLING = "tools";
 
 /**
+ * The hidden folders at the project root that are read: the ones that hold
+ * files of the project (a workflow's notes, an agent's instructions). Every
+ * other root folder whose name starts with a dot belongs to a tool (an
+ * editor, a plugin, a cache), not to the project, and is not opened. A
+ * hidden folder further down is read like any other.
+ */
+const HIDDEN_ROOT_FOLDERS_READ = new Set([".github", ".claude", ".codex", ".agents"]);
+
+/**
  * Every file under `root` whose name matches, as paths from `root`. Leaves out
  * installed and generated folders, the installed tooling, and any folder that
  * is a checkout of its own (a git worktree, a nested clone).
@@ -42,7 +51,9 @@ export function listFiles(root: string, matching: RegExp): string[] {
       const path = relative === "" ? entry.name : `${relative}/${entry.name}`;
 
       if (entry.isDirectory()) {
-        if (!SKIPPED_DIRECTORIES.has(entry.name) && path !== INSTALLED_TOOLING && !existsSync(join(root, path, ".git"))) {
+        const toolsOwn = relative === "" && entry.name.startsWith(".") && !HIDDEN_ROOT_FOLDERS_READ.has(entry.name);
+
+        if (!toolsOwn && !SKIPPED_DIRECTORIES.has(entry.name) && path !== INSTALLED_TOOLING && !existsSync(join(root, path, ".git"))) {
           walk(path);
         }
       } else if (matching.test(entry.name)) {

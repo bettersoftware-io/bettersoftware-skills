@@ -9,6 +9,7 @@
     "includes": [
       "**",
       "!tools",
+      "!.*/**",
       "!.claude",
       "!.codex",
       "!**/dist",

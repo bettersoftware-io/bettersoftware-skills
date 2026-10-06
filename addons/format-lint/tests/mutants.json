@@ -201,5 +201,19 @@
     "find": "\"lineWidth\": 80,",
     "replace": "\"lineWidth\": 100,",
     "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"hold that text\""
+  },
+  {
+    "name": "base: a hidden root folder is not read",
+    "file": "addons/format-lint/files/tools/format-lint/biome.base.json",
+    "find": "      \"!.*/**\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/format-lint/tests/addon.test.mts -t \"does not judge .cache/ at the root\""
+  },
+  {
+    "name": "base: a hidden folder inside a package is",
+    "file": "addons/format-lint/files/tools/format-lint/biome.base.json",
+    "find": "      \"!.*/**\",\n",
+    "replace": "      \"!**/.*/**\",\n",
+    "test": "pnpm vitest run addons/format-lint/tests/addon.test.mts -t \"still judges packages/app/.storybook/broken.ts\""
   }
 ]

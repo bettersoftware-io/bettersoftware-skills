@@ -1006,5 +1006,33 @@
     "find": "\"extends\": [\"./stylelint.base.json\"]",
     "replace": "\"extends\": [\"stylelint-config-standard\"]",
     "test": "pnpm vitest run addons/repo-hygiene/tests/check-css.test.mts -t \"holds for the file the add-on ships\""
+  },
+  {
+    "name": "files: a tool's hidden root folder is not read",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/files.mts",
+    "find": "        if (!toolsOwn && !SKIPPED_DIRECTORIES",
+    "replace": "        if (!SKIPPED_DIRECTORIES",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/files.test.mts -t \"are none in a hidden folder at the project root\""
+  },
+  {
+    "name": "files: the hidden root folders that hold the project's files are read",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/files.mts",
+    "find": "entry.name.startsWith(\".\") && !HIDDEN_ROOT_FOLDERS_READ.has(entry.name);",
+    "replace": "entry.name.startsWith(\".\");",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/files.test.mts -t \"are still read in .github\""
+  },
+  {
+    "name": "files: only at the root",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/files.mts",
+    "find": "const toolsOwn = relative === \"\" && entry.name",
+    "replace": "const toolsOwn = entry.name",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/files.test.mts -t \"are still read in a visible folder at the root, and in a hidden folder further down\""
+  },
+  {
+    "name": "files: only a hidden folder",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/lib/files.mts",
+    "find": "relative === \"\" && entry.name.startsWith(\".\") && !HIDDEN",
+    "replace": "relative === \"\" && !HIDDEN",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/files.test.mts -t \"are still read in a visible folder at the root, and in a hidden folder further down\""
   }
 ]

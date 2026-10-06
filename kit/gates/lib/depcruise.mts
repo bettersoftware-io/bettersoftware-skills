@@ -6,9 +6,9 @@
 // matches a source-path rule, and a rule set run over no files passes.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative, sep } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { Finding, Project, ResolvedConfig, WorkspacePackage } from "./config.mts";
@@ -22,8 +22,6 @@ interface RulePath {
   pathNot?: string;
   circular?: boolean;
   dependencyTypes?: string[];
-  dependencyTypesNot?: string[];
-  couldNotResolve?: boolean;
 }
 
 export interface Rule {
@@ -60,24 +58,7 @@ export function vendorRuleName(vendor: string): string {
   return `${vendor.endsWith("/") ? `${vendor}*` : vendor}-only-in-its-packages`;
 }
 
-/**
- * Where `tools/` really is, as paths from the root, each ending in `/`. In a
- * project it is a folder. In the kit's own starter `tools/arch` is a link to
- * the kit, and an import through it lands where the link points.
- */
-function toolingFolders(root: string | undefined): string[] {
-  if (root === undefined || !existsSync(join(root, "tools"))) {
-    return ["tools/"];
-  }
-
-  const linked = ["tools", ...readdirSync(join(root, "tools")).map((name) => `tools/${name}`)]
-    .filter((path) => lstatSync(join(root, path)).isSymbolicLink())
-    .map((path) => `${relative(realpathSync(root), realpathSync(join(root, path))).split(sep).join("/")}/`);
-
-  return ["tools/", ...linked];
-}
-
-export function buildRules(config: ResolvedConfig, workspace: WorkspacePackage[], root?: string): Rule[] {
+export function buildRules(config: ResolvedConfig, workspace: WorkspacePackage[]): Rule[] {
   const declared = declaredPackages(config);
   const everyPackage = [...new Set([...declared.map(({ path }) => path), ...workspace.map(({ path }) => path)])];
   const rules: Rule[] = [
@@ -138,24 +119,6 @@ export function buildRules(config: ResolvedConfig, workspace: WorkspacePackage[]
     comment: "Production code imports something written for tests (a testing folder, a page object, a test helper, a test). A fake would ship in the product, and the code could come to depend on it. Move what production needs into a production file, and keep the scaffolding for tests.",
     from: { path: `${anyOf(declared.map(({ path }) => path))}src/`, pathNot: TEST_SCAFFOLDING_SOURCE },
     to: { path: `${anyOf(everyPackage)}.*${TEST_SCAFFOLDING_SOURCE}` },
-  });
-
-  // The checks are told where the project's code is: its packages. A file in
-  // one that imports a file from anywhere else (a scratch folder at the root,
-  // a dot-folder, a folder beside the project) builds code that no gate
-  // walks and no lint reads. An installed dependency and a Node built-in are
-  // not files of the project, and the other rules speak for them.
-  rules.push({
-    name: "no-code-outside-the-packages",
-    severity: "error",
-    comment: `A file in a package imports a file that is in no package. Code is checked where it is declared to be: the packages (${everyPackage.join(", ")}). What is imported from anywhere else is built and judged by nothing. Move the file into the package that owns it, or make its folder a package and declare it in architecture.config.mts.`,
-    from: { path: anyOf(everyPackage) },
-    to: {
-      // `tools/` holds the kit's and the add-ons' helpers for tests and configs, which a package may import today.
-      pathNot: `(${anyOf(everyPackage).slice(0, -1)}/|^(${toolingFolders(root).map(escape).join("|")})|(^|/)node_modules/)`,
-      couldNotResolve: false,
-      dependencyTypesNot: ["core", "npm", "npm-dev", "npm-optional", "npm-peer", "npm-bundled", "npm-no-pkg", "npm-unknown"],
-    },
   });
 
   for (const [vendor, allowed] of Object.entries(config.vendorOnlyIn)) {
@@ -278,7 +241,7 @@ export function checkDependencies({ root, config, workspace }: Project): Finding
       JSON.stringify({ compilerOptions: { baseUrl: root, paths, ignoreDeprecations: "6.0" }, files: ["empty.ts"] }),
     );
 
-    const rules = buildRules(config, workspace, root);
+    const rules = buildRules(config, workspace);
     const configFile = join(scratch, ".dependency-cruiser.json");
     writeFileSync(
       configFile,

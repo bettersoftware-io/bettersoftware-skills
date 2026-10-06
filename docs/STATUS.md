@@ -126,21 +126,23 @@ on 2026-10-05, on pushes to main and on a pull request
 - **A project that did not start from the starter gets long differences on
   its first kit update**: its `package.json` and its workflow share little
   with the starter's. Each is cut at thirty lines.
-- **The lint reads only where it is told the code is.** A new folder of code
-  at the project root is not linted until it is named under `codeFolders`
-  in `architecture.config.mts`. The `structure` gate fails on a visible one
-  that holds source and is not named. A dot-folder is passed over by both;
-  the `dependencies` gate stops a package from importing out of one.
-- **A project with a root folder of scripts gets a new `structure` finding
-  on its next kit update**, until it names the folder.
-- **Only ESLint was given that list.** Biome still reads every root folder
-  outside its own exclusions and leaves out what `.gitignore` names; the CSS
-  lint and the doc-link check walk the project and drop what git ignores
-  (`git check-ignore`); knip reads the workspaces its config names. So a
-  stray, unformatted `scratch/x.ts` at the root still fails `biome:check`,
-  and a file in a package that a `.gitignore` names is passed over by
-  Biome, the CSS lint and the doc-link check. ESLint, the typed lint and the
-  gates do judge it. Both were so before 2026-10-06.
+- **The stop hook's memory of a green tree covers the files git does not
+  ignore** (and the `.env` files it does). A source file that git ignores
+  can change without the hook noticing: the gates do judge that file when
+  they run, but the hook may not run them. CI is the check that cannot be
+  talked round, as below for the record itself.
+- **A file in a hidden folder at the project root is not linted** (ESLint,
+  the typed lint, Biome, the CSS lint, the doc-link check; `.github`,
+  `.claude`, `.codex` and `.agents` are still read where they were). And
+  nothing stops a package from importing out of one: tried on 2026-10-06, a
+  file in `packages/domain/src` that imports `.plugin/state.ts` from the
+  project root passes `pnpm gates`, `pnpm lint` and `pnpm typecheck`.
+  dependency-cruiser's rules here are about packages, and say nothing of a
+  file in none.
+- **Biome, the CSS lint and the doc-link check leave out what `.gitignore`
+  names**, as before 2026-10-06. A file in a package that a `.gitignore`
+  names is passed over by those three. ESLint, the typed lint and the gates
+  judge it.
 - **The `typescript-only` gate walks the whole project.** A stray `.js` file
   in a folder such as `.remember/` fails it. A `.ts` file there fails
   nothing.

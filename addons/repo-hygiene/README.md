@@ -143,7 +143,11 @@ Which files it reads: every `.md` file, except
   still checked. A folder called `tools` deeper down is read;
 - a folder that is a checkout of its own (it has a `.git`): a git worktree, a
   nested clone;
-- a file git ignores. Outside a git repository nothing is dropped for this.
+- a file git ignores. Outside a git repository nothing is dropped for this;
+- a hidden folder at the project root, other than `.github`, `.claude`,
+  `.codex` and `.agents` (since 2026-10-06). It belongs to a tool: a
+  plugin's working folder held notes whose links lead nowhere. A hidden
+  folder further down is read. The CSS lint reads the same files.
 
 What it reads in a file: `[text](target)` with or without a title, images,
 `[label]: target` definitions, and `href`/`src` in HTML. Not what is inside a

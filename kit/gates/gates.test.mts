@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -422,25 +422,6 @@ describe("a project that breaks the rules", () => {
     ]);
   });
 
-  it("names a file in a package that imports a file that is in no package: a scratch folder, a dot-folder", () => {
-    const outside = of("dependencies", "packages/client-core/src/machines/reachesOut.ts").filter((finding) => finding.message.startsWith("no-code-outside-the-packages: "));
-
-    expect(outside.map((finding) => /imports (\S+)\. /.exec(finding.message)?.[1]).sort()).toEqual([".plugin/state.ts", "scratch/helper.ts"]);
-    expect(outside[0]?.message).toContain("Move the file into the package that owns it, or make its folder a package");
-  });
-
-  it("does not call an import of another package, of an installed or a missing dependency, or of a Node built-in an import from outside the packages", () => {
-    const outside = of("dependencies").filter((finding) => finding.message.startsWith("no-code-outside-the-packages: "));
-
-    // The fixture imports all four: `ws`, `ws-extra`, `node:os`, and its own packages.
-    expect(outside.map((finding) => finding.file)).toEqual(["packages/client-core/src/machines/reachesOut.ts", "packages/client-core/src/machines/reachesOut.ts"]);
-  });
-
-  it("names a visible root folder that holds source and is no declared place of code, and passes over a dot-folder", () => {
-    expect(of("structure").filter((finding) => finding.message.includes("no declared place of code")).map((finding) => finding.file)).toEqual(["scratch", "scripts"]);
-    expect(messages("structure", "scratch")).toContain("This folder holds source (scratch/helper.ts) and is no declared place of code, so the lint does not open it and nothing here is linted. Declare it or delete it:");
-  });
-
   it("names every runtime export of a types-only package, with its line", () => {
     expect(of("types-only").map(({ file, line }) => `${file}:${line}`)).toEqual(
       [3, 4, 5, 6, 11, 14, 15].map((line) => `packages/contract-types/src/index.ts:${line}`),
@@ -763,71 +744,6 @@ describe("the package manager the root package.json names", () => {
     expect(checkPackageManager({ root }, ["package.json"])).toHaveLength(1);
   });
 });
-
-describe("a package that imports from tools/", () => {
-  const PROJECT: Record<string, string> = {
-    "architecture.config.mts": 'export default { packages: { "packages/domain": { role: "domain" } }, requiredRoles: [] };\n',
-    "pnpm-workspace.yaml": 'packages:\n  - "packages/*"\n',
-    "packages/domain/package.json": '{ "name": "@app/domain", "scripts": { "test": "vitest run", "typecheck": "tsc" } }\n',
-    "packages/domain/src/ports/.keep.ts": "export {};\n",
-    "packages/domain/vitest.config.ts": 'import { helper } from "../../tools/arch/testing/helper.mts";\n\nexport default helper;\n',
-  };
-  const outside = async (root: string): Promise<string[]> => (await runGates({ root })).findings.filter(({ message }) => message.startsWith("no-code-outside-the-packages")).map(({ message }) => message.split(". ")[0] ?? "");
-
-  it("is no import from outside the packages: a test config may use the kit's helpers", async () => {
-    const root = createProjectFolder({ ...PROJECT, "tools/arch/testing/helper.mts": "export const helper = {};\n" });
-
-    linkDependencyCruiser(root);
-
-    expect(await outside(root)).toEqual([]);
-  });
-
-  it("is none either when tools/arch is a link, as in the kit's own starter: the import lands where the link points", async () => {
-    const root = createProjectFolder(PROJECT);
-    const kit = join(dirname(root), "kit");
-
-    mkdirSync(join(kit, "testing"), { recursive: true });
-    writeFileSync(join(kit, "testing/helper.mts"), "export const helper = {};\n");
-    mkdirSync(join(root, "tools"));
-    symlinkSync("../../kit", join(root, "tools/arch"));
-    linkDependencyCruiser(root);
-
-    expect(await outside(root)).toEqual([]);
-  });
-
-  it("is one for another folder beside the project, though tools/arch is a link to a folder there", async () => {
-    const root = createProjectFolder({ ...PROJECT, "packages/domain/vitest.config.ts": 'import { helper } from "../../../other/helper.mts";\n\nexport default helper;\n' });
-
-    for (const beside of ["kit/testing", "other"]) {
-      mkdirSync(join(dirname(root), beside), { recursive: true });
-      writeFileSync(join(dirname(root), beside, "helper.mts"), "export const helper = {};\n");
-    }
-
-    mkdirSync(join(root, "tools"));
-    symlinkSync("../../kit", join(root, "tools/arch"));
-    linkDependencyCruiser(root);
-
-    expect(await outside(root)).toEqual(["no-code-outside-the-packages: imports ../other/helper.mts"]);
-  });
-});
-
-/** A project in a folder of its own, inside a fresh folder, so that something can be put beside it. */
-function createProjectFolder(files: Record<string, string>): string {
-  const root = join(realpathSync(mkdtempSync(join(tmpdir(), "tools-import-"))), "project");
-
-  for (const [path, content] of Object.entries(files)) {
-    mkdirSync(dirname(join(root, path)), { recursive: true });
-    writeFileSync(join(root, path), content);
-  }
-
-  return root;
-}
-
-/** The dependency gate runs the project's own dependency-cruiser: this repository's, by a link. */
-function linkDependencyCruiser(root: string): void {
-  mkdirSync(join(root, "node_modules"), { recursive: true });
-  symlinkSync(join(here, "..", "..", "node_modules", "dependency-cruiser"), join(root, "node_modules", "dependency-cruiser"));
-}
 
 describe("the rule for an entry of vendorOnlyIn", () => {
   const config = (vendorOnlyIn: Record<string, string[]>): ResolvedConfig =>

@@ -25,6 +25,10 @@ export const NOT_JUDGED: string[] = [
   "**/coverage/**",
   "**/reports/**",
   "**/.turbo/**",
+  // A hidden folder at the project root belongs to a tool (an editor, an
+  // agent, a cache), not to the project's code. One such folder held a
+  // timestamp file ending in `.ts`, which no tsconfig.json includes.
+  ".*/**",
 ];
 
 export const TYPED_RULES: TSESLint.FlatConfig.Rules = {

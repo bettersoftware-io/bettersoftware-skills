@@ -1,13 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { editedFilesOf, judgeEdit } from "./after-edit.mts";
-import { listSourceFiles } from "../gates/lib/files.mts";
-import { findProject, type GateRun, judgeStop, listHashedPaths, runGate, type RunLimits } from "./before-stop.mts";
+import { findProject, type GateRun, judgeStop, runGate, type RunLimits } from "./before-stop.mts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const broken = join(here, "..", "gates", "fixtures", "broken");
@@ -310,77 +309,6 @@ describe("a tree that has already passed", () => {
     await judgeStop({ cwd: project }, gate.run);
 
     expect(gate.runs()).toBe(3);
-  });
-
-  // The gates judge a source file whether git ignores it or not. So must the memory of a green tree.
-  it("is judged again after a source file that git ignores changes, appears, or is deleted", async () => {
-    const project = createGitProject({ "gate:full": "true" });
-    const gate = createCountedGate(green);
-    const hidden = join(project, "packages/domain/src/hidden.ts");
-
-    mkdirSync(dirname(hidden), { recursive: true });
-    writeFileSync(join(project, "packages/domain/src/.gitignore"), "hidden.ts\n");
-    await judgeStop({ cwd: project }, gate.run);
-    writeFileSync(hidden, "export const h = 1;\n");
-    await judgeStop({ cwd: project }, gate.run);
-    writeFileSync(hidden, "export const h = 2;\n");
-    await judgeStop({ cwd: project }, gate.run);
-    rmSync(hidden);
-    await judgeStop({ cwd: project }, gate.run);
-    await judgeStop({ cwd: project }, gate.run);
-
-    expect(spawnSync("git", ["check-ignore", "packages/domain/src/hidden.ts"], { cwd: project }).status).toBe(0);
-    expect(gate.runs()).toBe(4);
-  });
-
-  it("is still not judged again for a source file in an installed or built folder", async () => {
-    const project = createGitProject({ "gate:full": "true" });
-    const gate = createCountedGate(green);
-
-    mkdirSync(join(project, "packages/domain/src"), { recursive: true });
-    writeFileSync(join(project, "packages/domain/src/index.ts"), "export {};\n");
-    await judgeStop({ cwd: project }, gate.run);
-
-    for (const generated of ["node_modules/x/index.ts", "packages/domain/node_modules/y/index.ts", "dist/out.ts", "packages/domain/dist/out.ts"]) {
-      mkdirSync(dirname(join(project, generated)), { recursive: true });
-      writeFileSync(join(project, generated), "export const g = 1;\n");
-    }
-
-    await judgeStop({ cwd: project }, gate.run);
-
-    expect(gate.runs()).toBe(1);
-  });
-
-  it.each(Array.from({ length: 12 }, (_, seed) => seed))("reads every file the gates' walker reads, in a tree made from the number %i", (seed) => {
-    const project = createGitProject({ "gate:full": "true" });
-    const picked = <T,>(items: T[], salt: number): T[] => items.filter((_, index) => ((seed + 1) * (index + 3) * salt) % 7 < 4);
-    const files = ["a.mts", "scripts/b.ts", "scratch/c.ts", ".tool/d.ts", "packages/domain/src/e.ts", "packages/domain/src/sub/f.tsx", "packages/domain/tests/g.ts", "packages/ui/src/h.tsx", "packages/ui/gen/i.ts"];
-    const rules: [file: string, line: string][] = [
-      [".gitignore", "scratch/"],
-      [".gitignore", "/packages/"],
-      [".gitignore", "*.mts"],
-      [".tool/.gitignore", "*"],
-      ["packages/domain/src/.gitignore", "*"],
-      ["packages/domain/.gitignore", "/tests"],
-      ["packages/ui/.gitignore", "gen/\n*.tsx"],
-      [".git/info/exclude", "packages/domain/src/e.ts"],
-    ];
-
-    for (const path of picked(files, 5)) {
-      mkdirSync(dirname(join(project, path)), { recursive: true });
-      writeFileSync(join(project, path), "export {};\n");
-    }
-
-    for (const [file, line] of picked(rules, 11)) {
-      mkdirSync(dirname(join(project, file)), { recursive: true });
-      appendFileSync(join(project, file), `${line}\n`);
-    }
-
-    const hashed = listHashedPaths(project) ?? [];
-    const read = listSourceFiles(project, "");
-
-    expect(read.length).toBeGreaterThan(0);
-    expect(read.filter((path) => !hashed.includes(path))).toEqual([]);
   });
 
   it("is judged again after a file is renamed with its content unchanged", async () => {

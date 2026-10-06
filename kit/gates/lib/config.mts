@@ -79,13 +79,6 @@ export interface ArchitectureConfig {
   vendorOnlyIn?: Record<string, string[]>;
   /** Package path → the reason it imports React and gets none of the lint rules a client or the bindings get. */
   reactWithoutPolicies?: Record<string, string>;
-  /**
-   * Folders at the project root, beside the packages and `tools/`, that hold
-   * code of the project: `scripts`, `.storybook`. The lint reads the packages,
-   * `tools/`, these, and the files at the root itself. A root folder that is
-   * none of those is never opened by it.
-   */
-  codeFolders?: string[];
 }
 
 export type ResolvedConfig = Required<ArchitectureConfig>;
@@ -185,7 +178,6 @@ const DEFAULTS: Omit<ResolvedConfig, "packages"> = {
   packagesWithoutTests: {},
   vendorOnlyIn: {},
   reactWithoutPolicies: {},
-  codeFolders: [],
 };
 
 const CLIENT_DEFAULTS = {

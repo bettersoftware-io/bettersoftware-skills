@@ -139,6 +139,11 @@ Added here, not in the source:
 - `tools/`, `.claude/` and `.codex/` are not read. They hold installed copies
   (the kit, the add-ons' tools, the hosts' settings); the project does not
   edit them, and the kit's settings files are not in Biome's layout.
+- No hidden folder at the project root is read (`!.*/**`, since
+  2026-10-06): `.remember/`, `.vscode/`, `.cache/`. Such a folder belongs to
+  a tool. An unformatted file in a plugin's folder failed `biome:check` on
+  one machine. A hidden folder inside a package is read, and so is a
+  visible folder at the root.
 - `style/useComponentExportOnlyModules` is off in `*.test.tsx`, `*.spec.tsx`,
   `*.page.tsx`, `tests/`, `__tests__/` and `page-objects/`. A page object
   keeps a small private component beside its `mount` function, and test code

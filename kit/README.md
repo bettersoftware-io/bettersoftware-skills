@@ -437,86 +437,33 @@ it adds nothing at runtime. The `types-only` gate fails on each
 marked `type`, and each `export * from`. Tests are left out. With no such
 package the gate reports `SKIP`.
 
-### Where the lint looks
+### A hidden folder at the root is not linted
 
-The lint is told where the project's code is, and opens nothing else:
+The lint does not read a folder at the project root whose name starts with a
+dot: `.remember/`, `.vscode/`, `.cache/`. Such a folder belongs to a tool (an
+editor, an agent, a cache), not to the project's code. In the demo project a
+Claude Code plugin's working folder held a timestamp file ending in `.ts`,
+and the typed lint failed on it, on one machine.
 
-| Read | How it is known |
-|---|---|
-| The packages | The root folder of each package `architecture.config.mts` declares (`packages/`, or `apps/` and `libs/`) |
-| `tools/` | Always: the installed kit and add-ons, and the project's own tooling. The starter's `eslint.config.mts` then leaves the folder out itself |
-| Other root folders of code | Each named under `codeFolders` in `architecture.config.mts`: `scripts`, `.storybook` |
-| The files at the project root | Always: `eslint.config.mts`, `architecture.config.mts`, a root script |
+It is one ignore pattern (`.*/**`) in `architectureLint()`'s first block, and
+the same one in the `strict-lint` add-on's typed config. Nothing else
+changed about what is read:
 
-Every other root folder is left out of `architectureLint()`'s first block,
-hidden or not: one pattern for each, made from the folder's name. That is how
-`pnpm lint` and the `strict-lint` add-on's typed run get it.
+- A hidden folder inside a package is linted. So is a visible folder at the
+  root (`scratch/x.ts` fails as before), and a hidden file at the root.
+- Git is asked nothing, and no list says where code may be. A file in a
+  package that a `.gitignore` names is linted, and fails the gates, like any
+  other.
+- The gates are untouched. They judge the declared packages, and the
+  `typescript-only` gate walks the whole project: a stray `.js` file in
+  `.remember/` still fails it. A `.ts` file there, the case that was
+  reported, fails nothing.
 
-Why: in the demo project a Claude Code plugin's working folder
-(`.remember/`) held a timestamp file ending in `.ts`, and the typed lint
-failed on it, on one machine. A stray `scratch/x.ts` did the same.
-
-**To bring a new root folder under the lint, name it:**
-
-```ts
-codeFolders: ["scripts"],
-```
-
-and give its files a `tsconfig.json` that includes them (the typed run
-fails a file no tsconfig includes). That is the kit's rule for a package
-too: what is not declared is not silently covered.
-
-The list is the gates' own. `codeFoldersOf` (in `eslint.config.mts`) reads
-the packages from `architecture.config.mts`, as the gates do, and adds every
-workspace package on disk, so a package the config does not declare is
-linted and is a `structure` finding. A test holds the two together: every
-file the gates' walker reads in a package, and every source file at the
-root, is a file the lint reads.
-
-Two findings keep code from living outside the list:
-
-- **A visible root folder that holds source and is not declared** fails the
-  `structure` gate: "declare it or delete it". So `scratch/x.ts` is caught,
-  not passed over.
-- **A file in a package that imports a file in no package** fails the
-  `dependencies` gate (`no-code-outside-the-packages`): a relative path out
-  to a root folder, to a dot-folder, or out of the project. `tools/` may be
-  imported, as it is today by a package's test config; an installed
-  dependency and a Node built-in are not files of the project.
-
-A folder whose name starts with a dot is passed over by both the lint and
-that structure finding: tools keep their files there (`.remember/`,
-`.vscode/`). The import rule is what stops the project's code from depending
-on one. A dot-folder of the project's own code (`.storybook/`) is named
-under `codeFolders`.
-
-**What git ignores decides nothing.** The first answer to that failure asked
-git which files it ignores and left those out. A review found what that
-gives away: the one being checked can take a file in a package out of the
-lint with one line in a `.gitignore`, while the file is still built. It was
-taken out whole. The list above needs no git, is the same in a folder that
-is no repository, and no `.gitignore`, `.git/info/exclude` or global list
-changes it. A file in a package that a `.gitignore` names is linted, and
-fails the gates, like any other (`lint-scope.test.mts` holds each way of
-naming it).
-
-The gates' file walker is as it was: the declared packages and, for the
-`typescript-only` gate, the whole project outside the closed list of
-installed and generated folders. So a stray `.js` file in `.remember/` still
-fails that gate. A `.ts` file there, the case that was reported, fails
-nothing.
-
-**The stop hook's memory of a green tree reads what the gates read.** Its
-hash was over the files git does not ignore (and the `.env` files it does).
-The gates judge a source file whether git ignores it or not, so an ignored
-one could be edited after a green run and the old verdict stood. The hash
-now also covers every source file the gates' own walker reads, by that
-walker (`listSourceFiles`). That only adds paths: no rule of git's takes one
-out. Measured on one Mac: 3 ms in a new project with every add-on (183
-source files), 0.28 s in the source project with its worktrees (19,361).
-
-Without `architecture.config.mts` there is no list to go by, and the lint
-leaves no folder out.
+A first answer asked git which files it ignores and left those out, and a
+second gave the lint a list of the places code may be. Both were taken out
+again: each gave the one being checked a way to move a file out of a check,
+and each fix for that added more to get wrong. See `docs/STATUS.md` for what
+this leaves open.
 
 ### A gate that judged nothing has not passed
 

@@ -2,7 +2,7 @@
 // declared role, and a client package holds only its composition root and its
 // dumb UI.
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
 import type {
@@ -14,14 +14,13 @@ import type {
   WorkspacePackage,
 } from "./config.mts";
 import { packagesWithRole } from "./config.mts";
-import { isGeneratedPath, isInside, isTestFile, isTestScaffolding, listSourceFiles, matchesName } from "./files.mts";
+import { isInside, isTestFile, isTestScaffolding, listSourceFiles, matchesName } from "./files.mts";
 
 const GATE = "structure";
 
 export function checkStructure({ root, config, workspace }: Project): Finding[] {
   return [
     ...checkEveryPackageIsDeclared(config, workspace),
-    ...checkRootFoldersOfCode(root, config, workspace),
     ...checkDeclaredPackagesExist(root, config),
     ...checkRequiredRoles(config),
     ...checkPortsFolder(root, config),
@@ -45,39 +44,6 @@ export function checkStructureOfFiles({ root, config }: Project, files: string[]
       checkHoldsOnlyEndToEndTests(root, e2e, files.filter((file) => isInside(file, e2e.path))),
     ),
   ];
-}
-
-/** `tools/` is always a place of code: the installed kit and add-ons, and the project's own tooling. */
-const TOOLING = "tools";
-
-/**
- * A folder at the project root that holds source and is no declared place of
- * code. The lint opens only the declared places, so the files in such a
- * folder would be linted by nothing and nobody would be told: it is said
- * here. A folder whose name starts with a dot is passed over: that is where
- * tools keep their own files (`.remember/`, `.vscode/`), and the dependency
- * gate stops a package from importing out of one.
- */
-function checkRootFoldersOfCode(root: string, config: ResolvedConfig, workspace: WorkspacePackage[]): Finding[] {
-  const declared = new Set(
-    [TOOLING, ...Object.keys(config.packages), ...workspace.map(({ path }) => path), ...config.codeFolders].map((path) => path.replace(/^\.?\/+/, "").split("/")[0]),
-  );
-
-  return readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && !entry.name.startsWith(".") && !isGeneratedPath(entry.name) && !declared.has(entry.name))
-    .flatMap((entry) => {
-      const source = listSourceFiles(root, entry.name);
-
-      return source.length === 0
-        ? []
-        : [
-            {
-              gate: GATE,
-              file: entry.name,
-              message: `This folder holds source (${source[0]}${source.length > 1 ? `, and ${source.length - 1} more` : ""}) and is no declared place of code, so the lint does not open it and nothing here is linted. Declare it or delete it: make it a package and list it under packages, or name it under codeFolders in the architecture config (and include its files in a tsconfig.json).`,
-            },
-          ];
-    });
 }
 
 function checkEveryPackageIsDeclared(config: ResolvedConfig, workspace: WorkspacePackage[]): Finding[] {
