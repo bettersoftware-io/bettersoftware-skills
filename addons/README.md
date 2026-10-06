@@ -80,7 +80,7 @@ addons/<name>/
   project, so the entries are merged in and the file is never written over:
   a key the project has keeps its value, a list gains the entries it lacks,
   a hook whose command is already registered is not added again, and
-  nothing is removed. A second run changes nothing, and does not rewrite the
+  nothing is removed (but see `retiredHookCommands`). A second run changes nothing, and does not rewrite the
   file. A file that the host keeps read-only is left alone, and the script
   says what is left to do. The merge cannot tell an entry the project removed
   from one that was never there: a later run adds it back.
@@ -98,12 +98,26 @@ addons/<name>/
   starting file if the project does not have it. A setting is never left
   silently unread.
 - `retiredHookCommands` names a command line an older version registered for
-  a hook, with the command line `hostSettings` registers now. The merge never
-  rewrites a project's entry, so without this an update would add the new
-  line beside the old one and the hook would run twice. With it, a project
-  that has the old line keeps it, gets no second one, and is told so on each
-  update. The old line must still work: a hook whose arguments changed has to
-  ignore the ones it no longer reads.
+  a hook, with the command line `hostSettings` registers now. Without it an
+  update would add the new line beside the old one, and the hook would run
+  twice. It is the one place where the merge changes what a project has, so
+  it is bound on every side:
+  - The value must be a command line this manifest registers under `hooks`
+    in `hostSettings`, and the key must not be one. A manifest that breaks
+    either is refused before anything is written. So the field cannot put a
+    command into a project that the add-on does not already register, and
+    cannot take out a hook it still wants.
+  - A project's command is rewritten only when it is the key letter for
+    letter, in a file and under an event where the manifest registers the
+    value. Only the command changes: the entry's timeout, the group's matcher
+    and the other hooks of the group stay.
+  - When the new line is already there, the old entry is taken out instead.
+    The old line is never taken out unless the new one is in the result.
+  - A command that only begins like the new line is left alone, the new line
+    is added beside it, and the summary names it under "Still to do by hand".
+  - The settings file is replaced in one step (a new file takes its place),
+    so no reader sees it without the hook, and a failed write leaves it as it
+    was. A file its owner made read-only is not replaced.
 - `firstRun` is a command to run once after installing, before `verify`. It
   is for an add-on whose verdict depends on something the installer changes:
   `format-lint` asks for its fixer, because a package scope of another length

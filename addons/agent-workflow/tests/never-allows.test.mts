@@ -10,11 +10,13 @@ import { NEAR_MISSES, OLD_SETTING_ON, ONCE_ALLOWED } from "./shapes.mts";
 import { ADDON, createProject, readJson, runHook } from "./support.mts";
 
 interface Manifest {
-  hostSettings: Record<string, { hooks: { PreToolUse: { hooks: { command: string }[] }[] } }>;
+  hostSettings: Record<string, { hooks: { PreToolUse: { hooks: { command: string; timeout: number }[] }[] } }>;
   retiredHookCommands: Record<string, string>;
 }
 
 const MANIFEST = readJson<Manifest>(ADDON, "addon.json");
+/** The seconds each host's registration gives the hook. */
+const TIMEOUTS = Object.values(MANIFEST.hostSettings).map((settings) => settings.hooks.PreToolUse[0]?.hooks[0]?.timeout ?? 0);
 /** For a test that starts the hook once per command of a table. */
 const SPAWNS_TIMEOUT = 120_000;
 /** A push, a pull request opened and a merge, from the table. */
@@ -238,6 +240,21 @@ describe("a command the hook does not read", () => {
 
     expect(run.status).toBe(0);
     expect(run.stdout).toBe("");
+  });
+
+  // Each host stops a hook that takes longer than its registration allows, and the call then goes ahead unrefused.
+  it("answers the longest command it reads, as a program, well inside the time each host gives it", () => {
+    const longest = `echo ${"x ".repeat((LONGEST_SCRIPT - 40) / 2)}&& git push origin main`;
+    const started = performance.now();
+    const run = spawnSync(process.execPath, [join(ADDON, "files", HOOK_SCRIPT)], { input: JSON.stringify(createCall(longest)), encoding: "utf8" });
+    const seconds = (performance.now() - started) / 1000;
+
+    expect(longest.length).toBeGreaterThan(LONGEST_SCRIPT - 40);
+    expect(longest.length).toBeLessThanOrEqual(LONGEST_SCRIPT);
+    expect(decisionIn(run.stdout)).toBe("deny");
+    expect(run.stdout).toContain("joins an outward step");
+    expect(TIMEOUTS).toEqual([5, 5]);
+    expect(seconds).toBeLessThan(Math.min(...TIMEOUTS) / 2);
   });
 
   it("refuses the deep chain when run as a program, where it once died of a stack overflow with nothing said", () => {

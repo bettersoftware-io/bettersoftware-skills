@@ -7,15 +7,28 @@
 //
 //   - a key the project has keeps the project's value;
 //   - a list gains the entries it lacks, after the ones it has;
-//   - nothing is ever removed.
+//   - nothing is removed, and nothing the project wrote is changed, with
+//     the one exception below.
 //
 // Merging the same settings a second time changes nothing.
 //
-// An add-on may change the command line of a hook it registers. A project
-// that has the old line must not get the new one beside it: the hook would
-// run twice. So the add-on names the old line (`retired`), and a hook found
-// under it counts as there. The project's entry is left as it is, and is
-// named in `kept`.
+// One thing is rewritten, and only this: the command line of a hook the
+// add-on itself registered under an older form (`retired`). Without that, a
+// project that has the old line would get the new one beside it, and the hook
+// would run twice. The rewrite is bound on every side:
+//
+//   - the project's command must be exactly the old line, letter for letter;
+//   - the new line must be one the add-on registers now, in this file, for
+//     this event: an old line under another event is not touched;
+//   - only the command changes. The entry's other fields (its timeout), the
+//     group's matcher and the other hooks of the group stay as they are;
+//   - when the new line is already registered for the event, the old entry
+//     is taken out instead, so the hook is never there twice. A group left
+//     with no hook goes with it;
+//   - the old line is never taken out unless the new one is in the result.
+//
+// A command that only begins like the add-on's own is another shape. It is
+// left alone and named in `unknown`.
 //
 // Where the project's file has a value of another kind than the add-on needs
 // (`"permissions": null`, `"ask": "Bash(x)"`, `"PreToolUse": {}`), the first
@@ -30,8 +43,10 @@ export interface MergeResult {
   added: string[];
   /** One line per place where the project's value is of another kind, with what was left out there. */
   skipped: string[];
-  /** Each hook command of the project that is an older form of one the add-on registers now, with that one. */
-  kept: { has: string; now: string }[];
+  /** One line per hook whose older command line was rewritten, or taken out because the new one was there. */
+  changed: string[];
+  /** One line per hook command that begins like one the add-on registers and is neither that nor an older form of it. */
+  unknown: string[];
 }
 
 /** Older command lines of a hook, each with the command line that took its place. */
@@ -59,51 +74,45 @@ export function parseSettings(text: string, path: string): { [key: string]: Json
 /** `current` with everything from `wanted` that it lacks. `current` itself is not changed. */
 export function mergeSettings(current: Json, wanted: Json, retired: RetiredCommands = {}, path: string[] = []): MergeResult {
   if (isObject(current) && isObject(wanted)) {
-    const merged: { [key: string]: Json } = { ...current };
-    const added: string[] = [];
-    const skipped: string[] = [];
-    const kept: MergeResult["kept"] = [];
+    const result: MergeResult = { merged: { ...current }, added: [], skipped: [], changed: [], unknown: [] };
 
     for (const [key, value] of Object.entries(wanted)) {
       if (key in current) {
         const inner = mergeSettings(current[key] as Json, value, retired, [...path, key]);
 
-        merged[key] = inner.merged;
-        added.push(...inner.added);
-        skipped.push(...inner.skipped);
-        kept.push(...inner.kept);
+        (result.merged as { [key: string]: Json })[key] = inner.merged;
+        result.added.push(...inner.added);
+        result.skipped.push(...inner.skipped);
+        result.changed.push(...inner.changed);
+        result.unknown.push(...inner.unknown);
       } else {
-        merged[key] = value;
-        added.push(...describeAdded(value, [...path, key]));
+        (result.merged as { [key: string]: Json })[key] = value;
+        result.added.push(...describeAdded(value, [...path, key]));
       }
     }
 
-    return { merged, added, skipped, kept };
+    return result;
   }
 
   if (Array.isArray(current) && Array.isArray(wanted)) {
-    const merged = [...current];
+    const renewed = isHookGroup(path) ? renewCommands(current, wanted.flatMap(hookCommands), retired, path) : { groups: current, changed: [], unknown: [] };
+    const merged = [...renewed.groups];
     const added: string[] = [];
-    const kept: MergeResult["kept"] = [];
 
     for (const entry of wanted) {
-      const found = isHookGroup(path) ? findHookGroup(merged, entry, retired) : merged.some((existing) => isEqual(existing, entry)) ? [] : undefined;
-
-      if (found === undefined) {
+      if (!merged.some((existing) => isSameEntry(existing, entry, path))) {
         merged.push(entry);
         added.push(...describeAdded(entry, path));
-      } else {
-        kept.push(...found);
       }
     }
 
-    return { merged, added, skipped: [], kept };
+    return { merged, added, skipped: [], changed: renewed.changed, unknown: renewed.unknown };
   }
 
   // A plain value, or two values of different kinds: the project's stands.
   // A list or an object the add-on needed is then missing, and that is said.
   if (kindOf(wanted) === "a value" || kindOf(current) === kindOf(wanted)) {
-    return { merged: current, added: [], skipped: [], kept: [] };
+    return { merged: current, added: [], skipped: [], changed: [], unknown: [] };
   }
 
   const left = describeAdded(wanted, path).map((entry) => entry.slice(entry.indexOf(": ") + 2));
@@ -111,7 +120,8 @@ export function mergeSettings(current: Json, wanted: Json, retired: RetiredComma
   return {
     merged: current,
     added: [],
-    kept: [],
+    changed: [],
+    unknown: [],
     skipped: [`${path.join(".")} is ${kindOf(current)} in the project and ${kindOf(wanted)} is needed there, so ${left.length} entr${left.length === 1 ? "y was" : "ies were"} not merged: ${left.join("; ")}`],
   };
 }
@@ -126,35 +136,71 @@ function isHookGroup(path: string[]): boolean {
 }
 
 /**
- * Whether one of the project's groups already holds every command of this
- * group: a project that changed the group's timeout or matcher still has the
- * hook, and adding the group again would run it twice. A command is also
- * there under an older command line the add-on names. Undefined when no
- * group holds them all; else the older lines that stood in for one, which is
- * none when each command was found as it is written now.
+ * Whether the project's list already holds this entry. Under `hooks`, an entry
+ * is a group of commands, and it is there when its commands are: a project
+ * that changed the group's timeout or matcher still has the hook, and adding
+ * the group again would run it twice.
  */
-function findHookGroup(groups: Json[], wanted: Json, retired: RetiredCommands): MergeResult["kept"] | undefined {
-  const commands = hookCommands(wanted);
+function isSameEntry(existing: Json, wanted: Json, path: string[]): boolean {
+  if (isHookGroup(path)) {
+    const commands = hookCommands(wanted);
 
-  if (commands.length === 0) {
-    return undefined;
+    return commands.length > 0 && commands.every((command) => hookCommands(existing).includes(command));
   }
 
-  // As it is written now, in any group, before an older line is looked for.
-  if (groups.some((group) => commands.every((command) => hookCommands(group).includes(command)))) {
-    return [];
+  return isEqual(existing, wanted);
+}
+
+/**
+ * The project's groups for one event, with each hook that is exactly an older
+ * command line of one of `registered` brought to the line registered now.
+ * The first such hook has its command rewritten, when the new line is not
+ * there yet; every other one is taken out. Nothing else about a group changes.
+ */
+function renewCommands(groups: Json[], registered: string[], retired: RetiredCommands, path: string[]): { groups: Json[]; changed: string[]; unknown: string[] } {
+  const changed: string[] = [];
+  const unknown: string[] = [];
+  let renewed = groups;
+
+  for (const now of registered) {
+    const older = Object.keys(retired).filter((line) => retired[line] === now && line !== now);
+    let isThere = renewed.flatMap(hookCommands).includes(now);
+
+    renewed = renewed.flatMap((group) => {
+      if (!isObject(group) || !Array.isArray(group.hooks)) {
+        return [group];
+      }
+
+      const hooks = group.hooks.flatMap((hook) => {
+        if (!isObject(hook) || typeof hook.command !== "string" || !older.includes(hook.command)) {
+          return [hook];
+        }
+
+        if (isThere) {
+          changed.push(`${path.join(".")}: took out ${hook.command}, an older command line of a hook that is registered as ${now}`);
+
+          return [];
+        }
+
+        isThere = true;
+        changed.push(`${path.join(".")}: ${hook.command} is now ${now}`);
+
+        return [{ ...hook, command: now }];
+      });
+
+      // A group whose only hooks were older lines of one that is registered elsewhere has nothing left to run.
+      return hooks.length === 0 && group.hooks.length > 0 ? [] : [{ ...group, hooks }];
+    });
+
+    unknown.push(
+      ...renewed
+        .flatMap(hookCommands)
+        .filter((line) => line.startsWith(`${now} `))
+        .map((line) => `${path.join(".")}: ${line} begins like ${now}, which the add-on registers, and is no command line it ever registered. It was left as it is`),
+    );
   }
 
-  for (const group of groups) {
-    const has = hookCommands(group);
-    const older = commands.map((command) => (has.includes(command) ? command : has.find((line) => retired[line] === command)));
-
-    if (older.every((line) => line !== undefined)) {
-      return commands.flatMap((now, index) => (older[index] === now ? [] : [{ has: older[index] as string, now }]));
-    }
-  }
-
-  return undefined;
+  return { groups: renewed, changed, unknown };
 }
 
 function hookCommands(group: Json): string[] {
@@ -195,4 +241,29 @@ function isEqual(a: Json, b: Json): boolean {
   }
 
   return a === b;
+}
+
+/**
+ * Why an add-on's older command lines cannot be used, or undefined when they
+ * can. Each must lead to a command line the add-on registers now, under
+ * `hooks` of some settings file, and must not itself be one: a manifest that
+ * named any other command would have the installer put it into a project's
+ * settings, or take a hook out with nothing in its place.
+ */
+export function refuseRetired(retired: RetiredCommands, wanted: Record<string, Json>): string | undefined {
+  const registered = Object.values(wanted).flatMap((settings) =>
+    isObject(settings) && isObject(settings.hooks) ? Object.values(settings.hooks).flatMap((groups) => (Array.isArray(groups) ? groups.flatMap(hookCommands) : [])) : [],
+  );
+
+  for (const [older, now] of Object.entries(retired)) {
+    if (typeof now !== "string" || !registered.includes(now)) {
+      return `retiredHookCommands gives "${String(now)}" as what took the place of "${older}", and hostSettings registers no hook with that command line`;
+    }
+
+    if (registered.includes(older)) {
+      return `retiredHookCommands calls "${older}" an older command line, and hostSettings still registers it`;
+    }
+  }
+
+  return undefined;
 }

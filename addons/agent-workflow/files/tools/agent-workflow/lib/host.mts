@@ -38,6 +38,16 @@ export const ASK_RULES = [
   "Bash(gh pr merge *--admin*)",
 ];
 
+/**
+ * Always ask before an editing tool changes the hook or the files beside it.
+ * The hook is what refuses a chain, so a change to it is a person's to make.
+ * An `Edit` rule is the one Claude Code reads for every built-in tool that
+ * edits a file; a leading `/` is the project's root. A shell command that
+ * writes the same files (`sed -i`, a redirection, `git checkout`) is not an
+ * editing tool, and no rule here sees it.
+ */
+export const EDIT_ASK_RULES = ["Edit(/tools/agent-workflow/**)"];
+
 /** An `allow` rule with a `*` for a push, a pull request opened or a merge: a `*` also matches a second branch, another flag, a `$(…)`. */
 export const WIDE_ALLOW = /^Bash\((?:git push|gh pr create|gh pr merge)\b.*\*.*\)$/;
 

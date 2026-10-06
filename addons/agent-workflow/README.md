@@ -20,7 +20,7 @@ pull requests, and lets an agent push.
 |---|---|---|
 | The hook | `tools/agent-workflow/hooks/split-outward-commands.mts` | Before each shell command: refuses one that joins an outward step to anything else. It says nothing about any other command |
 | Its registration | `.claude/settings.json`, `.codex/hooks.json` | Merged in under `hooks.PreToolUse`, matcher `Bash`, beside the kit's hooks |
-| Permission rules | `.claude/settings.json` | Merged in: thirteen `ask` rules for a forced or destructive push and an `--admin` merge. No `allow` rule |
+| Permission rules | `.claude/settings.json` | Merged in: thirteen `ask` rules for a forced or destructive push and an `--admin` merge, and one for an edit of the hook. No `allow` rule |
 | `pnpm worktree <name> [--ready]` | `tools/agent-workflow/new-worktree.mts` | A worktree beside the project on `worktree-<name>`, cut from `origin`'s main by name |
 | `pnpm changelog weeks\|prs\|check` | `tools/agent-workflow/changelog.mts` | The weeks with no entry, a week's merged pull requests, and the proof that each is cited |
 | Weekly tag | `.github/workflows/weekly-tag.yml`, `tools/agent-workflow/close-week.mts` | Monday 00:05 UTC: tags the finished ISO week, opens "Changelog: write `<week>`" |
@@ -84,6 +84,15 @@ Those are its only two outputs: the type of its answer has no other decision.
 It reads standard input and nothing else, and it ignores any argument it is
 started with.
 
+**The refusal is not a lock.** Each host gives the hook five seconds. When a
+`PreToolUse` hook runs out of time, or ends with an error that is not a
+refusal, both hosts record that and let the call go ahead to their own
+permission rules: a hook that fails does not block. So the hook is built not
+to fail (above), and it is quick: a command of a million characters, the
+longest it reads, is answered in about a tenth of a second here, and a test
+holds it under half the time limit. What stops a push is still the host's
+prompt and the remote's branch protection.
+
 ### Not covered
 
 - Aliases and functions: `gp` for `git push`, a shell function that pushes.
@@ -107,7 +116,10 @@ settings file.
 - A hook counts as there when its command is, whatever the project did to
   the group around it (a longer timeout, a wider matcher). It is not added a
   second time.
-- Nothing is removed, ever.
+- Nothing is removed. The one exception is a hook this add-on registered
+  under an older command line: see
+  [below](#updating-a-project-that-had-it) and `retiredHookCommands` in
+  [the contract](../README.md).
 - When nothing is missing the file is not written at all, so its layout and
   its bytes stay as the project left them.
 - A file that is not JSON is left alone, and the note says what to add by
@@ -141,12 +153,16 @@ session of either host.
 - `tools/agent-workflow.config.json`, or the older `.mts`, is no longer
   read. The update and the check say so until the file is deleted.
 - `.claude/settings.json` may start the hook with `--host=claude-code` and a
-  timeout of 30. That entry is kept as it is and still works: the hook
-  ignores its arguments. No second entry is added, and the update says so.
-- The two `Edit(/tools/agent-workflow…)` ask rules stay, since a merge
-  removes nothing. They do no harm.
+  timeout of 30. The update takes the argument off that command line and
+  changes nothing else of the entry: its timeout, its matcher and the hooks
+  beside it stay. If the new line is already registered, the old entry is
+  taken out instead, so the hook never runs twice. A command line that is
+  not the old one letter for letter is left alone and named. Until the
+  update runs, the old line still works: the hook ignores its arguments.
+- The ask rule `Edit(/tools/agent-workflow.config.json)` stays, since a merge
+  removes no rule. It does no harm.
 
-All three can be deleted by hand.
+The setting file and that rule can be deleted by hand.
 
 ### The ask rules
 
@@ -164,6 +180,13 @@ rule of its own: `ask` wins over `allow`.
 | `Bash(git push *--delete*)`, `Bash(git push -d*)`, `Bash(git push * -d*)` | deleting a branch on the remote |
 | `Bash(git push *--mirror*)`, `*--all*`, `*--tags*`, `*--prune*` | pushing or pruning more than one branch |
 | `Bash(gh pr merge *--admin*)` | merging past the branch's protections |
+
+One more `ask` rule is merged in: `Edit(/tools/agent-workflow/**)`. The hook
+is what refuses a chain, so an editing tool asks before it changes the hook
+or the files beside it. It covers the editing tools and not a shell command:
+`sed -i`, a redirection or `git checkout` writes the same files and no rule
+here sees it. The installer writes those files itself, so an update does not
+ask. `pnpm agent-workflow:check` notes it when the project took the rule out.
 
 `pnpm agent-workflow:check` notes any `allow` rule with a `*` for
 `git push`, `gh pr create` or `gh pr merge`, and fails when such a rule is
@@ -292,11 +315,12 @@ against real repositories made in a temporary folder, with another folder as
   the add-on installed into a project with the real kit: merged, unchanged
   the second time, nothing of the project's dropped. Also the update of a
   project that had the old setting files and the old registration: one hook
-  after it, nothing rewritten, each leftover named.
+  after it, started as it is now, the rest of its entry kept, each leftover
+  named.
 - `scripts/host-settings.test.mts`, `scripts/add-to-project.test.mts`: the
   merge and the installer.
 
-Every test was turned red by a mutant of its own and restored: 342 mutants
+Every test was turned red by a mutant of its own and restored: 369 mutants
 in `tests/mutants.json`, run with the coverage add-on's `mutation-check.mts`,
 all killed. Two of them are judged by the type checker, not by a test run. Each of its test commands was first seen green and selecting at
 least one test, since a filter that matches no test exits 0 and would read
@@ -314,6 +338,9 @@ thousand commands.
   `tool_input.command` as text, `permissionDecision: "deny"`).
 - **Codex finding the skills** in `.agents/skills`. That is the documented
   place for a repository's skills; no session was run.
+- **What a host does with a hook that times out or crashes.** That the call
+  then goes ahead is from each host's documentation; no session was run to
+  see it. The same holds for the `Edit(/path)` rule form.
 - **The ask rules in Claude Code itself.** That an `ask` rule wins over an
   `allow` rule is from its documentation; no session was run to see it. The
   rules are matched in tests with a model of the documented pattern syntax.

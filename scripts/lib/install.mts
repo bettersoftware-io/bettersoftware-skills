@@ -10,7 +10,7 @@
 // Nothing is written until the whole change is known to be free of conflicts.
 
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { accessSync, constants, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
 
 export class InstallError extends Error {}
@@ -227,6 +227,35 @@ export function writeProjectFile(project: string, path: string, content: string 
 
   mkdirSync(dirname(target), { recursive: true });
   writeFileSync(target, content);
+}
+
+/**
+ * Writes a file in one step: the content goes to a new file beside it, which
+ * then takes its place. A reader sees the old file or the new one, never a
+ * part of either, and a write that fails leaves the old file as it was. The
+ * file keeps its permissions, and one that may not be written is refused.
+ */
+export function replaceProjectFile(project: string, path: string, content: string): void {
+  assertInside(project, path);
+
+  const target = join(project, path);
+  const beside = `${target}.${process.pid}.new`;
+
+  mkdirSync(dirname(target), { recursive: true });
+
+  // A file its owner made read-only is refused, as writing into it would be: taking its place would get round that.
+  if (existsSync(target)) {
+    accessSync(target, constants.W_OK);
+  }
+
+  try {
+    writeFileSync(beside, content, { flag: "wx", mode: existsSync(target) ? statSync(target).mode : 0o644 });
+    renameSync(beside, target);
+  } catch (error) {
+    rmSync(beside, { force: true });
+
+    throw error;
+  }
 }
 
 export function installedUnits(project: string): string[] {

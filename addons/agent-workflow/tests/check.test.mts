@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { check, type CheckOptions, createHookRunner } from "../files/tools/agent-workflow/check.mts";
-import { ASK_RULES, RETIRED_ARGUMENT, RETIRED_FILES, WIDE_ALLOW } from "../files/tools/agent-workflow/lib/host.mts";
+import { ASK_RULES, EDIT_ASK_RULES, RETIRED_ARGUMENT, RETIRED_FILES, WIDE_ALLOW } from "../files/tools/agent-workflow/lib/host.mts";
 import { installedIn, requires } from "../files/tools/agent-workflow/requires.mts";
 import { OLD_SETTING_ON } from "./shapes.mts";
 import { createFolder } from "./support.mts";
@@ -16,6 +16,7 @@ const COMMANDS = {
 const DENY = '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny"}}\n';
 const ALLOW = '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}\n';
 const ASK = '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask"}}\n';
+const EDIT_PASS = "PASS Claude Code: an editing tool asks before it changes the hook (a shell command that writes it is not covered by any rule)";
 const ROUTINE = "`git push -u origin worktree-sample 2>&1 \\| tail -2`";
 
 describe("the add-on's check", () => {
@@ -26,6 +27,7 @@ describe("the add-on's check", () => {
     expect(lines).toEqual([
       "PASS hook: refuses an outward step joined to others, and says nothing about a push alone, whatever it is started with",
       "PASS Claude Code: .claude/settings.json runs the hook before each shell command",
+      EDIT_PASS,
       "PASS Claude Code: all 13 ask rules are in, so a forced or destructive push and an --admin merge ask whatever else allows them",
       "PASS Codex: .codex/hooks.json runs the hook before each shell command",
       "PASS command /workflow:changelog",
@@ -56,6 +58,17 @@ describe("the add-on's check", () => {
     expect(lines).toContain(`PASS ${host}: ${path} runs the hook before each shell command`);
     expect(lines).toContain(`NOTE ${host}: ${path} starts the hook with --host=claude-code, as an older version of the add-on did. The hook ignores it. Remove the argument when you like`);
     expect(runCheck(createProject()).lines.join("\n")).not.toContain("--host=claude-code");
+  });
+
+  it("notes, and does not fail, when the rule that asks before an edit of the hook is not in", () => {
+    const { status, lines } = runCheck(createProject({ ask: ASK_RULES }));
+
+    expect(status).toBe(0);
+    expect(lines).toContain(
+      "NOTE Claude Code: Edit(/tools/agent-workflow/**) is not in permissions.ask, so an editing tool may change the hook that refuses a chain without asking. Run the installer again (add-to-project.mts <project> agent-workflow): it merges what is missing and removes nothing",
+    );
+    expect(lines).not.toContain(EDIT_PASS);
+    expect(EDIT_ASK_RULES).toEqual(["Edit(/tools/agent-workflow/**)"]);
   });
 
   it("notes a hook registered twice in one file, which then runs twice", () => {
@@ -150,7 +163,7 @@ describe("the add-on's check", () => {
   });
 
   it("notes ask rules the project took out, and does not fail while no allow rule allows by pattern", () => {
-    const { status, lines } = runCheck(createProject({ ask: [...ASK_RULES.slice(2)], allow: ["Bash(pnpm test)", "Bash(git push origin worktree-fix)"] }));
+    const { status, lines } = runCheck(createProject({ ask: [...ASK_RULES.slice(2), ...EDIT_ASK_RULES], allow: ["Bash(pnpm test)", "Bash(git push origin worktree-fix)"] }));
 
     expect(status).toBe(0);
     expect(lines).toContain(
@@ -169,7 +182,7 @@ describe("the add-on's check", () => {
   );
 
   it("fails when such a rule is there and an ask rule that backs it is not", () => {
-    const { status, lines } = runCheck(createProject({ allow: ["Bash(git push origin worktree-*)"], ask: ASK_RULES.filter((rule) => rule !== "Bash(git push *--mirror*)") }));
+    const { status, lines } = runCheck(createProject({ allow: ["Bash(git push origin worktree-*)"], ask: [...ASK_RULES, ...EDIT_ASK_RULES].filter((rule) => rule !== "Bash(git push *--mirror*)") }));
 
     expect(status).toBe(1);
     expect(lines.join("\n")).toMatch(
@@ -251,7 +264,7 @@ interface ProjectShape {
 function createProject(shape: ProjectShape = {}): string {
   const files: Record<string, unknown> = {
     ".claude/settings.json": {
-      permissions: { allow: shape.allow ?? [], ask: shape.ask ?? ASK_RULES },
+      permissions: { allow: shape.allow ?? [], ask: shape.ask ?? [...ASK_RULES, ...EDIT_ASK_RULES] },
       hooks: { PreToolUse: [createGroup(CLAUDE_HOOK, "Bash", 5)] },
     },
     ".codex/hooks.json": { hooks: { PreToolUse: [createGroup(CODEX_HOOK, "Bash")] } },

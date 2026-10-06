@@ -10,7 +10,8 @@
 // file to see that the hook is registered there.
 //
 // A host's settings file belongs to the project. What the project chose is
-// reported as a NOTE. These are failures: the hook does not behave (it
+// reported as a NOTE: so is the rule that asks before an editing tool changes
+// the hook, when the project took it out. These are failures: the hook does not behave (it
 // answers anything but a refusal or nothing); it is not registered in a
 // settings file that exists; an `allow` rule with a `*` lets a push or a
 // merge run unasked while the `ask` rules that catch a forced or destructive
@@ -24,7 +25,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { ASK_RULES, CLAUDE_SETTINGS, CODEX_HOOKS, COMMAND_NEEDS, HOOK_SCRIPT, RETIRED_ARGUMENT, RETIRED_FILES, WIDE_ALLOW } from "./lib/host.mts";
+import { ASK_RULES, CLAUDE_SETTINGS, CODEX_HOOKS, COMMAND_NEEDS, EDIT_ASK_RULES, HOOK_SCRIPT, RETIRED_ARGUMENT, RETIRED_FILES, WIDE_ALLOW } from "./lib/host.mts";
 import { isMainModule } from "./lib/main.mts";
 import { installedIn } from "./requires.mts";
 
@@ -147,7 +148,15 @@ function judgePermissions(settings: Settings, report: (line: string) => void): b
   const allow = Array.isArray(permissions.allow) ? (permissions.allow as unknown[]) : [];
   const ask = Array.isArray(permissions.ask) ? (permissions.ask as unknown[]) : [];
   const missingAsk = ASK_RULES.filter((rule) => !ask.includes(rule));
+  const missingEdit = EDIT_ASK_RULES.filter((rule) => !ask.includes(rule));
   const wide = allow.filter((rule): rule is string => typeof rule === "string" && WIDE_ALLOW.test(rule));
+
+  // The project may take the rule out: its settings are its own. It is told what that leaves open.
+  report(
+    missingEdit.length === 0
+      ? "PASS Claude Code: an editing tool asks before it changes the hook (a shell command that writes it is not covered by any rule)"
+      : `NOTE Claude Code: ${missingEdit.join(", ")} is not in permissions.ask, so an editing tool may change the hook that refuses a chain without asking. ${FIX}`,
+  );
 
   for (const rule of wide) {
     report(`NOTE Claude Code: the allow rule ${rule} lets more run unasked than its words say: a "*" also matches a second branch, another flag, a "$(…)"`);

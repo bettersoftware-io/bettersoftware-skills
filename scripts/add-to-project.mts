@@ -30,7 +30,7 @@ import { fileURLToPath } from "node:url";
 import { isMainModule } from "../kit/gates/lib/files.mts";
 import { LINT_DEPENDENCIES } from "../kit/lint-dependencies.mts";
 import { type Declaration, declarePackages } from "./lib/architecture.mts";
-import { type Json, mergeSettings, parseSettings, type RetiredCommands, SettingsError } from "./lib/host-settings.mts";
+import { type Json, mergeSettings, parseSettings, refuseRetired, type RetiredCommands, SettingsError } from "./lib/host-settings.mts";
 import {
   assertInside,
   type InstallOutcome,
@@ -40,6 +40,7 @@ import {
   installFiles,
   isRefusal,
   readFileSet,
+  replaceProjectFile,
   rewriteScope,
   writeProjectFile,
 } from "./lib/install.mts";
@@ -161,9 +162,10 @@ interface AddonManifest {
   hostSettings?: Record<string, Json>;
   /**
    * Command lines an older version of the add-on registered for a hook, each
-   * with the command line `hostSettings` registers now. The old line must
-   * still work. A project that has it keeps it, is told so, and does not get
-   * the new one beside it: the hook would run twice.
+   * with the command line `hostSettings` registers now. In a project that
+   * has exactly the old line, where the new one is registered, the command
+   * is rewritten and nothing else of the entry; see `lib/host-settings.mts`.
+   * A value that `hostSettings` does not register is refused.
    */
   retiredHookCommands?: RetiredCommands;
   /**
@@ -394,7 +396,7 @@ function addAddon(destination: string, project: string, asked: string, force: bo
     ...choiceNotes,
     ...architecturePlan.notes,
     ...settingsPlan.unmerged,
-    ...settingsPlan.kept,
+    ...settingsPlan.unknown,
     ...retired,
     ...outcome.refused.map(
       (path) => `${path} could not be written: the host this ran under keeps that folder read-only. Outside it, run this script again`,
@@ -506,8 +508,8 @@ interface SettingsPlan {
   writes: { path: string; content: string; added: string[] }[];
   /** What a settings file needed and did not get, each with what to add by hand. */
   unmerged: string[];
-  /** Each hook the project still starts with an older command line, which was left as it is. */
-  kept: string[];
+  /** Each hook command that looks like the add-on's own and is no line it ever registered. It was left as it is. */
+  unknown: string[];
 }
 
 /**
@@ -517,7 +519,13 @@ interface SettingsPlan {
  * file is never replaced.
  */
 function planHostSettings(project: string, manifest: AddonManifest): SettingsPlan {
-  const plan: SettingsPlan = { writes: [], unmerged: [], kept: [] };
+  const plan: SettingsPlan = { writes: [], unmerged: [], unknown: [] };
+  const refusal = refuseRetired(manifest.retiredHookCommands ?? {}, manifest.hostSettings ?? {});
+
+  if (refusal !== undefined) {
+    throw new InstallError(`the add-on "${manifest.name}" cannot be installed: ${refusal}`);
+  }
+
 
   for (const [path, wanted] of Object.entries(manifest.hostSettings ?? {})) {
     assertInside(project, path);
@@ -526,18 +534,13 @@ function planHostSettings(project: string, manifest: AddonManifest): SettingsPla
 
     try {
       const current = existsSync(file) ? parseSettings(readFileSync(file, "utf8"), path) : {};
-      const { merged, added, skipped, kept } = mergeSettings(current, wanted, manifest.retiredHookCommands);
+      const { merged, added, skipped, changed, unknown } = mergeSettings(current, wanted, manifest.retiredHookCommands);
 
-      if (added.length > 0) {
-        plan.writes.push({ path, content: `${JSON.stringify(merged, null, 2)}\n`, added });
+      if (added.length > 0 || changed.length > 0) {
+        plan.writes.push({ path, content: `${JSON.stringify(merged, null, 2)}\n`, added: [...added, ...changed] });
       }
 
-      plan.kept.push(
-        ...kept.map(
-          ({ has, now }) =>
-            `${path} starts a hook with the command line of an older version: ${has}. That still works, so it was left as it is and no second hook was added. The add-on now registers: ${now}`,
-        ),
-      );
+      plan.unknown.push(...unknown.map((entry) => `${path}: ${entry}. If it is this add-on's hook, keep one of the two`));
       plan.unmerged.push(...skipped.map((entry) => `${path}: ${entry}. The project's value was left as it is: correct it by hand, then run this again`));
     } catch (error) {
       if (!(error instanceof SettingsError)) {
@@ -559,7 +562,8 @@ function planHostSettings(project: string, manifest: AddonManifest): SettingsPla
  */
 export function writeUnlessProtected(project: string, path: string, content: string): boolean {
   try {
-    writeProjectFile(project, path, content);
+    // In one step: a settings file is never seen half written, or without a hook it had and will have.
+    replaceProjectFile(project, path, content);
 
     return true;
   } catch (error) {
