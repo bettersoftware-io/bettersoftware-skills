@@ -98,6 +98,13 @@ copy into `seeding.ts`, deletes the copy, and runs `pnpm visual`. While the
 copy is there, every update says so. The manifest field is `movedToProject`
 ([the contract](../README.md)).
 
+The host names the project's scope in one import, and a formatter wraps
+that line under a longer scope. The update compares the add-on's files byte
+for byte, so a wrapped line read as an edit and the next update refused a
+file nobody had touched. The line carries a `biome-ignore format` comment,
+and `scripts/scope-stable-files.test.mts` holds that every file an add-on
+owns comes out of the formatter as it went in, under three scopes.
+
 Tried on a copy of the demo (2026-10-06): the three wrappers it had added to
 the host moved to `seeding.ts` unchanged, `pnpm visual` passed 8 of 8 against
 its committed `darwin-arm64` goldens with both knobs at 0, and a second update

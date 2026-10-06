@@ -222,5 +222,12 @@
     "find": "export function seedScenario(scenario: Scenario, clock: HostClock): Seeded {",
     "replace": "export function seedScenario(scenario: Scenario, clock: HostClock): Seeded | undefined {",
     "test": "pnpm vitest run addons/visual/tests/addon.test.mts -t \"has the seeding export what the host imports\""
+  },
+  {
+    "name": "scope: the host's import is not wrapped under a longer scope",
+    "file": "addons/visual/files/packages/client-react/tests/visual/host/main.tsx",
+    "find": "// biome-ignore format: this file is the add-on's, and an update compares it byte for byte. The scope in this line is the project's, and a longer one would have the formatter wrap it.\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/scope-stable-files.test.mts -t \"under the scope @skills-demo\""
   }
 ]

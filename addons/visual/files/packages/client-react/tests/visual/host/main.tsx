@@ -1,6 +1,7 @@
 import FakeTimers from "@sinonjs/fake-timers";
 import { createRoot } from "react-dom/client";
 
+// biome-ignore format: this file is the add-on's, and an update compares it byte for byte. The scope in this line is the project's, and a longer one would have the formatter wrap it.
 import { createViewModel, ViewModelProvider } from "@app/react-bindings";
 
 // The app's real global stylesheet, loaded the way src/main.tsx loads it. A
