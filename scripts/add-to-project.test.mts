@@ -641,6 +641,87 @@ describe("adding an add-on", () => {
     expect(() => addToProject({ project, unit: "demo", repository })).toThrow(/does not have the kit/);
   });
 
+  it("declares a package it brings in the architecture config, once, and touches nothing else there", () => {
+    const { repository, project } = createWorldWithKit();
+    withOwnPackage(repository);
+    write(project, "architecture.config.mts", PROJECT_LAYERS);
+
+    const first = addToProject({ project, unit: "demo", repository });
+    const second = addToProject({ project, unit: "demo", repository });
+
+    expect(first.declared).toEqual(['architecture.config.mts: packages gains "packages/demo": { role: "e2e" }']);
+    expect(read(project, "architecture.config.mts")).toBe(
+      PROJECT_LAYERS.replace('{ role: "client" },\n', '{ role: "client" },\n    "packages/demo": { role: "e2e" },\n'),
+    );
+    expect(first.notes).toEqual([]);
+    expect(second.declared).toEqual([]);
+    expect(readJson(project, "packages/demo/package.json").name).toBe("@acme/demo");
+  });
+
+  it("leaves a declaration the project already wrote for that package as it is", () => {
+    const { repository, project } = createWorldWithKit();
+    const layers = PROJECT_LAYERS.replace('{ role: "client" },\n', '{ role: "client" },\n    "packages/demo": { role: "leaf" },\n');
+    withOwnPackage(repository);
+    write(project, "architecture.config.mts", layers);
+
+    expect(addToProject({ project, unit: "demo", repository }).declared).toEqual([]);
+    expect(read(project, "architecture.config.mts")).toBe(layers);
+  });
+
+  it("says which line to add by hand when the architecture config has no packages map it can read", () => {
+    const { repository, project } = createWorldWithKit();
+    withOwnPackage(repository);
+    write(project, "architecture.config.mts", "export default buildLayers();\n");
+
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(result.declared).toEqual([]);
+    expect(result.notes).toEqual([expect.stringContaining('add "packages/demo": { role: "e2e" } to the packages of architecture.config.mts')]);
+    expect(read(project, "architecture.config.mts")).toBe("export default buildLayers();\n");
+  });
+
+  it("never declares a package through an architecture config that is a link out of the project", () => {
+    const { repository, project } = createWorldWithKit();
+    const outside = mkdtempSync(join(tmpdir(), "outside-"));
+    withOwnPackage(repository);
+    rmSync(join(project, "architecture.config.mts"));
+    write(outside, "architecture.config.mts", PROJECT_LAYERS);
+    symlinkSync(join(outside, "architecture.config.mts"), join(project, "architecture.config.mts"));
+
+    expect(() => addToProject({ project, unit: "demo", repository })).toThrow(InstallError);
+    expect(read(outside, "architecture.config.mts")).toBe(PROJECT_LAYERS);
+    expect(existsSync(join(project, "tools/demo/check.mts"))).toBe(false);
+  });
+
+  it("refuses a project whose kit lacks a gate it relies on, changes nothing, and says how to get it", () => {
+    const { repository, project } = createWorldWithKit();
+    const manifest = readJson(repository, "addons/demo/addon.json");
+
+    manifest.requiresGates = ["structure", "playwright-pin"];
+    write(repository, "addons/demo/addon.json", JSON.stringify(manifest));
+    write(project, "tools/arch/gates/gates.json", '{ "structure": [] }\n');
+
+    expect(() => addToProject({ project, unit: "demo", repository })).toThrow(
+      /needs a newer kit than this project has: tools\/arch has no "playwright-pin" gate\. Nothing was changed\. .*add-to-project\.mts .* kit$/,
+    );
+    expect(existsSync(join(project, "tools/demo/check.mts"))).toBe(false);
+    expect(readJson(project, "package.json").scripts.demo).toBeUndefined();
+
+    write(project, "tools/arch/gates/gates.json", '{ "structure": [], "playwright-pin": [] }\n');
+
+    expect(addToProject({ project, unit: "demo", repository }).files.written).toContain("tools/demo/check.mts");
+  });
+
+  it("refuses the same way when the project's kit has no list of its gates at all", () => {
+    const { repository, project } = createWorldWithKit();
+    const manifest = readJson(repository, "addons/demo/addon.json");
+
+    manifest.requiresGates = ["playwright-pin"];
+    write(repository, "addons/demo/addon.json", JSON.stringify(manifest));
+
+    expect(() => addToProject({ project, unit: "demo", repository })).toThrow(/needs a newer kit/);
+  });
+
   it("passes on the command an add-on asks to be run once it is installed", () => {
     const { repository, project } = createWorldWithKit();
     const manifest = readJson(repository, "addons/demo/addon.json");
@@ -832,6 +913,18 @@ function withStartingFiles(repository: string): void {
   write(repository, "addons/demo/addon.json", JSON.stringify(manifest));
   write(repository, "addons/demo/files/packages/web/tests/scenarios.ts", "// scenarios, as shipped\n");
   write(repository, "addons/demo/files/packages/web/tests/goldens/a.png", "an image, as shipped");
+}
+
+const PROJECT_LAYERS = 'export default {\n  packages: {\n    "packages/web": { role: "client" },\n  },\n};\n';
+
+/** Gives the demo add-on a workspace package of its own, written once, and its declaration. */
+function withOwnPackage(repository: string): void {
+  const manifest = readJson(repository, "addons/demo/addon.json");
+
+  manifest.startingFiles = ["packages/demo/"];
+  manifest.architecture = { packages: { "packages/demo": { role: "e2e" } } };
+  write(repository, "addons/demo/addon.json", JSON.stringify(manifest));
+  write(repository, "addons/demo/files/packages/demo/package.json", '{ "name": "@app/demo" }\n');
 }
 
 /** Gives the demo add-on a permission rule and a hook to merge into Claude Code's settings. */
