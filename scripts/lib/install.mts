@@ -206,14 +206,12 @@ export function installFiles(
   }
 
   for (const [path, content] of files) {
-    const target = join(project, path);
-
-    if (!existsSync(target)) {
+    if (!projectHas(project, path)) {
       outcome.written.push(path);
       continue;
     }
 
-    const current = hash(readFileSync(target));
+    const current = hash(readProjectFile(project, path));
 
     if (current === hash(content)) {
       outcome.unchanged.push(path);
@@ -242,19 +240,19 @@ export function installFiles(
   for (const path of edited.filter((candidate) => handovers[candidate] !== undefined)) {
     const copy = savedCopyOf(unit, path);
 
-    writeProjectFile(project, copy, readFileSync(join(project, path)));
+    writeProjectFile(project, copy, readProjectFile(project, path));
     outcome.saved.push({ path, copy });
   }
 
   for (const path of Object.keys(before)) {
     const target = join(project, path);
 
-    if (files.has(path) || !existsSync(target)) {
+    if (files.has(path) || !projectHas(project, path)) {
       continue;
     }
 
-    if (hash(readFileSync(target)) === before[path] || force) {
-      rmSync(target);
+    if (hash(readProjectFile(project, path)) === before[path] || force) {
+      removeProjectFile(project, path);
       outcome.removed.push(path);
     } else {
       outcome.kept.push(path);
@@ -339,6 +337,56 @@ export function assertInside(project: string, path: string): void {
   }
 }
 
+/**
+ * The only ways this installer looks at a file of the project. Each asks
+ * `assertInside` first, as a write does, so a read and a write can never
+ * follow different rules: a path that leaves the project, or reaches a file
+ * through a link, is refused before anything is opened. A project's
+ * `SECURITY.md` that is a link to a key file is not read, and so can never
+ * be compared and printed.
+ *
+ * `scripts/project-paths.test.mts` fails when one of these scripts opens a
+ * project path any other way.
+ */
+export function projectHas(project: string, path: string): boolean {
+  assertInside(project, path);
+
+  return lstatSync(join(project, path), { throwIfNoEntry: false }) !== undefined;
+}
+
+export function readProjectFile(project: string, path: string): Buffer {
+  assertInside(project, path);
+
+  return readFileSync(join(project, path));
+}
+
+export function readProjectText(project: string, path: string): string {
+  return readProjectFile(project, path).toString("utf8");
+}
+
+/** The text of a file of the project, or undefined when it has none. */
+export function readProjectTextIfThere(project: string, path: string): string | undefined {
+  return projectHas(project, path) ? readProjectText(project, path) : undefined;
+}
+
+/** The folders directly in a folder of the project, by name. A link to a folder is not one. */
+export function listProjectFolders(project: string, path: string): string[] {
+  if (!projectHas(project, path)) {
+    return [];
+  }
+
+  return readdirSync(join(project, path), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+}
+
+/** The only way this installer removes a file of the project: checked, then removed. */
+export function removeProjectFile(project: string, path: string): void {
+  assertInside(project, path);
+  rmSync(join(project, path));
+}
+
 /** The only way this installer writes a file: checked, then written. */
 export function writeProjectFile(project: string, path: string, content: string | Buffer): void {
   assertInside(project, path);
@@ -404,9 +452,18 @@ export function recordStarting(project: string, unit: string, starting: string[]
 }
 
 function readRecord(project: string): InstalledRecord {
-  const file = join(project, RECORD);
+  const text = readProjectTextIfThere(project, RECORD);
 
-  return existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as InstalledRecord) : {};
+  if (text === undefined) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text) as InstalledRecord;
+  } catch {
+    // Not with the parser's own message: it quotes the text it could not read.
+    throw new InstallError(`${RECORD} is not JSON, so what this project has installed cannot be told — nothing was changed`);
+  }
 }
 
 function writeRecord(project: string, record: InstalledRecord): void {

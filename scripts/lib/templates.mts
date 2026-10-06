@@ -12,8 +12,7 @@
 // update replaces. So the hash record already says when a template changed,
 // and the copy about to be replaced is the old text to compare with.
 
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { projectHas, readProjectText } from "./install.mts";
 
 /** A file the project owns, and the installed copy of the template it was written from. */
 export interface Template {
@@ -49,8 +48,8 @@ export function readTemplates(project: string, templates: Template[]): Map<strin
   const texts = new Map<string, string>();
 
   for (const { template } of templates) {
-    if (existsSync(join(project, template))) {
-      texts.set(template, readFileSync(join(project, template), "utf8"));
+    if (projectHas(project, template)) {
+      texts.set(template, readProjectText(project, template));
     }
   }
 
@@ -78,22 +77,21 @@ export function findOwnedChanges(project: string, templates: Template[], before:
     }
 
     if (old === undefined) {
-      const now = readFileSync(join(project, template), "utf8");
-      const yours = existsSync(join(project, owned)) ? readFileSync(join(project, owned), "utf8") : undefined;
+      const now = readProjectText(project, template);
+      const yours = projectHas(project, owned) ? readProjectText(project, owned) : undefined;
 
       if (yours === undefined) {
         changes.push({ owned, template, state: "never-seen", lines: [] });
       } else if (withoutAddonSections(yours) !== now) {
-        changes.push({ owned, template, state: "unknown", lines: changedLines(now, withoutAddonSections(yours)) });
+        changes.push({ owned, template, state: "unknown", lines: differenceOf(now, withoutAddonSections(yours)) });
       }
 
       continue;
     }
 
-    const file = join(project, owned);
-    const state = !existsSync(file) ? "absent" : readFileSync(file, "utf8") === old ? "untouched" : "edited";
+    const state = !projectHas(project, owned) ? "absent" : readProjectText(project, owned) === old ? "untouched" : "edited";
 
-    changes.push({ owned, template, state, lines: changedLines(old, readFileSync(join(project, template), "utf8")) });
+    changes.push({ owned, template, state, lines: changedLines(old, readProjectText(project, template)).map(showSafely) });
   }
 
   return changes;
@@ -142,6 +140,37 @@ export function changedLines(before: string, after: string): string[] {
   }
 
   return lines;
+}
+
+/** A file larger than this is not compared line by line, and not printed. */
+export const LARGEST_SHOWN_BYTES = 512 * 1024;
+
+/** A line longer than this is cut where it is printed. */
+const LONGEST_SHOWN_LINE = 300;
+
+/**
+ * The lines that differ between a template and a file of the project, for
+ * printing: text only. A file that is not text (it holds a zero byte) or is
+ * very large is not shown at all, and every character that would move the
+ * cursor, clear the screen or set a title is written out as what it is
+ * (`\\x1b`), so a file cannot write to the terminal it is listed on.
+ */
+export function differenceOf(template: string, yours: Buffer | string): string[] {
+  const text = typeof yours === "string" ? yours : yours.toString("utf8");
+
+  if (Buffer.byteLength(text) > LARGEST_SHOWN_BYTES || text.includes("\0")) {
+    return ["  (not shown: the project's file is not text, or is larger than 512 KB)"];
+  }
+
+  return changedLines(template, text).map(showSafely);
+}
+
+/** One line as it may be printed: no control character, and not longer than a screen can use. */
+export function showSafely(line: string): string {
+  // Every C0 and C1 control but the tab, and the delete character.
+  const plain = line.replace(/[\u0000-\u0008\u000a-\u001f\u007f-\u009f]/g, (control) => `\\x${control.charCodeAt(0).toString(16).padStart(2, "0")}`);
+
+  return plain.length <= LONGEST_SHOWN_LINE ? plain : `${plain.slice(0, LONGEST_SHOWN_LINE)}… (${plain.length - LONGEST_SHOWN_LINE} more characters)`;
 }
 
 /** How many lines of a difference are printed. A file that shares little with its template would fill the screen. */

@@ -176,6 +176,34 @@ addons/<name>/
   says which line to add by hand. The package itself is a starting file (its
   `package.json`, its source), so the project owns it from the first day.
 
+## Paths the installer reads
+
+A path the installer writes or removes has always gone through
+`assertInside`: relative, no `..`, and no link anywhere on the way. Since
+2026-10-06 a path it reads does too, through helpers beside it in
+`scripts/lib/install.mts` (`projectHas`, `readProjectFile`,
+`listProjectFolders`). The installer compares a project's own files with
+templates and prints the difference, so what it reads can reach a screen.
+
+- A file of the project that is a link, or is reached through one, is never
+  opened. An update that would compare it stops before anything is written;
+  `--compare` lists it as `refused`.
+- A unit's name is checked to be lower-case letters, digits and dashes
+  before it is joined into a path, and an option must be one the add-on
+  offers, whether it comes from the command line or from the project's
+  record.
+- A template's copy has a flat name (`tools/templates/<unit>.<path with __
+  for />.txt`). The name is only ever made from a path, never read back
+  into one, so no name can point outside. Two starting files that would
+  share a name are refused.
+- What is printed from a project's file is text only: a file with a zero
+  byte or larger than 512 KB is not shown, a difference is cut at thirty
+  lines, a line at 300 characters, and every control character is written
+  out (`\x1b`).
+
+`scripts/project-paths.test.mts` reads these scripts' own source and fails
+when one opens a project path any other way.
+
 ## A choice
 
 ```bash

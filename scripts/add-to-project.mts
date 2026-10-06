@@ -28,7 +28,7 @@
 // did not, because that file is not JSON or holds a value of another kind
 // there. The summary lists them under "Not merged".
 
-import { existsSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -48,7 +48,13 @@ import {
   installFiles,
   isRefusal,
   readFileSet,
+  listProjectFolders,
+  projectHas,
+  readProjectFile,
+  readProjectText,
+  readProjectTextIfThere,
   recordStarting,
+  removeProjectFile,
   renameScope,
   replaceProjectFile,
   rewriteScope,
@@ -56,8 +62,8 @@ import {
   writeProjectFile,
 } from "./lib/install.mts";
 import {
-  changedLines,
   describeOwnedChange,
+  differenceOf,
   findOwnedChanges,
   type OwnedChange,
   readTemplates,
@@ -313,7 +319,7 @@ const PATCHED_SECTIONS = ["scripts", "dependencies", "devDependencies"] as const
 export function addToProject({ project, unit, force = false, scope, repository = REPOSITORY }: AddOptions): AddResult {
   const destination = resolve(project);
 
-  if (!existsSync(join(destination, "package.json"))) {
+  if (!projectHas(destination, "package.json")) {
     throw new InstallError(`${destination} has no package.json — it is not a project`);
   }
 
@@ -327,9 +333,14 @@ export function addToProject({ project, unit, force = false, scope, repository =
 
     const templates = withKitTemplates(files, repository, scope ?? scopeIfShared(destination));
 
+    // Each of these is read to be compared, and may be printed. Checked like a file that is written.
+    for (const { owned } of templates) {
+      assertInside(destination, owned);
+    }
+
     // Read before the update replaces them: the old text is what the new is compared with.
     const templatesBefore = readTemplates(destination, templates);
-    const gatesBefore = readGateList(readIfThere(join(destination, GATE_LIST)));
+    const gatesBefore = readGateList(readProjectTextIfThere(destination, GATE_LIST));
     const outcome = installFiles(destination, KIT, files, force);
     const gatesNow = readGateList(files.get(GATE_LIST)?.toString("utf8")) ?? {};
     const failsOn = (readGateList(files.get(GATE_FAILS_ON)?.toString("utf8")) ?? {}) as unknown as Record<string, string>;
@@ -347,7 +358,7 @@ export function addToProject({ project, unit, force = false, scope, repository =
         // A file the setup has just written from the new template has nothing left to change.
         .filter(({ owned }) => !setup.created.includes(owned))
         // A package of the starter's that this project does not have is not a file it lacks.
-        .filter(({ owned, state }) => state !== "never-seen" || templates.every((template) => template.owned !== owned || template.onlyIn === undefined || existsSync(join(destination, template.onlyIn)))),
+        .filter(({ owned, state }) => state !== "never-seen" || templates.every((template) => template.owned !== owned || template.onlyIn === undefined || projectHas(destination, template.onlyIn))),
       // A project whose kit had no list has nothing to compare with. Every
       // gate is named then, and the summary says why: one of them may fail on
       // code that was never held to it, and silence would leave that to the gate run.
@@ -368,8 +379,8 @@ export interface Comparison {
   owned: string;
   /** Where the project keeps the unit's copy of the template. Undefined for a file that is not text: no copy is kept. */
   template?: string;
-  /** `absent`: the project has no such file. */
-  state: "same" | "differs" | "absent";
+  /** `absent`: the project has no such file. `refused`: it is a link, or is reached through one, and was not opened. */
+  state: "same" | "differs" | "absent" | "refused";
   /** For a text file that differs: `- ` a line only the template has, `+ ` a line only the project's file has. */
   lines: string[];
   /** True when the project's copy of the template is not the one this repository ships now: the unit has an update. */
@@ -388,7 +399,7 @@ export interface Comparison {
 export function compareWithTemplates({ project, unit, scope, repository = REPOSITORY }: Omit<AddOptions, "unit" | "force"> & { unit?: string }): Comparison[] {
   const destination = resolve(project);
 
-  if (!existsSync(join(destination, "package.json"))) {
+  if (!projectHas(destination, "package.json")) {
     throw new InstallError(`${destination} has no package.json — it is not a project`);
   }
 
@@ -405,26 +416,46 @@ export function compareWithTemplates({ project, unit, scope, repository = REPOSI
 
     return [...shipped].map(([owned, content]): Comparison => {
       const template = templates.find((candidate) => candidate.owned === owned)?.template;
-      const file = join(destination, owned);
-      const templateIsOlder = template !== undefined && readIfThere(join(destination, template)) !== content.toString("utf8");
 
-      if (!existsSync(file)) {
+      // A file that is a link, or is reached through one, is not opened: what it points at is not the project's to show.
+      if (isRefused(destination, owned) || (template !== undefined && isRefused(destination, template))) {
+        return { unit: name, owned, ...(template === undefined ? {} : { template }), state: "refused", lines: [], templateIsOlder: false };
+      }
+
+      const templateIsOlder = template !== undefined && readProjectTextIfThere(destination, template) !== content.toString("utf8");
+
+      if (!projectHas(destination, owned)) {
         return { unit: name, owned, ...(template === undefined ? {} : { template }), state: "absent", lines: [], templateIsOlder };
       }
 
       // A text file is compared without the sections this script appends to it itself.
-      const yours = template === undefined ? readFileSync(file) : Buffer.from(withoutAddonSections(readFileSync(file, "utf8")));
+      const yours = template === undefined ? readProjectFile(destination, owned) : Buffer.from(withoutAddonSections(readProjectText(destination, owned)));
 
       return {
         unit: name,
         owned,
         ...(template === undefined ? {} : { template }),
         state: yours.equals(content) ? "same" : "differs",
-        lines: template === undefined || yours.equals(content) ? [] : changedLines(content.toString("utf8"), yours.toString("utf8")),
+        lines: template === undefined || yours.equals(content) ? [] : differenceOf(content.toString("utf8"), yours),
         templateIsOlder,
       };
     });
   });
+}
+
+/** True when the installer would refuse to open `path`: it leaves the project, or reaches a file through a link. */
+function isRefused(project: string, path: string): boolean {
+  try {
+    assertInside(project, path);
+
+    return false;
+  } catch (error) {
+    if (error instanceof InstallError) {
+      return true;
+    }
+
+    throw error;
+  }
 }
 
 interface ShippedTemplates {
@@ -437,7 +468,7 @@ function readKitTemplates(destination: string, repository: string, scope: string
   const files = readFileSet(join(repository, "kit"), "tools/arch", (path) => SKIPPED_IN_KIT.test(path));
   const templates = withKitTemplates(files, repository, scope ?? scopeIfShared(destination))
     // A package of the starter's that this project does not have is not a file it lacks.
-    .filter(({ onlyIn }) => onlyIn === undefined || existsSync(join(destination, onlyIn)));
+    .filter(({ onlyIn }) => onlyIn === undefined || projectHas(destination, onlyIn));
 
   return { shipped: new Map(templates.flatMap(({ owned, template }) => (files.has(template) ? [[owned, files.get(template) as Buffer]] : []))), templates };
 }
@@ -445,7 +476,7 @@ function readKitTemplates(destination: string, repository: string, scope: string
 function readAddonTemplates(destination: string, unit: string, repository: string, scope: string | undefined): ShippedTemplates {
   const addon = join(repository, "addons", unit);
 
-  if (!existsSync(join(addon, "addon.json"))) {
+  if (!isUnitName(unit) || !existsSync(join(addon, "addon.json"))) {
     throw new InstallError(`there is no add-on called "${unit}" in this repository, so there is no template to compare with`);
   }
 
@@ -470,6 +501,7 @@ export function describeComparison(comparisons: Comparison[]): string {
     const ofUnit = comparisons.filter((comparison) => comparison.unit === unit);
     const differing = ofUnit.filter(({ state }) => state === "differs");
     const absent = ofUnit.filter(({ state }) => state === "absent");
+    const refused = ofUnit.filter(({ state }) => state === "refused");
     const older = ofUnit.some(({ templateIsOlder }) => templateIsOlder);
 
     return [
@@ -481,6 +513,7 @@ export function describeComparison(comparisons: Comparison[]): string {
           : [`  differs  ${owned} — template: ${template}`, ...showLines(differences, template, owned)],
       ),
       ...absent.map(({ owned, template }) => `  absent   ${owned}${template === undefined ? "" : ` — template: ${template}`}`),
+      ...refused.map(({ owned }) => `  refused  ${owned} — it is a link, or is reached through one, so it was not opened and is not compared`),
     ];
   });
 
@@ -490,6 +523,11 @@ export function describeComparison(comparisons: Comparison[]): string {
     "In a difference, `-` is a line only the template has and `+` a line only this project's file has. A difference is not a fault: these files are the project's to change.",
     "Nothing was written.",
   ].join("\n");
+}
+
+/** A unit's name, or an option's: lower-case letters, digits and dashes. Nothing that could be a step in a path. */
+export function isUnitName(name: string): boolean {
+  return /^[a-z0-9][a-z0-9-]*$/.test(name);
 }
 
 /** `ci-security:renovate` → the add-on and the option asked for. */
@@ -503,11 +541,12 @@ function addAddon(destination: string, project: string, asked: string, force: bo
   const { name: unit, option } = parseUnit(asked);
   const addon = join(repository, "addons", unit);
 
-  if (!existsSync(join(addon, "addon.json"))) {
+  // A name is a folder of `addons/`, and is checked to be one before it is joined into a path: `../x` is no add-on.
+  if (!isUnitName(unit) || !existsSync(join(addon, "addon.json"))) {
     throw new InstallError(`there is no add-on called "${unit}" — available: ${listAddons(repository).map((entry) => entry.name).join(", ") || "none"}`);
   }
 
-  if (!existsSync(join(destination, "tools", "arch", "gates", "run.mts"))) {
+  if (!projectHas(destination, "tools/arch/gates/run.mts")) {
     throw new InstallError(`${destination} does not have the kit (no tools/arch) — add it first: add-to-project.mts ${project} kit`);
   }
 
@@ -532,7 +571,9 @@ function addAddon(destination: string, project: string, asked: string, force: bo
   // A project that has the add-on and no recorded option took it before the
   // choice existed, and so has what is now the default.
   const chosen = chooseOption(manifest, option, installedChoice(destination, unit));
-  const previous = firstTime ? undefined : (installedChoice(destination, unit) ?? manifest.choice?.default);
+  // What the record says the project has is a name the project wrote down. It names a folder only if it is an option.
+  const recorded = installedChoice(destination, unit);
+  const previous = firstTime ? undefined : recorded !== undefined && Object.hasOwn(manifest.choice?.options ?? {}, recorded) ? recorded : manifest.choice?.default;
   const optionFiles = chosen === undefined ? new Map<string, Buffer>() : readOption(chosen);
   const left = previous === undefined || previous === chosen ? [] : [...keepTemplates(new Map(), readOption(previous), unit)];
 
@@ -567,14 +608,14 @@ function addAddon(destination: string, project: string, asked: string, force: bo
   // The files of the option the project is leaving. One it never changed goes;
   // one it changed is its own work, so it stays and the project is told.
   for (const { owned, template } of left) {
-    if (!existsSync(join(destination, owned))) {
+    if (!projectHas(destination, owned)) {
       continue;
     }
 
     const installed = templatesBefore.get(template);
 
-    if (installed === readFileSync(join(destination, owned), "utf8")) {
-      rmSync(join(destination, owned));
+    if (installed === readProjectText(destination, owned)) {
+      removeProjectFile(destination, owned);
       choiceRemoved.push(owned);
     } else {
       const why = installed === undefined ? "No copy of it as it was installed is kept here, so whether it was changed cannot be told" : "It was changed in this project";
@@ -604,7 +645,7 @@ function addAddon(destination: string, project: string, asked: string, force: bo
   const unseen: string[] = [];
 
   for (const [path, content] of starting) {
-    if (existsSync(join(destination, path))) {
+    if (projectHas(destination, path)) {
       continue;
     }
 
@@ -621,7 +662,7 @@ function addAddon(destination: string, project: string, asked: string, force: bo
   const retired: string[] = [];
 
   for (const [path, { replacedBy, note }] of Object.entries(manifest.retiredFiles ?? {})) {
-    if (!existsSync(join(destination, path))) {
+    if (!projectHas(destination, path)) {
       continue;
     }
 
@@ -631,7 +672,7 @@ function addAddon(destination: string, project: string, asked: string, force: bo
     }
 
     const content = starting.get(replacedBy);
-    const written = content !== undefined && !existsSync(join(destination, replacedBy));
+    const written = content !== undefined && !projectHas(destination, replacedBy);
 
     if (written) {
       writeProjectFile(destination, replacedBy, content);
@@ -659,7 +700,7 @@ function addAddon(destination: string, project: string, asked: string, force: bo
   const kept = Object.entries(handovers).flatMap(([path, { to, note }]) => {
     const copy = savedCopyOf(unit, path);
 
-    if (!existsSync(join(destination, copy))) {
+    if (!projectHas(destination, copy)) {
       return [];
     }
 
@@ -756,7 +797,7 @@ const ARCHITECTURE_CONFIG = "architecture.config.mts";
  */
 function assertKitHasGates(destination: string, project: string, manifest: AddonManifest): void {
   const wanted = manifest.requiresGates ?? [];
-  const has = readGateList(readIfThere(join(destination, GATE_LIST))) ?? {};
+  const has = readGateList(readProjectTextIfThere(destination, GATE_LIST)) ?? {};
   const missing = wanted.filter((gate) => !(gate in has));
 
   if (missing.length > 0) {
@@ -783,8 +824,7 @@ function planArchitecture(project: string, manifest: AddonManifest): Architectur
 
   assertInside(project, ARCHITECTURE_CONFIG);
 
-  const file = join(project, ARCHITECTURE_CONFIG);
-  const { text, added, byHand } = declarePackages(existsSync(file) ? readFileSync(file, "utf8") : "", packages);
+  const { text, added, byHand } = declarePackages(readProjectTextIfThere(project, ARCHITECTURE_CONFIG) ?? "", packages);
 
   return {
     text,
@@ -822,10 +862,9 @@ function planHostSettings(project: string, manifest: AddonManifest): SettingsPla
   for (const [path, wanted] of Object.entries(manifest.hostSettings ?? {})) {
     assertInside(project, path);
 
-    const file = join(project, path);
-
     try {
-      const current = existsSync(file) ? parseSettings(readFileSync(file, "utf8"), path) : {};
+      const settings = readProjectTextIfThere(project, path);
+      const current = settings === undefined ? {} : parseSettings(settings, path);
       const { merged, added, skipped, changed, unknown } = mergeSettings(current, wanted, manifest.retiredHookCommands, path);
 
       if (added.length > 0 || changed.length > 0) {
@@ -885,7 +924,7 @@ function setUpKit(project: string, repository: string): Pick<AddResult, "created
   const notes: string[] = [];
   const packageChanges: string[] = [];
 
-  if (!existsSync(join(project, "architecture.config.mts")) && !existsSync(join(project, "architecture.config.mjs"))) {
+  if (!projectHas(project, "architecture.config.mts") && !projectHas(project, "architecture.config.mjs")) {
     writeProjectFile(project, "architecture.config.mts", readFileSync(join(repository, "kit", "architecture.config.example.mts"), "utf8"));
     created.push("architecture.config.mts");
     notes.push("architecture.config.mts is an example: list this project's own packages in it, each with its role");
@@ -895,14 +934,13 @@ function setUpKit(project: string, repository: string): Pick<AddResult, "created
     ["claude.settings.json", ".claude/settings.json"],
     ["codex.hooks.json", ".codex/hooks.json"],
   ] as const) {
-    const file = join(project, target);
     const source = join(repository, "kit", "hooks", template);
 
     if (!existsSync(source)) {
       continue;
     }
 
-    if (!existsSync(file)) {
+    if (!projectHas(project, target)) {
       if (writeUnlessProtected(project, target, readFileSync(source, "utf8"))) {
         created.push(target);
       } else {
@@ -910,13 +948,12 @@ function setUpKit(project: string, repository: string): Pick<AddResult, "created
           `${target} could not be written: the host this ran under keeps that folder read-only. Outside it, copy tools/arch/hooks/${template} to ${target}; until then the hooks do not run there`,
         );
       }
-    } else if (!readFileSync(file, "utf8").includes("tools/arch/hooks/")) {
+    } else if (!readProjectText(project, target).includes("tools/arch/hooks/")) {
       notes.push(`${target} exists and does not run the hooks: merge in the two entries from tools/arch/hooks/${template}`);
     }
   }
 
-  const manifestFile = join(project, "package.json");
-  const manifest = JSON.parse(readFileSync(manifestFile, "utf8")) as PackageJson;
+  const manifest = JSON.parse(readProjectText(project, "package.json")) as PackageJson;
 
   if (manifest.scripts?.gates === undefined) {
     manifest.scripts = { ...manifest.scripts, gates: "node tools/arch/gates/run.mts" };
@@ -964,16 +1001,13 @@ function setUpKit(project: string, repository: string): Pick<AddResult, "created
     }
   }
 
-  if (!["eslint.config.mts", "eslint.config.ts", "eslint.config.mjs", "eslint.config.js"].some((name) => existsSync(join(project, name)))) {
+  if (!["eslint.config.mts", "eslint.config.ts", "eslint.config.mjs", "eslint.config.js"].some((name) => projectHas(project, name))) {
     notes.push("for the lint rules, add an eslint.config.mts that spreads architectureLint() from ./tools/arch/eslint.config.mts (see tools/arch/README.md)");
   }
 
   return { created, notes, packageChanges };
 }
 
-function readIfThere(file: string): string | undefined {
-  return existsSync(file) ? readFileSync(file, "utf8") : undefined;
-}
 
 /** Gate → the options it reads. Undefined when there is no list, or it cannot be read as one. */
 function readGateList(text: string | undefined): Record<string, string[]> | undefined {
@@ -1010,6 +1044,12 @@ function keepTemplates(files: Map<string, Buffer>, starting: Map<string, Buffer>
   for (const [owned, content] of starting) {
     if (TEXT_STARTING_FILE.test(owned)) {
       const template = `tools/templates/${unit}.${owned.replaceAll("/", "__")}.txt`;
+      const other = templates.find((candidate) => candidate.template === template);
+
+      // The copy's name is flat, so two paths can come to one name (`a__b/c` and `a/b__c`). The name is never read back into a path; two files in one copy would be compared with the wrong text.
+      if (other !== undefined) {
+        throw new InstallError(`the add-on "${unit}" cannot be installed: its starting files ${other.owned} and ${owned} would both keep their template as ${template}. Rename one of them`);
+      }
 
       files.set(template, content);
       templates.push({ owned, template });
@@ -1070,7 +1110,7 @@ function detectScope(project: string): string {
   const scopes = new Set<string>();
 
   for (const directory of expandPackagePath(project, "packages/*")) {
-    const { name } = JSON.parse(readFileSync(join(project, directory, "package.json"), "utf8")) as { name?: string };
+    const { name } = JSON.parse(readProjectText(project, `${directory}/package.json`)) as { name?: string };
     const scope = /^(@[^/]+)\//.exec(name ?? "")?.[1];
 
     if (scope !== undefined) {
@@ -1114,14 +1154,9 @@ function expandPackagePath(project: string, path: string): string[] {
   }
 
   const parent = path.slice(0, -2);
-  const directory = join(project, parent);
 
-  if (!existsSync(directory)) {
-    return [];
-  }
-
-  return readdirSync(directory)
-    .filter((name) => statSync(join(directory, name)).isDirectory() && existsSync(join(directory, name, "package.json")))
+  return listProjectFolders(project, parent)
+    .filter((name) => projectHas(project, `${parent}/${name}/package.json`))
     .map((name) => `${parent}/${name}`);
 }
 
@@ -1140,14 +1175,12 @@ function planPackageChanges(project: string, manifest: AddonManifest, force: boo
   function load(directory: string): PackageJson {
     const path = join(directory, "package.json");
 
-    if (!existsSync(join(project, path))) {
+    if (!projectHas(project, path)) {
       throw new InstallError(`the add-on "${manifest.name}" needs ${path}, which this project does not have`);
     }
 
-    assertInside(project, path);
-
     if (!loaded.has(path)) {
-      loaded.set(path, JSON.parse(readFileSync(join(project, path), "utf8")) as PackageJson);
+      loaded.set(path, JSON.parse(readProjectText(project, path)) as PackageJson);
     }
 
     return loaded.get(path) as PackageJson;
@@ -1209,11 +1242,10 @@ function planPackageChanges(project: string, manifest: AddonManifest, force: boo
 }
 
 function writeAgentsSection(project: string, unit: string, section: string): AddResult["agents"] {
-  const file = join(project, "AGENTS.md");
   const start = `<!-- add-on: ${unit} -->`;
   const end = `<!-- /add-on: ${unit} -->`;
   const block = `${start}\n${section.trim()}\n${end}`;
-  const original = existsSync(file) ? readFileSync(file, "utf8") : "";
+  const original = readProjectTextIfThere(project, "AGENTS.md") ?? "";
   const from = original.indexOf(start);
   const to = original.indexOf(end);
 
