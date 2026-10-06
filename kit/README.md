@@ -553,18 +553,42 @@ It runs the script through the quiet runner (next section), so a red gate
 sends back the stage that failed. The end of a loud run is whatever was
 printed last, which is often a passing stage.
 
+**Which tree it judges.** The one the session stops in. The payload's `cwd`
+follows the agent into a worktree; `CLAUDE_PROJECT_DIR` stays at the checkout
+the session started in. The hook once read the variable first, so an agent
+that worked in `<project>-worktrees/<name>` was judged on the primary
+checkout beside it: red worktree, green primary, and it could stop. Now the
+root is found from `cwd`: the top of its git checkout, and from there the
+nearest folder upward whose `package.json` has a gate script. A stop from
+inside a package folder therefore runs the project's gate; before, with no
+`CLAUDE_PROJECT_DIR` (as under Codex), it ran none. The variable is read only
+when the payload names no folder.
+
+- A session that edited two checkouts is judged on the one it stops in. The
+  other is not looked at.
+- The gate is run by the copy of the runner beside the hook, which in Claude
+  Code is the primary checkout's, on the tree found from `cwd`.
+
 The full gate takes minutes, so the hook does not run it on a tree that has
 already passed. After a green run it stores a hash in
 `node_modules/.cache/arch/`. While the hash is unchanged the agent finishes at
 once; after any edit it is held to the whole gate.
 
 The hash covers what the verdict is taken to depend on: every file git does
-not ignore, tracked or not; the `.env` files it does ignore; and the version
-of Node.
+not ignore, tracked or not; the `.env` files it does ignore; the version of
+Node; and where the tree is. So a record is one checkout's own: a worktree
+with the same files as a green primary checkout is still judged, and a
+`node_modules` that is a link to another checkout's is not read through.
 
 - Where that cannot be established the gate runs every time: outside a git
-  repository, and in a tree that holds a repository of its own (a submodule, a
-  nested clone), whose files git lists as one entry.
+  repository, where a file cannot be read, and in a tree that holds a
+  repository of its own (a submodule, a nested clone), whose files git lists
+  as one entry.
+- **What it cannot judge it sends back.** A `package.json` that is not JSON,
+  a runner that cannot start, anything that throws: the answer is "nothing is
+  verified", not silence. Apart from the second stop below, the agent
+  finishes without a green gate in two cases only: no folder from `cwd`
+  upward has a gate script, or the tree is on record as green.
 - **It is a guard against stopping early, not a lock.** The record is a file.
   An agent that sets out to cheat can write it, as it can rewrite the
   `gate:full` script or the hook itself. CI, which runs the same script from
@@ -619,6 +643,20 @@ gate:full is red.
   project (`pnpm gate:fast`) is replaced by that chain's parts. A command an
   add-on joined to a gate is a stage like any other, and there is still one
   definition of the gate.
+- **It splits a chain only when no part can reach the next through the
+  shell.** Each stage runs in a shell of its own. It once split every chain:
+  `cd sub && node check.mjs` then ran the check in the wrong folder,
+  `export STRICT=1 && …` lost the variable, and both exited 0 where pnpm
+  exits 1, which the stop hook remembered as a green tree. Now every part
+  must start with a program, after any `NAME=value` in front: a word the
+  stage's own shell finds as a file on the `PATH` (`pnpm`, `node`, what
+  `node_modules/.bin` holds). The shell is asked with `command -v`; no list
+  of its builtins is kept, so an unknown word is never taken for harmless.
+  `cd`, `export`, `set`, `.`, `eval`, `exec`, a bare `NAME=value`, `!`, `{`,
+  `time`, a function, and a chain that reads `$?`, `$_`, `$!` or `${…}`: the
+  script runs whole, in one shell, as pnpm runs it. That is only less exact
+  about which part failed. A test runs each of these by pnpm and by the
+  runner and compares the exit codes.
 - **It runs what pnpm would run, or it lets pnpm run it.** A part is opened
   up only when that is certain: `pnpm run <name>` with nothing after it, or
   `pnpm <name>` where the name holds a colon. `pnpm audit` is pnpm's own

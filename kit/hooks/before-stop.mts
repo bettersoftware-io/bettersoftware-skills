@@ -11,6 +11,20 @@
 // the agent is the end of that output, so it is the failure, and not the
 // passing tests that happened to be printed last.
 //
+// Which project: the one the session is working in when it stops. That is
+// the payload's `cwd`, which follows the agent into a worktree, and not
+// `CLAUDE_PROJECT_DIR`, which stays at the checkout the session started in.
+// An agent that worked in `<project>-worktrees/<name>` is judged on that
+// worktree, not on the primary checkout beside it, which it never touched
+// and which is green. From `cwd` the root is the top of its git checkout,
+// and from there the nearest folder upward whose package.json has a gate
+// script: a stop from inside a package folder runs the project's gate, not
+// none. `CLAUDE_PROJECT_DIR` is read only when the payload names no folder.
+// A session that edited two checkouts is judged on the one it stops in.
+//
+// The gate is run by the copy of the quiet runner beside this file, on the
+// tree found above.
+//
 // The hook always answers by itself. The host gives it ten minutes and then
 // kills it, and a hook that was killed blocks nothing. So the gate is told to
 // stop at nine minutes, killed if it does not, and left behind if even that
@@ -33,12 +47,18 @@
 // hook; it is let through then, so a gate the agent cannot fix ends in a
 // report to the user and never in a loop.
 //
+// Apart from that second stop, the agent finishes without a gate having
+// passed in two cases only: no folder from `cwd` upward has a gate script,
+// or the tree is the one a green run is on record for. Anything that goes
+// wrong on the way (a package.json that is not JSON, a file that cannot be
+// read) is sent back as "nothing is verified", never passed over.
+//
 // Works under Claude Code and Codex: both send `stop_hook_active` and both read
 // `{"decision":"block","reason":…}`.
 
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { isMainModule, isPlainPath } from "../gates/lib/files.mts";
@@ -83,24 +103,32 @@ export async function judgeStop(
   payload: StopPayload,
   run: (root: string, script: string) => GateRun | Promise<GateRun> = runGate,
 ): Promise<string | undefined> {
-  if (payload.stop_hook_active) {
+  // Only the literal: a payload that says "false" in quotes is not a second stop.
+  if (payload.stop_hook_active === true) {
     return undefined;
   }
 
-  const root = process.env.CLAUDE_PROJECT_DIR || payload.cwd || process.cwd();
-  const manifest = join(root, "package.json");
+  try {
+    return await judgeTree(payload, run);
+  } catch (error) {
+    // Whatever failed, no gate passed. Saying nothing here would let the agent finish on that.
+    return [
+      "The stop hook could not judge this project, so nothing is verified. That is not a pass.",
+      "Run the gate yourself and report what it says; if the reason below is something you changed, put it right first.",
+      "",
+      error instanceof Error ? error.message : String(error),
+    ].join("\n");
+  }
+}
 
-  if (!existsSync(manifest)) {
+async function judgeTree(payload: StopPayload, run: (root: string, script: string) => GateRun | Promise<GateRun>): Promise<string | undefined> {
+  const project = findProject(typeof payload.cwd === "string" && payload.cwd !== "" ? payload.cwd : process.env.CLAUDE_PROJECT_DIR || process.cwd());
+
+  if (project === undefined) {
     return undefined;
   }
 
-  const { scripts } = JSON.parse(readFileSync(manifest, "utf8")) as { scripts?: Record<string, string> };
-  const script = SCRIPTS.find((candidate) => scripts?.[candidate]);
-
-  if (script === undefined) {
-    return undefined;
-  }
-
+  const { root, script } = project;
   const tree = hashWorkingTree(root);
 
   if (tree !== undefined && tree === readLastGreen(root)) {
@@ -135,6 +163,45 @@ export async function judgeStop(
     "",
     output.slice(-TAIL_CHARACTERS),
   ].join("\n");
+}
+
+/**
+ * The project a folder belongs to, and the gate to hold it to: from the top
+ * of the folder's git checkout (the folder itself where there is no git),
+ * the nearest folder upward whose package.json has a gate script. Undefined
+ * when there is none. Throws when a package.json on the way cannot be read:
+ * a gate may be in it.
+ */
+export function findProject(folder: string): { root: string; script: string } | undefined {
+  const asked = spawnSync("git", ["rev-parse", "--show-toplevel"], { cwd: folder, encoding: "utf8" });
+  const top = asked.status === 0 ? asked.stdout.replace(/\n$/, "") : "";
+  let current = top === "" ? folder : top;
+
+  for (;;) {
+    const manifest = join(current, "package.json");
+
+    if (existsSync(manifest)) {
+      let scripts: unknown;
+
+      try {
+        ({ scripts } = JSON.parse(readFileSync(manifest, "utf8")) as { scripts?: unknown });
+      } catch (error) {
+        throw new Error(`${manifest} could not be read as JSON, so the gate script could not be looked up (${error instanceof Error ? error.message : String(error)})`);
+      }
+
+      const script = SCRIPTS.find((candidate) => typeof scripts === "object" && scripts !== null && Boolean((scripts as Record<string, unknown>)[candidate]));
+
+      if (script !== undefined) {
+        return { root: current, script };
+      }
+    }
+
+    if (dirname(current) === current) {
+      return undefined;
+    }
+
+    current = dirname(current);
+  }
 }
 
 /** The quiet runner, in the copy of the kit this hook is in. */
@@ -213,14 +280,26 @@ const ENVIRONMENT_FILE = /(^|\/)\.env(\.[^/]*)?$/;
 /**
  * One hash over everything a gate's verdict is taken to depend on: the path
  * and content of every file git does not ignore, tracked or not; the
- * environment files it does ignore; and the version of Node.
+ * environment files it does ignore; and the version of Node. And where the
+ * tree is: a record made for one checkout must never speak for another, even
+ * one with the same files in it, since what git ignores (what is installed,
+ * what is built) is each checkout's own.
  *
- * Undefined when that cannot be established: git cannot list the files, or
- * the tree holds a repository of its own (a submodule, a nested clone), whose
- * files git lists as one entry. Then nothing is remembered and the gate runs
- * every time.
+ * Undefined when that cannot be established: git cannot list the files, a
+ * file cannot be read, or the tree holds a repository of its own (a
+ * submodule, a nested clone), whose files git lists as one entry. Then
+ * nothing is remembered and the gate runs every time.
  */
 function hashWorkingTree(root: string): string | undefined {
+  try {
+    return hashFiles(root);
+  } catch {
+    // A file that went away or cannot be read between the listing and the reading.
+    return undefined;
+  }
+}
+
+function hashFiles(root: string): string | undefined {
   const judged = listFiles(root, ["--cached", "--others", "--exclude-standard"]);
   // `--directory` names an ignored folder once and does not walk it, so this never reads node_modules.
   const ignored = listFiles(root, ["--others", "--ignored", "--exclude-standard", "--directory"]);
@@ -229,7 +308,7 @@ function hashWorkingTree(root: string): string | undefined {
     return undefined;
   }
 
-  const hash = createHash("sha256").update(`${process.version} ${process.platform} ${process.arch}\0`);
+  const hash = createHash("sha256").update(`${process.version} ${process.platform} ${process.arch}\0${realpathSync(root)}\0`);
 
   for (const path of [...judged, ...ignored.filter((entry) => ENVIRONMENT_FILE.test(entry))].sort()) {
     const file = lstatSync(join(root, path), { throwIfNoEntry: false });
@@ -268,7 +347,15 @@ function listFiles(root: string, which: string[]): string[] | undefined {
 function readLastGreen(root: string): string | undefined {
   const file = join(root, LAST_GREEN);
 
-  return existsSync(file) ? readFileSync(file, "utf8").trim() : undefined;
+  // Never through a symbolic link, as it is never written through one: a
+  // `node_modules` that links to another checkout's would hand over that
+  // checkout's record.
+  try {
+    return isPlainPath(root, LAST_GREEN) && existsSync(file) ? readFileSync(file, "utf8").trim() : undefined;
+  } catch {
+    // A record that cannot be read is no record.
+    return undefined;
+  }
 }
 
 function writeLastGreen(root: string, tree: string): void {
@@ -288,8 +375,19 @@ function writeLastGreen(root: string, tree: string): void {
   }
 }
 
+/** What the host sent. A payload that cannot be read is an empty one: the gate is then run, never skipped. */
+function readPayload(): StopPayload {
+  try {
+    const payload: unknown = JSON.parse(readFileSync(0, "utf8") || "{}");
+
+    return typeof payload === "object" && payload !== null ? (payload as StopPayload) : {};
+  } catch {
+    return {};
+  }
+}
+
 if (isMainModule(import.meta.url)) {
-  const reason = await judgeStop(JSON.parse(readFileSync(0, "utf8") || "{}") as StopPayload);
+  const reason = await judgeStop(readPayload());
   const reply = reason ? `${JSON.stringify({ decision: "block", reason })}\n` : "";
 
   // Exits by itself once the reply is written: a gate that was left behind must not keep the hook alive.

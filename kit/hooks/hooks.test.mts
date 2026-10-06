@@ -1,12 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { editedFilesOf, judgeEdit } from "./after-edit.mts";
-import { type GateRun, judgeStop, runGate, type RunLimits } from "./before-stop.mts";
+import { findProject, type GateRun, judgeStop, runGate, type RunLimits } from "./before-stop.mts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const broken = join(here, "..", "gates", "fixtures", "broken");
@@ -465,6 +465,292 @@ describe("a tree that has already passed", () => {
     expect(existsSync(join(project, "node_modules"))).toBe(false);
   });
 });
+
+// The agent-workflow add-on has an agent work in `<project>-worktrees/<name>`.
+// Claude Code keeps CLAUDE_PROJECT_DIR at the checkout the session started in
+// and moves the payload's `cwd`. The hook once read the variable first: a red
+// worktree beside a green primary checkout was then judged green.
+const LAST_GREEN_RECORD = "node_modules/.cache/arch/last-green-tree";
+
+describe("which tree is judged", () => {
+  const green = () => ({ status: 0, output: "all gates passed." });
+
+  it("is the worktree the session stops in, not the checkout the session started in", async () => {
+    const { primary, worktree } = createProjectWithWorktree();
+    const asked: string[] = [];
+
+    vi.stubEnv("CLAUDE_PROJECT_DIR", primary);
+
+    const reason = await judgeStop({ cwd: worktree }, (root, script) => {
+      asked.push(`${root} ${script}`);
+
+      return { status: 1, output: "FAIL in the worktree" };
+    });
+
+    expect(asked).toEqual([`${worktree} gate:full`]);
+    expect(reason).toContain("FAIL in the worktree");
+  });
+
+  it("is the top of that worktree when the session stops in a folder inside it", async () => {
+    const { primary, worktree } = createProjectWithWorktree();
+    const roots: string[] = [];
+
+    vi.stubEnv("CLAUDE_PROJECT_DIR", primary);
+    mkdirSync(join(worktree, "packages/web/src"), { recursive: true });
+    await judgeStop({ cwd: join(worktree, "packages/web/src") }, (root) => {
+      roots.push(root);
+
+      return green();
+    });
+
+    expect(roots).toEqual([worktree]);
+  });
+
+  it("blocks on a red worktree beside a green primary checkout, run as a command the way Claude Code starts it", () => {
+    const { primary, worktree } = createProjectWithWorktree();
+
+    writeFileSync(join(worktree, "check.mjs"), "console.log('red in the worktree'); process.exit(1);\n");
+
+    const inWorktree = runHook({ cwd: worktree, hook_event_name: "Stop", stop_hook_active: false, permission_mode: "default", session_id: "s" }, { CLAUDE_PROJECT_DIR: primary });
+    const inPrimary = runHook({ cwd: primary, hook_event_name: "Stop", stop_hook_active: false, permission_mode: "default", session_id: "s" }, { CLAUDE_PROJECT_DIR: primary });
+
+    expect(JSON.parse(inWorktree.stdout)).toEqual({ decision: "block", reason: expect.stringContaining("red in the worktree") });
+    expect(inPrimary.stdout).toBe("");
+    expect(inPrimary.status).toBe(0);
+  });
+
+  it("is the project, when the session stops in a package folder whose package.json has no gate", async () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const roots: string[] = [];
+
+    mkdirSync(join(project, "packages/web"), { recursive: true });
+    writeFileSync(join(project, "packages/web/package.json"), JSON.stringify({ name: "web", scripts: { test: "vitest run" } }));
+    await judgeStop({ cwd: join(project, "packages/web") }, (root) => {
+      roots.push(root);
+
+      return green();
+    });
+
+    expect(roots).toEqual([realpathSync(project)]);
+  });
+
+  it("is the project even when the package folder has a gate script of its own: the search starts at the top of the checkout", async () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const asked: string[] = [];
+
+    mkdirSync(join(project, "packages/web"), { recursive: true });
+    writeFileSync(join(project, "packages/web/package.json"), JSON.stringify({ name: "web", scripts: { "gate:fast": "true" } }));
+    await judgeStop({ cwd: join(project, "packages/web") }, (root, script) => {
+      asked.push(`${root} ${script}`);
+
+      return green();
+    });
+
+    expect(asked).toEqual([`${realpathSync(project)} gate:full`]);
+  });
+
+  it("is the project for a package folder where there is no git either: the nearest folder upward with a gate", async () => {
+    const project = createProject({ "gate:fast": "true" });
+    const asked: string[] = [];
+
+    mkdirSync(join(project, "packages/web/src"), { recursive: true });
+    writeFileSync(join(project, "packages/web/package.json"), JSON.stringify({ name: "web", scripts: {} }));
+    await judgeStop({ cwd: join(project, "packages/web/src") }, (root, script) => {
+      asked.push(`${root} ${script}`);
+
+      return green();
+    });
+
+    expect(asked).toEqual([`${project} gate:fast`]);
+  });
+
+  it("is the nearest such folder, not one further up", () => {
+    const outer = createProject({ "gate:full": "true" });
+
+    mkdirSync(join(outer, "inner/deep"), { recursive: true });
+    writeFileSync(join(outer, "inner/package.json"), JSON.stringify({ scripts: { "gate:fast": "true" } }));
+
+    expect(findProject(join(outer, "inner/deep"))).toEqual({ root: join(outer, "inner"), script: "gate:fast" });
+    expect(findProject(outer)).toEqual({ root: outer, script: "gate:full" });
+  });
+
+  it.each([
+    ["Claude Code", { hook_event_name: "Stop", stop_hook_active: false, permission_mode: "default", session_id: "s", transcript_path: "/t.jsonl" }],
+    ["Codex", { hook_event_name: "Stop", stop_hook_active: false, session_id: "s", turn_id: "t", model: "m", last_assistant_message: "done" }],
+  ])("blocks on a red gate from a package folder with no gate of its own, under %s, with CLAUDE_PROJECT_DIR not set", (_host, fields) => {
+    const project = createGitProject({ "gate:full": "node -e \"console.log('red at the root'); process.exit(1)\"" });
+
+    mkdirSync(join(project, "packages/web"), { recursive: true });
+    writeFileSync(join(project, "packages/web/package.json"), JSON.stringify({ name: "web", scripts: { test: "true" } }));
+
+    const run = runHook({ cwd: join(project, "packages/web"), ...fields }, {});
+
+    expect(run.status).toBe(0);
+    expect(JSON.parse(run.stdout)).toEqual({ decision: "block", reason: expect.stringContaining("red at the root") });
+  });
+
+  it("falls back on CLAUDE_PROJECT_DIR only when the payload names no folder", async () => {
+    const project = createProject({ "gate:fast": "true" });
+    const other = createProject({ "gate:fast": "true" });
+    const roots: string[] = [];
+    const record = (root: string): GateRun => {
+      roots.push(root);
+
+      return green();
+    };
+
+    vi.stubEnv("CLAUDE_PROJECT_DIR", project);
+    await judgeStop({}, record);
+    await judgeStop({ cwd: "" }, record);
+    await judgeStop({ cwd: other }, record);
+
+    expect(roots).toEqual([project, project, other]);
+  });
+
+  it("does not take a green run in one checkout as a green run in another with the same files", async () => {
+    const { primary, worktree } = createProjectWithWorktree();
+    const gate = createCountedGate(green);
+
+    mkdirSync(join(worktree, "node_modules"));
+    mkdirSync(join(primary, "node_modules"));
+    await judgeStop({ cwd: primary }, gate.run);
+    await judgeStop({ cwd: primary }, gate.run);
+
+    expect(gate.runs()).toBe(1);
+
+    // The same files, the same record, in another place.
+    mkdirSync(join(worktree, "node_modules/.cache/arch"), { recursive: true });
+    writeFileSync(join(worktree, LAST_GREEN_RECORD), readFileSync(join(primary, LAST_GREEN_RECORD)));
+    await judgeStop({ cwd: worktree }, gate.run);
+
+    expect(gate.runs()).toBe(2);
+    expect(readFileSync(join(worktree, LAST_GREEN_RECORD), "utf8")).not.toBe(readFileSync(join(primary, LAST_GREEN_RECORD), "utf8"));
+  });
+
+  it("does not read the record of another checkout through a node_modules that is a link to it", async () => {
+    const { primary, worktree } = createProjectWithWorktree();
+    const gate = createCountedGate(() => ({ status: 1, output: "FAIL" }));
+
+    // A green run in the worktree leaves the worktree's own hash. It is moved to the primary checkout's record,
+    // and the worktree's node_modules becomes a link there: read through the link, the record would match.
+    mkdirSync(join(worktree, "node_modules"));
+    await judgeStop({ cwd: worktree }, () => ({ status: 0, output: "" }));
+    mkdirSync(join(primary, "node_modules/.cache/arch"), { recursive: true });
+    writeFileSync(join(primary, LAST_GREEN_RECORD), readFileSync(join(worktree, LAST_GREEN_RECORD)));
+    rmSync(join(worktree, "node_modules"), { recursive: true });
+    symlinkSync(join(primary, "node_modules"), join(worktree, "node_modules"));
+
+    expect(readFileSync(join(worktree, LAST_GREEN_RECORD), "utf8")).toMatch(/^[0-9a-f]{64}\n$/);
+    expect(await judgeStop({ cwd: worktree }, gate.run)).toContain("is red");
+    expect(gate.runs()).toBe(1);
+  });
+});
+
+// Apart from the documented second stop, the agent may finish without a gate
+// having passed only when there is no gate, or the tree is on record as green.
+describe("a stop the hook cannot judge", () => {
+  const green = () => ({ status: 0, output: "all gates passed." });
+
+  it("is sent back when the project's package.json is not JSON: a gate may be in it", async () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const gate = createCountedGate(green);
+
+    writeFileSync(join(project, "package.json"), '{ "scripts": { "gate:full": "false" }, }');
+
+    const reason = await judgeStop({ cwd: project }, gate.run);
+
+    expect(reason).toContain("The stop hook could not judge this project, so nothing is verified. That is not a pass.");
+    expect(reason).toContain("package.json could not be read as JSON");
+    expect(gate.runs()).toBe(0);
+  });
+
+  it("is still let through the second time, so that does not loop either", async () => {
+    const project = createGitProject({ "gate:full": "true" });
+
+    writeFileSync(join(project, "package.json"), "{");
+
+    expect(await judgeStop({ cwd: project, stop_hook_active: true })).toBeUndefined();
+  });
+
+  it("is sent back when the gate's runner throws", async () => {
+    const reason = await judgeStop({ cwd: createProject({ "gate:fast": "true" }) }, () => {
+      throw new Error("the runner is gone");
+    });
+
+    expect(reason).toContain("could not judge this project");
+    expect(reason).toContain("the runner is gone");
+  });
+
+  it("takes only the literal true for 'already continuing': the word in quotes still runs the gate", async () => {
+    const gate = createCountedGate(() => ({ status: 1, output: "FAIL" }));
+    const payload = { cwd: createProject({ "gate:fast": "false" }), stop_hook_active: "false" } as unknown as Parameters<typeof judgeStop>[0];
+
+    expect(await judgeStop(payload, gate.run)).toContain("is red");
+    expect(await judgeStop({ ...payload, stop_hook_active: 1 } as unknown as typeof payload, gate.run)).toContain("is red");
+    expect(gate.runs()).toBe(2);
+  });
+
+  it("runs the gate when the record cannot be read, and does not fall over", async () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const gate = createCountedGate(green);
+
+    // A folder where the record would be.
+    mkdirSync(join(project, LAST_GREEN_RECORD), { recursive: true });
+
+    expect(await judgeStop({ cwd: project }, gate.run)).toBeUndefined();
+    expect(await judgeStop({ cwd: project }, gate.run)).toBeUndefined();
+    expect(gate.runs()).toBe(2);
+  });
+
+  it.skipIf(process.getuid?.() === 0)("runs the gate every time when a file of the tree cannot be read, and does not fall over", async () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const gate = createCountedGate(green);
+
+    chmodSync(join(project, "src.ts"), 0o000);
+    onTestFinished(() => {
+      chmodSync(join(project, "src.ts"), 0o644);
+    });
+
+    expect(await judgeStop({ cwd: project }, gate.run)).toBeUndefined();
+    expect(await judgeStop({ cwd: project }, gate.run)).toBeUndefined();
+    expect(gate.runs()).toBe(2);
+  });
+
+  it("runs the gate, from the folder it was started in, when what the host sent is not JSON", () => {
+    const project = createProject({ "gate:fast": "node -e \"console.log('still judged'); process.exit(1)\"" });
+    const run = spawnSync(process.execPath, [join(here, "before-stop.mts")], { cwd: project, input: "not json", encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: "" }, timeout: 20_000 });
+
+    expect(run.status).toBe(0);
+    expect(JSON.parse(run.stdout)).toEqual({ decision: "block", reason: expect.stringContaining("still judged") });
+  });
+});
+
+/** Runs the hook as a host does: the payload on its standard input. */
+function runHook(payload: Record<string, unknown>, env: Record<string, string>): { status: number | null; stdout: string } {
+  const { CLAUDE_PROJECT_DIR: _unset, ...rest } = process.env;
+
+  return spawnSync(process.execPath, [join(here, "before-stop.mts")], { input: JSON.stringify(payload), encoding: "utf8", env: { ...rest, ...env }, timeout: 30_000 });
+}
+
+/** A committed project whose gate runs `check.mjs`, and a worktree of it beside it, as the agent-workflow add-on makes one. */
+function createProjectWithWorktree(): { primary: string; worktree: string } {
+  const primary = realpathSync(createGitProject({ "gate:full": "node check.mjs" }));
+  const worktree = join(`${primary}-worktrees`, "fix");
+  const git = (cwd: string, ...args: string[]): void => {
+    const ran = spawnSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.test", ...args], { cwd, encoding: "utf8" });
+
+    if (ran.status !== 0) {
+      throw new Error(`git ${args.join(" ")} failed: ${ran.stderr}`);
+    }
+  };
+
+  writeFileSync(join(primary, "check.mjs"), "process.exit(0);\n");
+  git(primary, "add", "-A");
+  git(primary, "commit", "--quiet", "-m", "first");
+  git(primary, "worktree", "add", "--quiet", "-b", "worktree-fix", worktree);
+
+  return { primary, worktree };
+}
 
 function createPatch(): string {
   return [
