@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { checkDead, formatResult } from "../files/tools/strict-lint/check-dead.mts";
@@ -94,14 +96,20 @@ describe("what knip leaves alone", { timeout: REAL_TOOL_TIMEOUT }, () => {
     expect(formatResult(checkDead(project))).toContain("@babel/parser");
   });
 
-  it("reads the stylelint rules the repo-hygiene add-on keeps under tools/, and counts the rule set they extend as used", () => {
+  it("reads the stylelint rules the repo-hygiene add-on keeps under tools/, and counts what they extend and load as used", () => {
     const project = createWorkspace();
+    const hygiene = join(import.meta.dirname, "..", "..", "repo-hygiene");
+    const { devDependencies } = (JSON.parse(readFileSync(join(hygiene, "addon.json"), "utf8")) as { packageJson: { ".": { devDependencies: Record<string, string> } } })
+      .packageJson["."];
+    const styleDependencies = Object.fromEntries(Object.entries(devDependencies).filter(([name]) => name.startsWith("stylelint")));
 
     writeFiles(project, {
-      "package.json": createPackageJson({ ...ROOT, devDependencies: { ...ROOT.devDependencies, stylelint: "^17.0.0", "stylelint-config-standard": "^40.0.0" } }),
-      "tools/repo-hygiene/stylelint.json": `${JSON.stringify({ extends: ["stylelint-config-standard"] })}\n`,
+      "package.json": createPackageJson({ ...ROOT, devDependencies: { ...ROOT.devDependencies, ...styleDependencies } }),
+      "tools/repo-hygiene/stylelint.json": readFileSync(join(hygiene, "files/tools/repo-hygiene/stylelint.json"), "utf8"),
+      "tools/repo-hygiene/stylelint.base.json": readFileSync(join(hygiene, "files/tools/repo-hygiene/stylelint.base.json"), "utf8"),
     });
 
+    expect(Object.keys(styleDependencies)).toEqual(["stylelint", "stylelint-config-standard", "stylelint-declaration-strict-value"]);
     expect(formatResult(checkDead(project))).toContain(CLEAN);
   });
 

@@ -71,7 +71,7 @@ node scripts/add-to-project.mts <project> coverage
 | [`performance`](addons/performance/README.md) | A static check of animations and transitions, a runtime audit of what Chromium actually composites, and a guide to the traps and their fixes |
 | [`format-lint`](addons/format-lint/README.md) | Biome: a formatter, a general linter and import sorting, as a base the add-on owns and a `biome.json` the project owns |
 | [`ci-security`](addons/ci-security/README.md) | Workflow lint and workflow security lint, Dependency Review on pull requests, `pnpm audit`, an OpenSSF Scorecard report and a Dependabot config |
-| [`repo-hygiene`](addons/repo-hygiene/README.md) | One version of each dependency across the workspace, every markdown link and heading anchor resolving, and CSS lint |
+| [`repo-hygiene`](addons/repo-hygiene/README.md) | One version of each dependency across the workspace, every markdown link and heading anchor resolving, and CSS lint with names checked and every colour taken from a token |
 | [`strict-lint`](addons/strict-lint/README.md) | The ESLint rules that need types (a promise nothing waits for, a `switch` that misses a case), and knip for unused files, exports and dependencies |
 | [`agent-workflow`](addons/agent-workflow/README.md) | A hook that keeps each push and pull request step in a tool call of its own and approves the routine ones by their exact shape, a worktree script, a weekly tag, and a changelog whose completeness is checked |
 | `kit` | The same command brings a project's copy of the gates up to date, or sets them up in a project that did not start here |

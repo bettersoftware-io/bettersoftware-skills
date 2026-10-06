@@ -9,8 +9,13 @@
       // reported, and what it imports counts as used.
       "entry": ["architecture.config.mts", "tools/**/*.mts"],
       "project": ["*.mts", "tools/**/*.mts"],
-      // The repo-hygiene add-on keeps its stylelint rules here, not at the root.
-      "stylelint": { "config": ["tools/repo-hygiene/stylelint.json"] },
+      // The repo-hygiene add-on keeps its stylelint rules here, not at the root:
+      // the project's file, and the base it extends. knip does not follow that
+      // `extends` to a file, so both are named, or the packages the base
+      // loads would read as unused.
+      "stylelint": {
+        "config": ["tools/repo-hygiene/stylelint.json", "tools/repo-hygiene/stylelint.base.json"]
+      },
       // Run as a program by a script in tools/, which starts it by its name in
       // a string. knip follows imports and package.json scripts, not that.
       // dependency-cruiser: the kit's dependencies gate. The next three: the

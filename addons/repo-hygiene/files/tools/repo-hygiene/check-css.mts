@@ -5,7 +5,11 @@
 //
 // Reads every `.css` file that git does not ignore, outside installed and
 // generated folders and outside `tools/`. The rules are in
-// `tools/repo-hygiene/stylelint.json`, which is the project's file to edit.
+// `tools/repo-hygiene/stylelint.json`, which is the project's file to edit. It
+// extends `stylelint.base.json` beside it, which is the add-on's.
+//
+// A warning fails like an error (`--max-warnings 0`): stylelint exits 0 on a
+// rule set to "warning", so it would report on every run and stop nothing.
 //
 // This wrapper exists for one reason: stylelint given no file either stops
 // with an error or, with `--allow-empty-input`, passes without a word. Here a
@@ -52,9 +56,9 @@ export function checkCss(root: string = process.cwd(), run: RunTool = installedT
   const reports: string[] = [];
 
   for (let start = 0; start < files.length; start += BATCH) {
-    const { status, stdout, stderr } = run("stylelint", ["--config", CONFIG, ...files.slice(start, start + BATCH)]);
+    const { status, stdout, stderr } = run("stylelint", ["--config", CONFIG, "--max-warnings", "0", ...files.slice(start, start + BATCH)]);
 
-    // stylelint: 0 clean, 2 lint problems. Anything else is a bad
+    // stylelint: 0 clean, 2 lint problems or more warnings than allowed. Anything else is a bad
     // configuration or a crash, and says nothing about the stylesheets.
     if (status !== 0 && status !== 2) {
       throw new CouldNotRun(`stylelint stopped with exit ${status}: ${firstLine(stderr, stdout)}`);

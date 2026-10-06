@@ -16,15 +16,20 @@ cd <project> && pnpm install && pnpm check:versions && pnpm check:doc-links && p
 |---|---|---|
 | `pnpm check:versions` | `tools/repo-hygiene/check-versions.mts` | Runs `manypkg check` and `syncpack lint`. Fails when two packages ask for different ranges of one dependency |
 | `pnpm check:doc-links` | `tools/repo-hygiene/check-doc-links.mts` | Reads every markdown file. Fails a relative link to a file that is not there, and a `#anchor` the target file does not have |
-| `pnpm lint:css` | `tools/repo-hygiene/check-css.mts` | Runs stylelint with `stylelint-config-standard` over every `.css` file |
+| `pnpm lint:css` | `tools/repo-hygiene/check-css.mts` | Runs stylelint over every `.css` file, and fails on a warning too |
 | syncpack settings | `tools/repo-hygiene/syncpack.json` | A starting file: written once, then the project's own |
-| stylelint rules | `tools/repo-hygiene/stylelint.json` | A starting file: written once, then the project's own |
-| AGENTS section | `AGENTS.md` | When a version may differ, how to repair a link, when a CSS rule may be turned off |
+| stylelint rules | `tools/repo-hygiene/stylelint.base.json` | Every rule in the table under "CSS". Belongs to the add-on: an update replaces it |
+| The project's stylelint file | `tools/repo-hygiene/stylelint.json` | Only `extends` the base. A starting file: written once, then the project's own. A project adds, changes or switches off rules here |
+| AGENTS section | `AGENTS.md` | When a version may differ, how to repair a link, where a colour goes, when a CSS rule may be turned off |
 
-Four dev dependencies, in the root `package.json`, with the ranges the source
-repository uses: `@manypkg/cli` `^0.25.1`, `syncpack` `^15.3.2`, `stylelint`
-`^17.13.0`, and `stylelint-config-standard` `^40.0.0` (new here). Installed on
-2026-10-05 they resolved to 0.25.1, 15.3.3, 17.16.0 and 40.0.0.
+Five dev dependencies, in the root `package.json`: `@manypkg/cli` `^0.25.1`,
+`syncpack` `^15.3.2`, `stylelint` `^17.13.0` and
+`stylelint-declaration-strict-value` `^1.12.1`, as in the source repository
+(its range for the last is `^1.11.1`), and `stylelint-config-standard`
+`^40.0.0`, which is new here. Installed on 2026-10-06 they resolved to
+0.25.1, 15.3.3, 17.16.0, 1.12.1 and 40.0.0. The newest release of each was
+older than a day: stylelint 17.16.0 is from 2026-10-01, the plugin 1.12.1
+from 2026-08-24, the standard config 40.0.0 from 2026-01-15.
 
 There is no workflow file. The three commands are in `gate:fast`, which the
 project's own CI job and the agent's stop hook already run.
@@ -42,8 +47,18 @@ and both tools usually take one. Both also take a JSON file by path:
 - `syncpack lint --config tools/repo-hygiene/syncpack.json`
 - `stylelint --config tools/repo-hygiene/stylelint.json`
 
-`extends` in the stylelint file is found from the folder the file is in, so
-`stylelint-config-standard` resolves from the root `node_modules`. manypkg has
+`extends` and `plugins` in a stylelint file are found from the folder the
+file is in, so the base beside it, `stylelint-config-standard` and the plugin
+all resolve.
+
+**Why JSON and not TypeScript.** stylelint 17.16.0 loads its config through
+cosmiconfig 9, measured: given a `.mts` file it stops with `No loader
+specified for extension ".mts"`. It does load a `.ts` file, by compiling it
+and writing the result beside it as `<name>.ts.<uuid>.mjs` for the length of
+the run. That is a JavaScript file in the project on every lint, and a `.ts`
+file in `tools/` that the project's tooling typecheck (`tools/**/*.mts`) does
+not read. JSON needs neither, so the rules stay in JSON and their reasons are
+in this README, as with the Biome base. manypkg has
 no settings file; its options live in a `manypkg` field of the root
 `package.json`, which an add-on cannot write. That is why one of its rules is
 filtered in the wrapper instead (see below).
@@ -138,29 +153,83 @@ as the link check, and prints `SKIP css` when there are none. stylelint's exit
 2 is a finding; any other non-zero exit (78 for a bad configuration) is
 "could not run", exit 2.
 
-The rules are `stylelint-config-standard`, unchanged. A project that uses CSS
-Modules will want camelCase class names, which the standard set rejects
-(`selector-class-pattern` asks for kebab-case): change that rule in
-`stylelint.json`. The source repository does not use the standard set at all,
-because Biome formats its CSS; a project that adds the `format-lint` add-on
-may want to turn off the rules the two share.
+A warning fails like an error. stylelint exits 0 on a rule set to
+`"severity": "warning"`, so it would report on every run and stop nothing;
+the wrapper passes `--max-warnings 0`, as the source's script does.
+
+### The rules, with the reason for each
+
+Two layers, as with the Biome base: `stylelint.base.json` belongs to the
+add-on, and the project's `stylelint.json` extends it and wins.
+
+| Rule | Reason |
+|---|---|
+| `stylelint-config-standard` | The floor: stylelint's own set of validity and notation rules. The source does not use it, because Biome judges the validity of its CSS. This add-on can be in a project without `format-lint`, where nothing else would |
+| `color-no-invalid-hex`, `no-duplicate-selectors`, `no-invalid-double-slash-comments`, `no-irregular-whitespace`, `declaration-block-no-duplicate-custom-properties`, `font-family-no-missing-generic-family-keyword`, `function-linear-gradient-no-nonstandard-direction`, `string-no-newline` | The eight validity rules the source turns on by name. The standard set has them today; they are named so that they stay on whatever that set does later. Each is tested with a stylesheet that breaks it |
+| `selector-class-pattern`: camelCase in `*.module.css` | The source's rule. A class in a CSS Module becomes a property of the imported object (`styles.priceRow`); a dash would need `styles["price-row"]` |
+| `selector-class-pattern`: kebab-case in any other stylesheet | The standard set's own rule, with a message that names both cases |
+| `custom-property-pattern`: kebab-case | Tokens are written `--color-up`. The source's rule and message |
+| `scale-unlimited/declaration-strict-value` on every property whose name ends in `color`, and on `fill` and `stroke` | A colour is defined once, as a custom property, and used by name. A literal in a rule is a second place to change, and one a theme cannot reach |
+| `reportDescriptionlessDisables`, `reportNeedlessDisables`, `reportInvalidScopeDisables` | A `stylelint-disable` comment needs ` -- ` and a reason, must switch off something that would report, and must name a rule that exists. Not in the source; it asked for this in words |
+
+**What a colour may be.** `var(--name)` (with or without a fallback),
+`currentcolor`, `transparent`, `inherit`, `initial`, `unset`, `revert`,
+`revert-layer`, `none`, `auto`, and `color-mix()` of two of those:
+`color-mix(in srgb, currentcolor 18%, transparent)`. Anything else fails: a
+hex value, a named colour, `rgb()`, `hsl()`, and a `color-mix()` with a
+literal in it. A custom property is where a literal is written, and the
+plugin does not judge its value.
+
+Different from the source's rule, on purpose:
+
+| | In the source | Here | Why |
+|---|---|---|---|
+| Properties | `color`, `fill`, `stroke` | Those, and every property that ends in `color` (`background-color`, `border-color`, `outline-color`, …) | The source leaves backgrounds out because its existing tints would change with the theme if they became tokens. A new project has no such tints |
+| Shorthands | Not read | `expandShorthand`: the colour in `border: 1px solid #ccc` and `background: linear-gradient(#fff, #000)` fails | The same literal, written another way |
+| Functions | Any function passes, so `rgb(26 143 76)` does | `ignoreFunctions: false`, and `color-mix()` of tokens and keywords is allowed by pattern | A literal in a function is a literal |
+| `resolveNestedSelectors` on the class pattern | On | Off | Measured with 17.16.0: `.row { &-stale {} }` in a CSS Module is not reported with it on. It is a Sass form that plain CSS nesting does not have, so the option changes nothing here |
+| The override for one third-party stylesheet | Three kebab-case families for one file | Not there | That file is the source's. Here every stylesheet that is not a module is kebab-case already |
+
+**The starter does not use CSS Modules.** It has one global stylesheet with
+no class in it: it styles elements and `data-` attributes. So the source's
+"class names are camelCase" would have judged nothing, and applied to a
+global stylesheet it would be the wrong rule, since a global class is a
+string in `className`, never a property. The decision: the rule means what
+its reason says. camelCase where the class becomes a property
+(`*.module.css`), kebab-case everywhere else.
+
+**The starter's stylesheet was changed, not exempted.** Its two literal
+colours are now `--color-up` and `--color-down` in `:root`, used as
+`var(--color-up)`. The computed values are the same: `pnpm visual` passes on
+the committed macOS goldens at a tolerance of zero, in a project with the new
+stylesheet. The Linux goldens were not redrawn.
 
 ## How it was tested
 
 Unit tests, run from this repository: `pnpm vitest run addons/repo-hygiene`,
-86 tests in six files. The link check runs against folders made for each
+129 tests in seven files. The link check runs against folders made for each
 test; the two wrappers run against a stand-in for the installed tools, and
-one test runs a real executable from a `node_modules/.bin`. Each of the 86
-tests was turned red by a mutant of its own (`tests/mutants.json`, 86 of 86
-killed) and restored.
+one test runs a real executable from a `node_modules/.bin`.
+`tests/css-rules.test.mts` runs the real stylelint, through the wrapper,
+with the two shipped config files: the starter's stylesheet and the visual
+add-on's, one stylesheet per rule that breaks it, each kind of colour that
+passes, the disable comments, the two layers. This repository has stylelint,
+the standard config and the plugin as dev dependencies for that, in the
+ranges of `addon.json`; a test fails when they differ.
+
+Each test was turned red by a mutant of its own and restored
+(`tests/mutants.json`, 130 of 130 killed; some tests have two). A first run
+had one survivor: a test that a custom property's own value is not judged.
+No setting can make it fail, because the plugin never reads a custom
+property, so the test was removed and the fact is in the text above.
 
 End to end, in a project made by `scripts/create-project.mts` and given the
 add-on by `scripts/add-to-project.mts`, then `pnpm install`:
 
 | Case | Result |
 |---|---|
-| The untouched starter | `check:versions` PASS (38 entries, 7 files), `check:doc-links` PASS (1 link, 3 files), `lint:css` **FAIL**: `currentColor` in the starter's `index.css` (see below) |
-| With that one word changed in the project | all three PASS, `pnpm gate:full` exit 0 |
+| The untouched starter, the add-on alone, by the steps of this repository's CI job (2026-10-06) | `check:versions` PASS (43 entries, 7 files), `check:doc-links` PASS (2 links, 3 files), `lint:css` PASS (1 stylesheet), `pnpm gate:full` exit 0 |
+| A project with every add-on (2026-10-06) | all three PASS (50 entries; 4 links in 12 files; 2 stylesheets), `pnpm gate:full` exit 0, `pnpm visual` 5 of 5 on the committed macOS goldens |
 | `rxjs` at `^7.8.1` in one package | `FAIL versions`, exit 1, both tools name the package |
 | A link to a missing file, and two to anchors written by the simple rule (` -- `, `'`, `?`, `(v2.0)`) | `FAIL doc-links (3)`, exit 1, each with file and line, the anchors with the right one |
 | `a { colr: red; }` | `FAIL css`, exit 1, `37:5 Unknown property "colr"` |
@@ -171,14 +240,12 @@ add-on by `scripts/add-to-project.mts`, then `pnpm install`:
 | The add-on added a second time | 0 files written, `git status` empty |
 | A second project with `coverage`, `visual`, `performance` and this add-on | all three PASS (43 entries; 3 links in 4 files; 2 stylesheets), `pnpm gate:full` exit 0 |
 
-**The starter fails `lint:css` as it is.**
-`starter/packages/client-react/src/index.css` line 22 has `currentColor`;
-`stylelint-config-standard` wants `currentcolor` (`value-keyword-case`). Until
-that word is changed in the starter, a new project that takes this add-on is
-red at `gate:fast` until it runs `stylelint --fix` or edits the line.
 
-Not tested: a project that also has the `format-lint` or `ci-security`
-add-on; Linux; Windows; a run on GitHub.
+The rows below are from the first version of the add-on (2026-10-05), when
+the starter still had `currentColor` and literal colours; the starter has
+since been changed and passes as it is.
+
+Not tested: Linux; Windows; a run on GitHub.
 
 ## Limits
 
@@ -196,6 +263,14 @@ add-on; Linux; Windows; a run on GitHub.
 - `lib/slug.mts` is a copy. If github-slugger changes its table, the copy does
   not follow until someone regenerates it.
 - The CSS check reads `.css` only: no Sass, no Less, no styles in TypeScript.
+- The token rule reads the properties it is given. A colour in
+  `text-decoration`, `box-shadow` or a gradient outside `background` is not
+  judged, and neither is the fallback in `var(--name, #fff)`.
+- A project that took the add-on before the base existed keeps its own
+  `stylelint.json`, which extends the standard set alone. The update shows
+  the changed line; until the project takes it, the new rules do not run
+  there. The `strict-lint` add-on's `knip.jsonc` names both stylelint files
+  for the same reason, and is the project's file too.
 - The wrappers read what manypkg and syncpack print. A new major of either
   that changes its output (manypkg's `error` lines, `syncpack json`'s one
   object per line) would make `check:versions` exit 2, not pass.
