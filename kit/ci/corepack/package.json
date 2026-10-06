@@ -1,0 +1,8 @@
+{
+  "name": "ci-tooling-corepack",
+  "private": true,
+  "description": "Not a workspace package. Pins Corepack under an npm lockfile (sha512 integrity), so CI provisions pnpm without an unpinned `npm install -g`. Installed by ../enable-corepack.mts.",
+  "dependencies": {
+    "corepack": "0.36.0"
+  }
+}

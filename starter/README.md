@@ -15,7 +15,11 @@ is meant to be built. [AGENTS.md](AGENTS.md) says where each kind of code goes
 and lists the file that shows each pattern.
 
 Packages export their TypeScript source. Nothing is compiled except the client,
-which Vite bundles; the server and the tooling are run by Node directly. This
-needs Node 24 or later.
+which Vite bundles; the server and the tooling are run by Node directly.
+
+This needs Node 26 or later. The floor is `devEngines.runtime` in
+`package.json`, which pnpm enforces on install. It is not `engines.node`: a
+host's build reads that field and refuses a range above the Node it offers.
+`.nvmrc` holds the same number for a version manager.
 
 The checks live in `tools/arch` and are described in its README.

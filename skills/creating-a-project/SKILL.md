@@ -31,7 +31,7 @@ Ask only for what the request does not already say.
 
 ## 2. Check the tools
 
-`node --version` is 24 or later, and `pnpm --version` answers. If either
+`node --version` is 26 or later, and `pnpm --version` answers. If either
 fails, report which and stop: the project's tooling is TypeScript that Node
 runs directly, and an older Node cannot.
 

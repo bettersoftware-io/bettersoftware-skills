@@ -152,7 +152,7 @@ describe("the workflows", () => {
   it("audits the production dependencies with pnpm, straight from the lockfile", () => {
     const [, auditJob = ""] = SECURITY.split("\n  audit:\n");
 
-    expect(auditJob).toContain("        run: corepack enable\n");
+    expect(auditJob).toContain("        run: node tools/arch/ci/enable-corepack.mts\n");
     expect(auditJob).toContain("        run: pnpm audit --prod\n");
   });
 

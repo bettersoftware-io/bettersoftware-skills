@@ -32,10 +32,13 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24
+          node-version: 26
 
+      # Node 25 and later ship without Corepack. This installs it from a
+      # lockfile, so its version is pinned like every other. After checkout: the
+      # script is in the repository.
       - name: Enable Corepack (provisions the pnpm pinned by the packageManager field)
-        run: corepack enable
+        run: node tools/arch/ci/enable-corepack.mts
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

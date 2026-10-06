@@ -27,6 +27,10 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # pnpm comes from Corepack; without this its first run can stop to ask.
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
 jobs:
   # No dependency is installed in this job, so no code from a package runs
   # where the token is. The tool is plain Node. It downloads each linter as a
@@ -41,7 +45,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24
+          node-version: 26
 
       - name: Workflow lint (actionlint)
         run: node tools/ci-security/lint-workflows.mts actionlint
@@ -55,8 +59,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: node tools/ci-security/lint-workflows.mts zizmor
 
-  # Reads the lockfile and asks the registry. Nothing is installed, so no
-  # package's install script runs.
+  # Reads the lockfile and asks the registry. No dependency of the project is
+  # installed, so no package's install script runs.
   audit:
     name: pnpm audit (production dependencies)
     runs-on: ubuntu-latest
@@ -67,10 +71,13 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24
+          node-version: 26
 
+      # Node 25 and later ship without Corepack. This installs it from a
+      # lockfile, so its version is pinned like every other. After checkout: the
+      # script is in the repository.
       - name: Enable Corepack (provisions the pnpm pinned by the packageManager field)
-        run: corepack enable
+        run: node tools/arch/ci/enable-corepack.mts
 
       # Development dependencies are not judged here. Dependency Review
       # judges them, on the pull request that brings them in.
