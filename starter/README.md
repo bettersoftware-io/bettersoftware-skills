@@ -19,3 +19,7 @@ which Vite bundles; the server and the tooling are run by Node directly. This
 needs Node 24 or later.
 
 The checks live in `tools/arch` and are described in its README.
+
+A project created from this folder does not get this file. Its README is
+written from `scripts/templates/README.project.md`, with its own name, package
+scope and add-ons.

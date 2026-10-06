@@ -4,7 +4,8 @@
 //   node scripts/create-project.mts <target> [--scope @acme] [--name my-app] [--with <add-ons>]
 //
 // Copies `starter/` to <target>, puts a real copy of the kit at `tools/arch`
-// (the starter only links to it), and renames the `@app` package scope.
+// (the starter only links to it), renames the `@app` package scope, and
+// writes the project a README of its own.
 //
 // `--with` takes add-on names separated by commas, or `recommended` for every
 // add-on whose manifest says it is. Without it no add-on is added: the choice
@@ -21,6 +22,14 @@ import { listFiles } from "./lib/install.mts";
 const REPOSITORY = dirname(dirname(fileURLToPath(import.meta.url)));
 const STARTER_SCOPE = "@app";
 const STARTER_NAME = "starter";
+
+/**
+ * The project's README is written from this, not rewritten from the starter's.
+ * The starter's describes the starter to a reader of this repository; a
+ * project needs its own name, scope, add-ons and first commands, and none of
+ * those is a word to swap in the other text.
+ */
+const README_TEMPLATE = join(REPOSITORY, "scripts", "templates", "README.project.md");
 
 /**
  * Never copied from the starter: installed or generated files, the kit link,
@@ -90,7 +99,8 @@ export function createProject(
   }
 
   // Before anything is written: a mistyped name must not cost a half-made project.
-  const chosen = chooseAddons(addons, steps.listAddons());
+  const available = steps.listAddons();
+  const chosen = chooseAddons(addons, available);
   const wasThere = existsSync(destination);
 
   if (wasThere && readdirSync(destination).length > 0) {
@@ -101,6 +111,10 @@ export function createProject(
     const notes = writeProject(destination, scope, projectName, steps);
 
     const firstRuns = chosen.flatMap((addon) => steps.addAddon(destination, addon, scope).firstRun ?? []);
+    const added = chosen.flatMap((name) => available.filter((addon) => addon.name === name));
+
+    // Last, because it names the add-ons and the commands they ask for.
+    writeFileSync(join(destination, "README.md"), projectReadme({ name: projectName, scope, addons: added, firstRuns }));
 
     return { destination, addons: chosen, firstRuns, notes };
   } catch (error) {
@@ -112,6 +126,37 @@ export function createProject(
       `Could not create the project, and removed what it had written: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+}
+
+export interface ReadmeFacts {
+  name: string;
+  scope: string;
+  /** The add-ons the project was created with, in the order they were added. */
+  addons: ListedAddon[];
+  firstRuns: string[];
+}
+
+/** The README of a new project. `template` is replaced in a test. */
+export function projectReadme({ name, scope, addons, firstRuns }: ReadmeFacts, template = readFileSync(README_TEMPLATE, "utf8")): string {
+  const first = [
+    "git init          # the agent's stop hook reads git to know what changed",
+    "pnpm install",
+    ...firstRuns,
+    "pnpm gate:full    # everything CI runs",
+  ];
+  const added =
+    addons.length === 0
+      ? "None was added when the project was created."
+      : ["Added when the project was created:", "", ...addons.map((addon) => `- \`${addon.name}\`: ${addon.summary}`)].join("\n");
+  const facts: Record<string, string> = { name, scope, first: first.join("\n"), addons: added };
+
+  return template.replace(/\{\{(\w+)\}\}/g, (placeholder, key: string) => {
+    if (facts[key] === undefined) {
+      throw new ProjectError(`the README template asks for "${placeholder}", which is not a thing a project has`);
+    }
+
+    return facts[key];
+  });
 }
 
 /** The names to add: `recommended` becomes the add-ons that say they are; anything unknown is refused. */
