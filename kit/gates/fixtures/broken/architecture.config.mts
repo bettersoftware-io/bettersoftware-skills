@@ -6,6 +6,7 @@ export default {
     "packages/react-bindings": { role: "bindings" },
     "packages/client-react": { role: "client" },
     "packages/checks": { role: "integration" },
+    "packages/browser-tests": { role: "e2e" },
   },
   adapters: ["packages/domain/src/simulators", "packages/client-core/src/adapters"],
   javascriptAllowed: {

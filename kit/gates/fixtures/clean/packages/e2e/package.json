@@ -1,0 +1,16 @@
+{
+  "name": "@fx/e2e",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@fx/client-react": "workspace:*",
+    "@fx/domain": "workspace:*",
+    "@playwright/test": "1.63.0"
+  }
+}

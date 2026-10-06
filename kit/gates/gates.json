@@ -10,5 +10,6 @@
   "node-floor": [],
   "app-harness": ["compose", "appHarness"],
   "test-ids": ["testIds"],
-  "types-only": ["typesOnly"]
+  "types-only": ["typesOnly"],
+  "playwright-pin": []
 }

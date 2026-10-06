@@ -13,6 +13,7 @@ import type { ArchitectureConfig } from "./tools/arch/gates/lib/config.mts";
 // client     bindings, core, domain, leaf
 // server     domain, shared, leaf
 // integration  every role above; nothing may import it, and it holds only tests
+// e2e        no source of the application: only a client's test ids, and types
 const config: ArchitectureConfig = {
   packages: {
     // `noNodeBuiltins` is on for every package that ends up in the browser.

@@ -26,6 +26,7 @@ import { nameFixtureFactories } from "./eslint-rules/name-fixture-factories.mts"
 import { nameFunctionsByEffect } from "./eslint-rules/name-functions-by-effect.mts";
 import { nameJsxHandlers } from "./eslint-rules/name-jsx-handlers.mts";
 import { newspaperOrder } from "./eslint-rules/newspaper-order.mts";
+import { noBrowserDriverInSpecs } from "./eslint-rules/no-browser-driver-in-specs.mts";
 import { noFrameworkCallsInSpecs } from "./eslint-rules/no-framework-calls-in-specs.mts";
 import { noMinifiedJsonLiteral } from "./eslint-rules/no-minified-json-literal.mts";
 import { noRealSleepsInTests } from "./eslint-rules/no-real-sleeps-in-tests.mts";
@@ -44,6 +45,7 @@ export const architecturePlugin: TSESLint.FlatConfig.Plugin = {
     "name-functions-by-effect": nameFunctionsByEffect,
     "name-jsx-handlers": nameJsxHandlers,
     "newspaper-order": newspaperOrder,
+    "no-browser-driver-in-specs": noBrowserDriverInSpecs,
     "no-framework-calls-in-specs": noFrameworkCallsInSpecs,
     "no-minified-json-literal": noMinifiedJsonLiteral,
     "no-real-sleeps-in-tests": noRealSleepsInTests,
@@ -241,6 +243,8 @@ export function architectureLint(config: ArchitectureConfig | undefined = readDe
   const clientSource = sourceOf(config, ["client"], "{ts,tsx}");
   const compiledSource = sourceOf(config, ["client"], "{ts,tsx}", ({ reactCompiler }) => reactCompiler === true);
   const bindingsSource = sourceOf(config, ["bindings"], "{ts,tsx}");
+  const endToEndSource = sourceOf(config, ["e2e"], "{ts,tsx}");
+  const endToEndSpecs = sourceOf(config, ["e2e"], "spec.{ts,tsx}");
 
   return [
     // Installed and generated files. Nothing in them is the project's to fix.
@@ -467,6 +471,28 @@ export function architectureLint(config: ArchitectureConfig | undefined = readDe
       plugins,
       rules: { "arch/page-objects-own-their-component": "error" },
     },
+    ...(endToEndSource.length === 0
+      ? []
+      : [
+          {
+            // An end-to-end package drives a real browser, and every wait in
+            // it is on something the application does in its own time. A
+            // fixed wait is a guess wherever it is written, so the ban that
+            // holds for tests holds for the page objects and the fixtures
+            // here as well.
+            files: endToEndSource,
+            plugins,
+            rules: { "arch/no-real-sleeps-in-tests": "error" },
+          } satisfies TSESLint.FlatConfig.Config,
+          {
+            // The spec says what happens; the driver stays behind the page
+            // objects. Only the specs: a page object and the fixtures file
+            // are where the driver is meant to be.
+            files: endToEndSpecs,
+            plugins,
+            rules: { "arch/no-browser-driver-in-specs": "error" },
+          } satisfies TSESLint.FlatConfig.Config,
+        ]),
   ];
 }
 

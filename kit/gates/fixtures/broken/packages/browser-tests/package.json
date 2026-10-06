@@ -1,0 +1,20 @@
+{
+  "name": "@fx/browser-tests",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@fx/client-core": "workspace:*",
+    "@fx/client-react": "workspace:*",
+    "@fx/domain": "workspace:*",
+    "@playwright/test": "^1.63.0"
+  }
+}
