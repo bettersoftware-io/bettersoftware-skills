@@ -22,13 +22,11 @@ describe("trackMovement", () => {
     prices$.next({ symbol: "GBPUSD", mid: 1.2 });
     prices$.next({ symbol: "EURUSD", mid: 1.2 });
 
-    expect(ticks.map((tick) => tick.movement)).toEqual([
-      "flat",
-      "flat",
-      "up",
-      "down",
-      "flat",
-    ]);
+    expect(
+      ticks.map((tick) => {
+        return tick.movement;
+      }),
+    ).toEqual(["flat", "flat", "up", "down", "flat"]);
   });
 
   it("gives each subscription its own memory", () => {
@@ -37,9 +35,13 @@ describe("trackMovement", () => {
     const early: PriceTick[] = [];
     const late: PriceTick[] = [];
 
-    tracked$.subscribe((tick) => early.push(tick));
+    tracked$.subscribe((tick) => {
+      return early.push(tick);
+    });
     prices$.next({ symbol: "EURUSD", mid: 1.1 });
-    tracked$.subscribe((tick) => late.push(tick));
+    tracked$.subscribe((tick) => {
+      return late.push(tick);
+    });
     prices$.next({ symbol: "EURUSD", mid: 1.2 });
 
     expect(early.at(-1)?.movement).toBe("up");
@@ -56,7 +58,9 @@ function createTracked(): Tracked {
   const prices$ = new Subject<Price>();
   const ticks: PriceTick[] = [];
 
-  trackMovement(prices$).subscribe((tick) => ticks.push(tick));
+  trackMovement(prices$).subscribe((tick) => {
+    return ticks.push(tick);
+  });
 
   return { prices$, ticks };
 }

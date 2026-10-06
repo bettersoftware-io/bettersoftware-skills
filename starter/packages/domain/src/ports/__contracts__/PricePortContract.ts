@@ -24,9 +24,9 @@ export function describePricePortContract(
     it("delivers every price the source produces, in order", async () => {
       const { port, produce, teardown } = createHarness();
       const received: Price[] = [];
-      const subscription = port
-        .prices()
-        .subscribe((price) => received.push(price));
+      const subscription = port.prices().subscribe((price) => {
+        return received.push(price);
+      });
 
       try {
         await produce({ symbol: "EURUSD", mid: 1.1 });
@@ -47,9 +47,9 @@ export function describePricePortContract(
     it("delivers nothing after the subscriber leaves", async () => {
       const { port, produce, teardown } = createHarness();
       const received: Price[] = [];
-      const subscription = port
-        .prices()
-        .subscribe((price) => received.push(price));
+      const subscription = port.prices().subscribe((price) => {
+        return received.push(price);
+      });
 
       try {
         await produce({ symbol: "EURUSD", mid: 1.1 });
@@ -71,7 +71,9 @@ export function describePricePortContract(
         await produce({ symbol: "EURUSD", mid: 1.1 });
         first.unsubscribe();
 
-        const second = port.prices().subscribe((price) => received.push(price));
+        const second = port.prices().subscribe((price) => {
+          return received.push(price);
+        });
 
         await produce({ symbol: "EURUSD", mid: 1.2 });
         second.unsubscribe();

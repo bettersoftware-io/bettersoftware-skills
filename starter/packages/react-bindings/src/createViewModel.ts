@@ -21,9 +21,11 @@ export interface ViewModel {
 /** Built once at startup, in the composition root, from the application. */
 export function createViewModel(app: App): ViewModel {
   return {
-    usePrices: (): PriceRow[] =>
-      useStateObservable(app.presenters.prices.rows$),
-    useSelection: (): MachineView<SelectionState, SelectionIntents> =>
-      useMachine(app.machines.createSelection),
+    usePrices: (): PriceRow[] => {
+      return useStateObservable(app.presenters.prices.rows$);
+    },
+    useSelection: (): MachineView<SelectionState, SelectionIntents> => {
+      return useMachine(app.machines.createSelection);
+    },
   };
 }

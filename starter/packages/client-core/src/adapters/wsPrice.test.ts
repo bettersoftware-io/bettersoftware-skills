@@ -11,9 +11,15 @@ describe("the WebSocket price adapter", () => {
     const messages$ = new Subject<unknown>();
     const received: Price[] = [];
 
-    createWsPricePort({ messages: () => messages$ })
+    createWsPricePort({
+      messages: () => {
+        return messages$;
+      },
+    })
       .prices()
-      .subscribe((price) => received.push(price));
+      .subscribe((price) => {
+        return received.push(price);
+      });
 
     messages$.next({ type: "unknown" });
     messages$.next("not even an object");

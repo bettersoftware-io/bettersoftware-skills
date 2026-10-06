@@ -39,9 +39,15 @@ export function createSelectionMachine(): Machine<
   const state$ = state(
     merge(
       select$.pipe(
-        map((symbol): SelectionAction => ({ type: "select", symbol })),
+        map((symbol): SelectionAction => {
+          return { type: "select", symbol };
+        }),
       ),
-      clear$.pipe(map((): SelectionAction => ({ type: "clear" }))),
+      clear$.pipe(
+        map((): SelectionAction => {
+          return { type: "clear" };
+        }),
+      ),
     ).pipe(scan(reduceSelection, INITIAL)),
     INITIAL,
   );

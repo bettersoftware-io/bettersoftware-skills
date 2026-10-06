@@ -45,10 +45,13 @@ export function findOrphanGoldens(scenarioNames: readonly string[]): string[] {
   }
 
   return readdirSync(GOLDENS_DIRECTORY)
-    .filter(
-      (file) =>
+    .filter((file) => {
+      return (
         file.endsWith(".png") &&
-        !scenarioNames.includes(file.slice(0, -".png".length)),
-    )
-    .map((file) => relative(PROJECT_ROOT, join(GOLDENS_DIRECTORY, file)));
+        !scenarioNames.includes(file.slice(0, -".png".length))
+      );
+    })
+    .map((file) => {
+      return relative(PROJECT_ROOT, join(GOLDENS_DIRECTORY, file));
+    });
 }

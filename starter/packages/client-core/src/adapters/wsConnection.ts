@@ -11,9 +11,10 @@ const RECONNECT_DELAY_MS = 1000;
 /** Connects on subscribe and reconnects after a drop, for as long as someone listens. */
 export function createWsConnection(url: string): WsConnection {
   return {
-    messages: (): Observable<unknown> =>
-      defer(() => webSocket<unknown>(url)).pipe(
-        retry({ delay: RECONNECT_DELAY_MS }),
-      ),
+    messages: (): Observable<unknown> => {
+      return defer(() => {
+        return webSocket<unknown>(url);
+      }).pipe(retry({ delay: RECONNECT_DELAY_MS }));
+    },
   };
 }

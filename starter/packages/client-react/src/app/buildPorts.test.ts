@@ -16,7 +16,9 @@ describe("choosing what stands behind the ports", () => {
 
     const subscription = buildPorts(undefined)
       .price.prices()
-      .subscribe((price) => received.push(price));
+      .subscribe((price) => {
+        return received.push(price);
+      });
     vi.advanceTimersByTime(500);
     subscription.unsubscribe();
 
@@ -36,9 +38,11 @@ describe("choosing what stands behind the ports", () => {
       .subscribe();
     subscription.unsubscribe();
 
-    expect(network.sockets.map((socket) => socket.url)).toEqual([
-      "ws://example.test/ws",
-    ]);
+    expect(
+      network.sockets.map((socket) => {
+        return socket.url;
+      }),
+    ).toEqual(["ws://example.test/ws"]);
     expect(said).toHaveBeenCalledWith(
       "[data] composed live from ws://example.test/ws",
     );

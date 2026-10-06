@@ -36,16 +36,21 @@ export interface PricesPresenter {
 
 export function createPricesPresenter(port: PricePort): PricesPresenter {
   const rows$ = trackMovement(port.prices()).pipe(
-    groupBy((tick) => tick.symbol),
+    groupBy((tick) => {
+      return tick.symbol;
+    }),
     // Within one symbol, a new tick restarts the wait that marks the row stale.
-    mergeMap((ticksOfSymbol$) => ticksOfSymbol$.pipe(switchMap(showThenAge))),
-    scan(
-      (rows, row) => new Map(rows).set(row.symbol, row),
-      new Map<string, PriceRow>(),
-    ),
-    map((rows) =>
-      [...rows.values()].sort((a, b) => a.symbol.localeCompare(b.symbol)),
-    ),
+    mergeMap((ticksOfSymbol$) => {
+      return ticksOfSymbol$.pipe(switchMap(showThenAge));
+    }),
+    scan((rows, row) => {
+      return new Map(rows).set(row.symbol, row);
+    }, new Map<string, PriceRow>()),
+    map((rows) => {
+      return [...rows.values()].sort((a, b) => {
+        return a.symbol.localeCompare(b.symbol);
+      });
+    }),
   );
 
   return { rows$: state(rows$, []) };
@@ -55,6 +60,10 @@ export function createPricesPresenter(port: PricePort): PricesPresenter {
 function showThenAge(tick: PriceTick): Observable<PriceRow> {
   return concat(
     of({ ...tick, stale: false }),
-    timer(STALE_AFTER_MS).pipe(map(() => ({ ...tick, stale: true }))),
+    timer(STALE_AFTER_MS).pipe(
+      map(() => {
+        return { ...tick, stale: true };
+      }),
+    ),
   );
 }

@@ -16,7 +16,7 @@ directly by stripping the types, which needs Node 22.18 or later, and
 | Part | What it checks | Needs |
 |---|---|---|
 | `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction, the paths the agent instructions name, the task cache | Node; `dependency-cruiser` for the dependency gate |
-| `eslint.config.mts` + `eslint-rules/` | Twelve AST lint rules: naming, reading order, fixtures, page objects, no real sleeps in tests | `eslint`, `typescript-eslint` |
+| `eslint.config.mts` + `eslint-rules/` | Thirteen AST lint rules of its own (naming, reading order, fixtures, page objects, no real sleeps in tests, one import per module), and the settings of ESLint's rules that go with them: function declarations, blank lines, named object types, no CommonJS, React's hook rules | `eslint`, `typescript-eslint`, `eslint-plugin-react-hooks` |
 | `hooks/after-edit.mts` | Runs the per-file gates on the file an agent just wrote | Claude Code or Codex |
 | `hooks/before-stop.mts` | Refuses to let an agent finish while `gate:full` is red, on any tree that has not already passed it | Claude Code or Codex; git |
 
@@ -209,6 +209,45 @@ export default [...architectureLint()];
 
 ESLint loads a TypeScript config with `--flag unstable_native_nodejs_ts_config`
 on Node 24 or later, or with `jiti` installed.
+
+The block holds three kinds of rule. Each has its reason beside it in
+`eslint.config.mts`.
+
+| Kind | Rules | Applies to |
+|---|---|---|
+| The kit's own, in `eslint-rules/` | Thirteen, under the `arch/` name | By kind of file: every source file, tests, page objects, components |
+| ESLint's, with the kit's settings | `func-style`, `arrow-body-style`, `func-names`, `lines-between-class-members`, `padding-line-between-statements`, `max-classes-per-file`; `no-restricted-syntax` (an object type with no name, in six positions; the view model kept whole or called through); `no-restricted-globals` (the CommonJS names) | Every `.ts`, `.tsx` and `.mts` file |
+| | `no-restricted-syntax` on the whole file | Every `.js`, `.mjs`, `.cjs`, `.jsx` and `.cts` file. The exemptions are `javascriptAllowed` in the architecture config |
+| By role | `eslint-plugin-react-hooks` (its `recommended-latest` rules, all as errors); no `style={{…}}` | The `src` of a `client` package |
+| | No `useMemo`, `useCallback`, `memo` or default React import | The `src` of a `bindings` package, tests left out |
+
+### Rules that follow a role
+
+`architectureLint()` reads `architecture.config.mts` from the folder ESLint is
+run in, the file the gates read, and applies the last two rows to the
+packages that declare those roles. A config can also be handed over:
+`architectureLint(config)`. Where there is no such file those two rows are not
+applied, and a JavaScript file has no exemption.
+
+The hook rules are held to a client because a function named `useCase` in any
+other package would be read as a hook.
+
+### A dependency the project does not have
+
+A project that updates its kit gets the kit's files, not its dependencies.
+The ones the lint needs beyond `eslint` and `typescript-eslint` are listed in
+`lint-dependencies.mts`. `add-to-project.mts <project> kit` names each one the
+project has not installed, under "Still to do by hand". Until it is installed
+`eslint` stops with a message that says which package is missing and the
+command that adds it; it does not report a clean run.
+
+### With a formatter
+
+No rule here is a formatting rule, so there is nothing for
+`eslint-config-prettier` to switch off and the kit does not use it. Two rules
+add blank lines and one rewrites an arrow's body; a formatter keeps both.
+Run the formatter after `eslint --fix`: the fixer writes `{return x}` on one
+line and leaves the layout to it.
 
 ## Hooks
 

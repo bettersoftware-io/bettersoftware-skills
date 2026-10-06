@@ -74,7 +74,9 @@ describe("the selection machine", () => {
     const machine = createSelectionMachine();
     const seen: (string | null)[] = [];
 
-    machine.state$.subscribe((current) => seen.push(current.selected));
+    machine.state$.subscribe((current) => {
+      return seen.push(current.selected);
+    });
     machine.intents.select("EURUSD");
     machine.dispose();
     machine.intents.select("GBPUSD");

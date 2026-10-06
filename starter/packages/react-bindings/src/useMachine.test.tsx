@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type {
-  Machine,
-  SelectionIntents,
-  SelectionState,
+import {
+  createSelectionMachine,
+  type Machine,
+  type SelectionIntents,
+  type SelectionState,
 } from "@app/client-core";
-import { createSelectionMachine } from "@app/client-core";
 
 import { mountMachine } from "./useMachine.page.tsx";
 
@@ -15,7 +15,9 @@ describe("useMachine", () => {
 
     expect(page.state()).toEqual({ selected: null });
 
-    await page.send((intents) => intents.select("EURUSD"));
+    await page.send((intents) => {
+      return intents.select("EURUSD");
+    });
 
     expect(page.state()).toEqual({ selected: "EURUSD" });
   });
@@ -24,7 +26,9 @@ describe("useMachine", () => {
     const counted = createCountedMachines();
     const page = mountMachine(counted.createMachine, { strict: true });
 
-    await page.send((intents) => intents.select("EURUSD"));
+    await page.send((intents) => {
+      return intents.select("EURUSD");
+    });
 
     expect(page.state()).toEqual({ selected: "EURUSD" });
     expect(counted.disposed()).toBe(0);
@@ -60,6 +64,8 @@ function createCountedMachines(): CountedMachines {
         },
       };
     },
-    disposed: () => disposed,
+    disposed: () => {
+      return disposed;
+    },
   };
 }

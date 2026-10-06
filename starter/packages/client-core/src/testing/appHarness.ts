@@ -19,7 +19,13 @@ export function createAppHarness(): AppHarness {
   const prices$ = new Subject<Price>();
 
   return {
-    app: createApp({ price: { prices: () => prices$ } }),
+    app: createApp({
+      price: {
+        prices: () => {
+          return prices$;
+        },
+      },
+    }),
     deliverPrice: (price: Price): void => {
       prices$.next(price);
     },

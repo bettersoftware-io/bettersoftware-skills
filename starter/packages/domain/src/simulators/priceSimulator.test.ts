@@ -17,7 +17,9 @@ describe("the price simulator", () => {
 
     createPriceSimulator({ intervalMs: 500 })
       .prices()
-      .subscribe((price) => received.push(price));
+      .subscribe((price) => {
+        return received.push(price);
+      });
 
     vi.advanceTimersByTime(499);
     expect(received).toHaveLength(0);
@@ -42,13 +44,17 @@ describe("the price simulator", () => {
 
 describe("the random walk", () => {
   it("moves the chosen symbol by at most 0.1% of its price", () => {
-    const walk = createRandomWalk(() => 0);
+    const walk = createRandomWalk(() => {
+      return 0;
+    });
 
     expect(walk()).toEqual({ symbol: "EURUSD", mid: 1.0831 });
   });
 
   it("carries each symbol's price forward from one call to the next", () => {
-    const walk = createRandomWalk(() => 0);
+    const walk = createRandomWalk(() => {
+      return 0;
+    });
 
     walk();
 

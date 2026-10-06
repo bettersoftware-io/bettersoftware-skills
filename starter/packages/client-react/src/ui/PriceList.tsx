@@ -10,9 +10,9 @@ import { TESTIDS } from "./testids.ts";
  * click. Order, movement and staleness are already decided by the core.
  */
 export function PriceList(): ReactElement {
-  const viewModel = useViewModel();
-  const rows = viewModel.usePrices();
-  const selection = viewModel.useSelection();
+  const { usePrices, useSelection } = useViewModel();
+  const rows = usePrices();
+  const selection = useSelection();
 
   return (
     <table data-testid={TESTIDS.priceList}>
@@ -23,14 +23,16 @@ export function PriceList(): ReactElement {
         </tr>
       </thead>
       <tbody>
-        {rows.map((row) => (
-          <PriceRowView
-            key={row.symbol}
-            row={row}
-            selected={selection.state.selected === row.symbol}
-            onSelect={selection.select}
-          />
-        ))}
+        {rows.map((row) => {
+          return (
+            <PriceRowView
+              key={row.symbol}
+              row={row}
+              selected={selection.state.selected === row.symbol}
+              onSelect={selection.select}
+            />
+          );
+        })}
       </tbody>
     </table>
   );

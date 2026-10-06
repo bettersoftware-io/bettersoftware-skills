@@ -41,6 +41,8 @@ describe("starting the app", () => {
   });
 
   it("refuses to start on a page with no #root", () => {
-    expect(() => startApp()).toThrow("index.html has no #root element");
+    expect(() => {
+      return startApp();
+    }).toThrow("index.html has no #root element");
   });
 });

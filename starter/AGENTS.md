@@ -92,6 +92,36 @@ No JavaScript source files. Scripts and tool configs are `.mts`, which Node runs
 directly. A file a tool can only load as JavaScript is listed in
 `architecture.config.mts` under `javascriptAllowed`, with the reason.
 
+## How code is written
+
+`pnpm lint` enforces these. `pnpm lint --fix` repairs the ones marked (fix).
+
+- A named function is a `function` declaration, never a `const` holding an
+  arrow. Helpers go below the function that uses them.
+- An arrow (a callback, a member of an object) has a block body and a
+  `return`. (fix)
+- A blank line before and after a function and a block that spans lines,
+  between two declarations that span lines, and between the members of a
+  class. (fix)
+- An object type has a name. No `{ … }` type on a parameter, a return type, a
+  variable, a class property, a cast or a type argument: declare an
+  `interface` and use it.
+- One import statement per module, with an inline `type` on each type:
+  `import { type Price, read } from "./price.ts"`. A statement that names only
+  types stays `import type`. (fix)
+- No CommonJS: no `require`, `module.exports`, `__dirname` or `__filename`,
+  and no `.cts` file. Use `import` and `import.meta.dirname`.
+- One class in a file, and the file has its name.
+- In a component, take the hooks out of the view model by name:
+  `const { usePrices } = useViewModel()`. Never keep the bundle in a variable
+  or call through it.
+- A component follows React's rules: a hook is called at the top level, an
+  effect lists what it reads, and nothing reads a ref or sets state while
+  rendering.
+- No `style={{ … }}` in a component: styling goes in a stylesheet, by class.
+- `packages/react-bindings` uses no `useMemo`, `useCallback` or `memo`. Logic
+  that needs one belongs in the core.
+
 ## Reviewing a change
 
 A review in this project does two things first, whoever or whatever does it:

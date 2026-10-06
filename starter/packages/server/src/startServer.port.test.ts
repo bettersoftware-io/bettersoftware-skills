@@ -34,7 +34,9 @@ describe("the price server", () => {
       },
     });
 
-    onTestFinished(() => server.close());
+    onTestFinished(() => {
+      return server.close();
+    });
 
     const first = await connectClient(server.port);
     const second = await connectClient(server.port);
@@ -71,7 +73,11 @@ describe("the price server", () => {
     expect(prices$.observed).toBe(true);
 
     await client.close();
-    await expect.poll(() => prices$.observed).toBe(false);
+    await expect
+      .poll(() => {
+        return prices$.observed;
+      })
+      .toBe(false);
   });
 });
 
@@ -81,10 +87,16 @@ async function startTestServer(
 ): Promise<RunningServer> {
   const server = await startServer({
     port: 0,
-    prices: { prices: () => prices$ },
+    prices: {
+      prices: () => {
+        return prices$;
+      },
+    },
   });
 
-  onTestFinished(() => server.close());
+  onTestFinished(() => {
+    return server.close();
+  });
 
   return server;
 }
@@ -135,8 +147,8 @@ function connectClient(port: number): Promise<ConnectedClient> {
     });
     socket.addEventListener("open", () => {
       resolve({
-        nextMessage: () =>
-          new Promise((received) => {
+        nextMessage: () => {
+          return new Promise((received) => {
             socket.addEventListener(
               "message",
               (event) => {
@@ -144,14 +156,16 @@ function connectClient(port: number): Promise<ConnectedClient> {
               },
               { once: true },
             );
-          }),
-        close: () =>
-          new Promise<void>((closed) => {
+          });
+        },
+        close: () => {
+          return new Promise<void>((closed) => {
             socket.addEventListener("close", () => {
               closed();
             });
             socket.close();
-          }),
+          });
+        },
       });
     });
   });

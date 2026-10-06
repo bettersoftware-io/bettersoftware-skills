@@ -12,11 +12,16 @@ import type { WsConnection } from "./wsConnection.ts";
  */
 export function createWsPricePort(connection: WsConnection): PricePort {
   return {
-    prices: (): Observable<Price> =>
-      connection.messages().pipe(
+    prices: (): Observable<Price> => {
+      return connection.messages().pipe(
         map(parseServerMessage),
-        filter((message) => message !== undefined),
-        map((message) => decodePrice(message.payload)),
-      ),
+        filter((message) => {
+          return message !== undefined;
+        }),
+        map((message) => {
+          return decodePrice(message.payload);
+        }),
+      );
+    },
   };
 }

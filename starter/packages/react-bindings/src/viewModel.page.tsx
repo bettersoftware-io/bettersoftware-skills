@@ -34,8 +34,12 @@ export function mountUnderProvider(): ViewModelPage {
   );
 
   return {
-    symbols: (): string[] => seen.symbols,
-    selected: (): string | null => seen.selected,
+    symbols: (): string[] => {
+      return seen.symbols;
+    },
+    selected: (): string | null => {
+      return seen.selected;
+    },
     deliverPrice: async (price: Price): Promise<void> => {
       await act(async () => {
         harness.deliverPrice(price);
@@ -60,11 +64,17 @@ interface Seen {
   select: (symbol: string) => void;
 }
 
-function Reader({ seen }: { seen: Seen }): ReactElement {
-  const viewModel = useViewModel();
-  const selection = viewModel.useSelection();
+interface ReaderProps {
+  seen: Seen;
+}
 
-  seen.symbols = viewModel.usePrices().map((row) => row.symbol);
+function Reader({ seen }: ReaderProps): ReactElement {
+  const { usePrices, useSelection } = useViewModel();
+  const selection = useSelection();
+
+  seen.symbols = usePrices().map((row) => {
+    return row.symbol;
+  });
   seen.selected = selection.state.selected;
   seen.select = selection.select;
 

@@ -57,7 +57,11 @@ describe("the prices presenter", () => {
     prices$.next({ symbol: "GBPUSD", mid: 1.25 });
     vi.advanceTimersByTime(2000);
 
-    expect(latest().map((row) => row.stale)).toEqual([true, false]);
+    expect(
+      latest().map((row) => {
+        return row.stale;
+      }),
+    ).toEqual([true, false]);
   });
 
   it("makes a stale row fresh again when a price arrives", () => {
@@ -104,12 +108,21 @@ interface Presented {
 
 function createPresented(): Presented {
   const prices$ = new Subject<Price>();
-  const presenter = createPricesPresenter({ prices: () => prices$ });
+  const presenter = createPricesPresenter({
+    prices: () => {
+      return prices$;
+    },
+  });
   let rows: PriceRow[] = [];
 
   presenter.rows$.subscribe((next) => {
     rows = next;
   });
 
-  return { prices$, latest: () => rows };
+  return {
+    prices$,
+    latest: () => {
+      return rows;
+    },
+  };
 }

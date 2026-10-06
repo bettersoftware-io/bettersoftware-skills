@@ -20,7 +20,9 @@ describePricePortContract("price simulator", () => {
   return {
     port: createPriceSimulator({
       intervalMs: INTERVAL_MS,
-      nextPrice: () => takeNext(queued),
+      nextPrice: () => {
+        return takeNext(queued);
+      },
     }),
     produce: async (price: Price): Promise<void> => {
       queued.push(price);

@@ -14,18 +14,22 @@ export interface StartedApp {
 export async function startAppOnPage(): Promise<StartedApp> {
   document.body.innerHTML = '<div id="root"></div>';
 
-  let stop = (): void => {};
+  let stop: () => void = stopNothing;
 
   await act(async () => {
     stop = startApp();
   });
 
   return {
-    heading: (): string | null =>
-      document.querySelector("h1")?.textContent ?? null,
-    rowCount: (): number => document.querySelectorAll("tbody tr").length,
-    isBlank: (): boolean =>
-      document.getElementById("root")?.childElementCount === 0,
+    heading: (): string | null => {
+      return document.querySelector("h1")?.textContent ?? null;
+    },
+    rowCount: (): number => {
+      return document.querySelectorAll("tbody tr").length;
+    },
+    isBlank: (): boolean => {
+      return document.getElementById("root")?.childElementCount === 0;
+    },
     stop: async (): Promise<void> => {
       await act(async () => {
         stop();
@@ -33,6 +37,9 @@ export async function startAppOnPage(): Promise<StartedApp> {
     },
   };
 }
+
+/** Stands in until the app has started and handed back the real one. */
+function stopNothing(): void {}
 
 /** Leaves the page as a test found it. */
 export function clearPage(): void {

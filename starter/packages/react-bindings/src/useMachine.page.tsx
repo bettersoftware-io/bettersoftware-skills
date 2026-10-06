@@ -47,7 +47,9 @@ export function mountMachine<TState, TIntents extends object>(
   }
 
   return {
-    state: (): TState => currentView().state,
+    state: (): TState => {
+      return currentView().state;
+    },
     send: async (use: (intents: TIntents) => void): Promise<void> => {
       await act(async () => {
         use(currentView());

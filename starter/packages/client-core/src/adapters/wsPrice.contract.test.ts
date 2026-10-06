@@ -10,7 +10,11 @@ describePricePortContract("WebSocket price adapter", () => {
   const messages$ = new Subject<unknown>();
 
   return {
-    port: createWsPricePort({ messages: () => messages$ }),
+    port: createWsPricePort({
+      messages: () => {
+        return messages$;
+      },
+    }),
     produce: (price: Price): void => {
       messages$.next(encodePrice(price));
     },

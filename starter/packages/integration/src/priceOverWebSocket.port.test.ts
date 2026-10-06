@@ -57,8 +57,8 @@ async function startBothEnds(): Promise<BothEnds> {
   const server = await startServer({
     port: 0,
     prices: {
-      prices: () =>
-        defer(() => {
+      prices: () => {
+        return defer(() => {
           opened.settle();
 
           return source$;
@@ -66,11 +66,14 @@ async function startBothEnds(): Promise<BothEnds> {
           finalize(() => {
             closed.settle("closed");
           }),
-        ),
+        );
+      },
     },
   });
 
-  onTestFinished(() => server.close());
+  onTestFinished(() => {
+    return server.close();
+  });
 
   return {
     port: createWsPricePort(
@@ -90,10 +93,13 @@ interface Signal<T> {
 }
 
 function createSignal<T>(): Signal<T> {
-  let settle: (value: T) => void = () => {};
+  let settle: (value: T) => void = settleNothing;
   const promise = new Promise<T>((resolve) => {
     settle = resolve;
   });
 
   return { promise, settle };
 }
+
+/** Stands in until the promise hands over its real `resolve`. */
+function settleNothing(): void {}

@@ -13,6 +13,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { isMainModule } from "../kit/gates/lib/files.mts";
+import { LINT_DEPENDENCIES } from "../kit/lint-dependencies.mts";
 import {
   assertInside,
   type InstallOutcome,
@@ -240,6 +241,18 @@ function setUpKit(project: string, repository: string): Pick<AddResult, "created
 
   if (manifest.devDependencies?.["dependency-cruiser"] === undefined) {
     notes.push("install dependency-cruiser as a dev dependency: the dependencies gate needs it, and reports that it could not run without it");
+  }
+
+  // The kit's files are updated here; its dependencies are the project's to
+  // install. Each one the project lacks is named, so an update that brings a
+  // rule with a new dependency ends in an instruction, not in a lint run that
+  // stops.
+  for (const { name, version, neededFor } of LINT_DEPENDENCIES) {
+    if (manifest.devDependencies?.[name] === undefined) {
+      notes.push(
+        `install ${name} as a dev dependency (pnpm add -D -w ${name}@${version}): ${neededFor.charAt(0).toLowerCase()}${neededFor.slice(1)} need it, and the lint stops and says so without it`,
+      );
+    }
   }
 
   if (!["eslint.config.mts", "eslint.config.ts", "eslint.config.mjs", "eslint.config.js"].some((name) => existsSync(join(project, name)))) {

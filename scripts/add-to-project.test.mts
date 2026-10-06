@@ -115,10 +115,25 @@ describe("adding the kit", () => {
     );
   });
 
-  it("has nothing left to say once the project is set up", () => {
+  it("names a lint dependency the project has not installed, with the command that adds it", () => {
     const { repository, project } = createWorld();
     const manifest = readJson(project, "package.json");
     manifest.devDependencies = { "dependency-cruiser": "^18.0.0" };
+    write(project, "package.json", `${JSON.stringify(manifest, null, 2)}\n`);
+    write(project, "eslint.config.mts", "export default [];\n");
+    write(project, "architecture.config.mts", "// the project's own config\n");
+
+    const result = addToProject({ project, unit: "kit", repository });
+
+    expect(result.notes).toEqual([
+      "install eslint-plugin-react-hooks as a dev dependency (pnpm add -D -w eslint-plugin-react-hooks@^7.1.1): the rules for React code in a client package need it, and the lint stops and says so without it",
+    ]);
+  });
+
+  it("has nothing left to say once the project is set up", () => {
+    const { repository, project } = createWorld();
+    const manifest = readJson(project, "package.json");
+    manifest.devDependencies = { "dependency-cruiser": "^18.0.0", "eslint-plugin-react-hooks": "^7.1.1" };
     write(project, "package.json", `${JSON.stringify(manifest, null, 2)}\n`);
     write(project, "eslint.config.mts", "export default [];\n");
     write(project, "architecture.config.mts", "// the project's own config\n");

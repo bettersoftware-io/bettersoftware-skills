@@ -53,8 +53,8 @@ export function startServer({
       resolve({
         // A server listening on a TCP port always reports an address object.
         port: (server.address() as AddressInfo).port,
-        close: () =>
-          new Promise<void>((closed) => {
+        close: () => {
+          return new Promise<void>((closed) => {
             for (const client of server.clients) {
               client.terminate();
             }
@@ -62,7 +62,8 @@ export function startServer({
             server.close(() => {
               closed();
             });
-          }),
+          });
+        },
       });
     });
   });

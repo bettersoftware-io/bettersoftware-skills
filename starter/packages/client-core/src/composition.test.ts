@@ -8,20 +8,34 @@ import { createApp } from "./composition.ts";
 describe("the application", () => {
   it("shows the prices its price port produces", () => {
     const prices$ = new Subject<Price>();
-    const app = createApp({ price: { prices: () => prices$ } });
+    const app = createApp({
+      price: {
+        prices: () => {
+          return prices$;
+        },
+      },
+    });
     const subscription = app.presenters.prices.rows$.subscribe();
 
     prices$.next({ symbol: "EURUSD", mid: 1.1 });
 
     expect(
-      app.presenters.prices.rows$.getValue().map((row) => row.symbol),
+      app.presenters.prices.rows$.getValue().map((row) => {
+        return row.symbol;
+      }),
     ).toEqual(["EURUSD"]);
 
     subscription.unsubscribe();
   });
 
   it("builds a separate selection machine for each component that asks", () => {
-    const app = createApp({ price: { prices: () => new Subject<Price>() } });
+    const app = createApp({
+      price: {
+        prices: () => {
+          return new Subject<Price>();
+        },
+      },
+    });
     const first = app.machines.createSelection();
     const second = app.machines.createSelection();
 
