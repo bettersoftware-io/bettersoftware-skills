@@ -32,9 +32,11 @@ on 2026-10-05, on pushes to main and on a pull request
   Seen: "Dependency review is not supported on this repository". The add-on's
   README lists the setting; `gh api -X PUT repos/<owner>/<repo>/vulnerability-alerts`
   switches it on.
-- **Not run on GitHub yet:** Node 26 through `setup-node`, the pinned Corepack
-  script (inside the Playwright container jobs too), the pnpm store cache, and
-  the weekly tag workflow of `agent-workflow`.
+- **Seen on GitHub in skills-demo on 2026-10-06, all passing:** Node 26
+  through `setup-node`, the pinned Corepack script (in the container jobs
+  too), the pnpm store cache, `e2e.yml` in the Playwright container, and the
+  Linux goldens unchanged by the compiler and the CSS tokens. Not run: the
+  weekly tag workflow of `agent-workflow`.
 - **No job creates a project with several add-ons at once.** CI adds each one
   alone. All nine together pass `gate:full` locally.
 - **Nothing here has run on Linux outside GitHub's CI,** and nothing through
