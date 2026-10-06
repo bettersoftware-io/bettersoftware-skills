@@ -5,7 +5,18 @@ import { describe, expect, it } from "vitest";
 
 import { addToProject } from "../../../scripts/add-to-project.mts";
 import { changelog } from "../files/tools/agent-workflow/changelog.mts";
-import { APPROVING_HOST, ASK_RULES, CLAUDE_SETTINGS, CODEX_HOOKS, COMMAND_NEEDS, CONFIG_FILE, HOOK_SCRIPT } from "../files/tools/agent-workflow/lib/host.mts";
+import {
+  APPROVING_HOST,
+  ASK_RULES,
+  CLAUDE_SETTINGS,
+  CODEX_HOOKS,
+  COMMAND_NEEDS,
+  CONFIG_FILE,
+  EDIT_ASK_RULES,
+  HOOK_SCRIPT,
+  HOOK_SECONDS,
+  RETIRED_CONFIG_FILE,
+} from "../files/tools/agent-workflow/lib/host.mts";
 import { ADDON, createFolder, git, readJson, REPOSITORY, writeFile } from "./support.mts";
 
 interface HookGroup {
@@ -24,6 +35,7 @@ interface Manifest {
   packageJson: Record<string, { scripts?: Record<string, string>; devDependencies?: Record<string, string> }>;
   gates: { fast: string[]; full: string[] };
   startingFiles: string[];
+  retiredFiles: Record<string, { replacedBy: string; note: string }>;
   hostSettings: Record<string, HostSettings>;
   verify: string;
 }
@@ -63,6 +75,18 @@ describe("the add-on's manifest", () => {
     expect(existsSync(join(ADDON, "files", CONFIG_FILE))).toBe(true);
   });
 
+  it("ships the setting as data, with every approval off", () => {
+    expect(CONFIG_FILE.endsWith(".json")).toBe(true);
+    expect(readJson(join(ADDON, "files"), CONFIG_FILE)).toEqual({ approvePushAndCreate: false, approveMerge: false });
+    expect(FILES).not.toContain(RETIRED_CONFIG_FILE);
+  });
+
+  it("names the setting file it had before, and the one that took its place", () => {
+    expect(Object.keys(MANIFEST.retiredFiles)).toEqual([RETIRED_CONFIG_FILE]);
+    expect(MANIFEST.retiredFiles[RETIRED_CONFIG_FILE]?.replacedBy).toBe(CONFIG_FILE);
+    expect(MANIFEST.retiredFiles[RETIRED_CONFIG_FILE]?.note).toContain("approves nothing until approvePushAndCreate or approveMerge is set to true");
+  });
+
   it("ships TypeScript and nothing else that runs", () => {
     expect(FILES.filter((file) => /\.(js|mjs|cjs|jsx|py|sh|bash)$/.test(file))).toEqual([]);
     expect(FILES.filter((file) => file.endsWith(".mts")).length).toBeGreaterThan(5);
@@ -73,9 +97,9 @@ describe("the add-on's manifest", () => {
     const codex = MANIFEST.hostSettings[CODEX_HOOKS];
 
     expect(Object.keys(MANIFEST.hostSettings)).toEqual([CLAUDE_SETTINGS, CODEX_HOOKS]);
-    expect(claude?.permissions).toEqual({ ask: ASK_RULES });
+    expect(claude?.permissions).toEqual({ ask: [...ASK_RULES, ...EDIT_ASK_RULES] });
     expect(claude?.hooks).toEqual({
-      PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: `node "$CLAUDE_PROJECT_DIR/${HOOK_SCRIPT}" ${APPROVING_HOST}`, timeout: 5 }] }],
+      PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: `node "$CLAUDE_PROJECT_DIR/${HOOK_SCRIPT}" ${APPROVING_HOST}`, timeout: HOOK_SECONDS }] }],
     });
     expect(Object.keys(codex ?? {})).toEqual(["hooks"]);
     expect(codex?.hooks?.PreToolUse).toHaveLength(1);
@@ -91,7 +115,7 @@ describe("the add-on's manifest", () => {
 // they are meant to say, not that a given version of the host reads them so.
 describe("the permission rules, read the way the host documents them", () => {
   it("are ask rules only: what runs without a prompt is the hook's to decide, by exact shape", () => {
-    expect(MANIFEST.hostSettings[CLAUDE_SETTINGS]?.permissions).toEqual({ ask: ASK_RULES });
+    expect(MANIFEST.hostSettings[CLAUDE_SETTINGS]?.permissions).toEqual({ ask: [...ASK_RULES, ...EDIT_ASK_RULES] });
     expect(JSON.stringify(MANIFEST.hostSettings)).not.toContain('"allow"');
     expect(JSON.stringify(MANIFEST.hostSettings)).not.toContain('"deny"');
   });
@@ -288,9 +312,12 @@ describe("the section for AGENTS.md", () => {
     }
   });
 
-  it("says where approval is turned off, and names no pattern rule as what approves", () => {
+  it("says where approval is turned on, that it starts off, and names no pattern rule as what approves", () => {
     expect(SECTION).toContain(`\`${CONFIG_FILE}\``);
-    expect(SECTION).toContain("approveExactShapes");
+    expect(SECTION).toContain("approvePushAndCreate");
+    expect(SECTION).toContain("approveMerge");
+    expect(SECTION).toContain("Both are off unless the project turned them on");
+    expect(SECTION).not.toContain("approveExactShapes");
     expect(SECTION).not.toMatch(/worktree-\*|pr merge \*|pr create \*/);
   });
 });
@@ -325,11 +352,12 @@ describe("the add-on in a project that has the kit", () => {
     expect(claude.hooks?.PostToolUse).toEqual(kitClaude.hooks?.PostToolUse);
     expect(claude.hooks?.Stop).toEqual(kitClaude.hooks?.Stop);
     expect(claude.hooks?.PreToolUse).toEqual(MANIFEST.hostSettings[CLAUDE_SETTINGS]?.hooks?.PreToolUse);
-    expect(claude.permissions).toEqual({ ask: ASK_RULES });
+    expect(claude.permissions).toEqual({ ask: [...ASK_RULES, ...EDIT_ASK_RULES] });
     expect(codex.description).toBe(kitCodex.description);
     expect(codex.hooks?.Stop).toEqual(kitCodex.hooks?.Stop);
     expect(codex.hooks?.PreToolUse).toEqual(MANIFEST.hostSettings[CODEX_HOOKS]?.hooks?.PreToolUse);
-    expect(result.settingsChanges).toHaveLength(ASK_RULES.length + 2);
+    expect(result.settingsChanges).toHaveLength(ASK_RULES.length + EDIT_ASK_RULES.length + 2);
+    expect(result.unmerged).toEqual([]);
     expect(result.notes).toEqual([]);
   });
 
@@ -369,7 +397,7 @@ describe("the add-on in a project that has the kit", () => {
     expect(final.permissions).toEqual({
       allow: ["Bash(make *)", "Bash(pnpm test)"],
       deny: ["Bash(rm -rf *)"],
-      ask: ["Bash(npm publish *)", ...ASK_RULES],
+      ask: ["Bash(npm publish *)", ...ASK_RULES, ...EDIT_ASK_RULES],
     });
     expect(final.hooks?.PreToolUse?.map((group) => group.hooks[0]?.command)).toEqual([
       "node tools/own/guard.mts",
@@ -385,7 +413,7 @@ describe("the add-on in a project that has the kit", () => {
 
     const settings = readJson<HostSettings>(project, CLAUDE_SETTINGS);
 
-    settings.permissions = { ...settings.permissions, ask: ASK_RULES.filter((rule) => !rule.includes("--tags")) };
+    settings.permissions = { ...settings.permissions, ask: [...ASK_RULES, ...EDIT_ASK_RULES].filter((rule) => !rule.includes("--tags")) };
     writeFile(project, CLAUDE_SETTINGS, JSON.stringify(settings));
 
     const again = addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
@@ -403,7 +431,8 @@ describe("the add-on in a project that has the kit", () => {
 
     expect(MANIFEST.verify).toBe("pnpm agent-workflow:check");
     expect(verify.stdout).toContain("PASS hook: refuses an outward step joined to others, says nothing about a push to main, and never approves without --host=claude-code");
-    expect(verify.stdout).toContain("PASS approval: on.");
+    expect(verify.stdout).toContain("NOTE approval: off. tools/agent-workflow.config.json sets neither approvePushAndCreate nor approveMerge to true");
+    expect(verify.stdout).toContain("PASS Claude Code: an editing tool asks before it changes the hook or its setting");
     expect(verify.stdout).toContain("PASS Claude Code: all 13 ask rules are in");
     expect(verify.stdout).toContain("PASS Codex: .codex/hooks.json runs the hook before each shell command");
     expect(verify.stdout).not.toContain("FAIL");
@@ -426,10 +455,25 @@ describe("the add-on in a project that has the kit", () => {
     expect(verify.stdout).toContain("FAIL Codex: .codex/hooks.json does not register");
   });
 
+  it("says in its proof that approval is on, and asks about the sample, once the project turns it on in a repository", () => {
+    const project = createProjectWithKit();
+
+    addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
+    writeFile(project, CONFIG_FILE, '{ "approvePushAndCreate": true, "approveMerge": true }\n');
+
+    const verify = spawnSync(process.execPath, ["tools/agent-workflow/check.mts"], { cwd: project, encoding: "utf8" });
+
+    expect(verify.stdout).toContain("NOTE approval: on, by the project's choice in tools/agent-workflow.config.json.");
+    expect(verify.stdout).toContain("Branch protection on the remote is then what stands between an instruction injected into the agent and the default branch");
+    expect(verify.stdout).not.toContain("FAIL");
+    expect(verify.status).toBe(0);
+  });
+
   it("says in its proof that approval is not possible yet, in a project that is no repository", () => {
     const project = createProjectWithKit();
 
     addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
+    writeFile(project, CONFIG_FILE, '{ "approvePushAndCreate": true }\n');
     rmSync(join(project, ".git"), { recursive: true });
 
     const verify = spawnSync(process.execPath, ["tools/agent-workflow/check.mts"], { cwd: project, encoding: "utf8" });
@@ -439,20 +483,90 @@ describe("the add-on in a project that has the kit", () => {
     expect(verify.status).toBe(0);
   });
 
-  it("keeps approval off once the project turns it off, and its proof then says so without failing", () => {
+  it("keeps the project's setting when it is added again, and its proof then says what the project chose", () => {
     const project = createProjectWithKit();
+    const chosen = '{ "approvePushAndCreate": true, "approveMerge": false }\n';
 
     addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
-    writeFile(project, CONFIG_FILE, "export const approveExactShapes: boolean = false;\n");
+    writeFile(project, CONFIG_FILE, chosen);
+
+    const again = addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
+
+    expect(readFileSync(join(project, CONFIG_FILE), "utf8")).toBe(chosen);
+    expect(again.created).toEqual([]);
+    expect(again.notes).toEqual([]);
+  });
+
+  it("does not leave the old setting file silently unread: it writes the new one, with nothing approved, and says so", () => {
+    const project = createProjectWithKit();
+    const old = "export const approveExactShapes: boolean = true;\n";
+
+    // A project that took the add-on while its setting was a .mts file: the add-on is on record, the new file is not there.
     addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
+    rmSync(join(project, CONFIG_FILE));
+    writeFile(project, RETIRED_CONFIG_FILE, old);
+
+    const updated = addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
+
+    expect(updated.created).toEqual([CONFIG_FILE]);
+    expect(readJson(project, CONFIG_FILE)).toEqual({ approvePushAndCreate: false, approveMerge: false });
+    expect(readFileSync(join(project, RETIRED_CONFIG_FILE), "utf8")).toBe(old);
+    expect(updated.notes).toEqual([
+      `${RETIRED_CONFIG_FILE} is no longer read: ${CONFIG_FILE} took its place, and was written as the add-on ships it. ${MANIFEST.retiredFiles[RETIRED_CONFIG_FILE]?.note}`,
+    ]);
 
     const verify = spawnSync(process.execPath, ["tools/agent-workflow/check.mts"], { cwd: project, encoding: "utf8" });
 
-    expect(readFileSync(join(project, CONFIG_FILE), "utf8")).toBe("export const approveExactShapes: boolean = false;\n");
-    expect(verify.stdout).toContain("NOTE approval: off. tools/agent-workflow.config.mts does not set approveExactShapes to true");
-    expect(verify.stdout).toContain("PASS hook: refuses an outward step joined to others");
-    expect(verify.stdout).not.toContain("FAIL");
-    expect(verify.status).toBe(0);
+    expect(verify.stdout).toContain("NOTE approval: off.");
+    expect(verify.stdout).toContain(`NOTE setting: ${RETIRED_CONFIG_FILE} is no longer read`);
+  });
+
+  it("says so again on each update while the old file is there, without writing over the new one, and stops once it is deleted", () => {
+    const project = createProjectWithKit();
+    const chosen = '{ "approvePushAndCreate": true }\n';
+
+    addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
+    writeFile(project, CONFIG_FILE, chosen);
+    writeFile(project, RETIRED_CONFIG_FILE, "export const approveExactShapes = true;\n");
+
+    const again = addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
+
+    expect(again.created).toEqual([]);
+    expect(readFileSync(join(project, CONFIG_FILE), "utf8")).toBe(chosen);
+    expect(again.notes).toHaveLength(1);
+    expect(again.notes[0]).toMatch(/^tools\/agent-workflow\.config\.mts is no longer read: tools\/agent-workflow\.config\.json took its place\. The hook now approves nothing until/);
+
+    rmSync(join(project, RETIRED_CONFIG_FILE));
+
+    expect(addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" }).notes).toEqual([]);
+  });
+
+  it("exits 3, and lists what was not merged, when the project's settings hold a value of another kind where its rules go", () => {
+    const project = createProjectWithKit();
+    const settings = readJson<Record<string, unknown>>(project, CLAUDE_SETTINGS);
+
+    writeFile(project, CLAUDE_SETTINGS, JSON.stringify({ ...settings, permissions: { ask: "Bash(x)" } }));
+
+    const run = spawnSync(process.execPath, [join(REPOSITORY, "scripts/add-to-project.mts"), project, "agent-workflow", "--scope", "@acme"], { encoding: "utf8" });
+
+    expect(run.status).toBe(3);
+    expect(run.stdout).toContain("Not merged: 1 place(s) in a host's settings file. The add-on is not whole until they are (exit 3):");
+    expect(run.stdout).toContain(`  - ${CLAUDE_SETTINGS}: permissions.ask is a value in the project and a list is needed there, so ${ASK_RULES.length + EDIT_ASK_RULES.length} entries were not merged: Bash(git push *--force*); `);
+    expect(run.stdout).not.toContain("Still to do by hand:");
+    expect(run.stdout).toContain(`merged   ${CLAUDE_SETTINGS}: hooks.PreToolUse:`);
+
+    // The project's own check fails on the same project: the rules are not there.
+    writeFile(project, CONFIG_FILE, '{ "approvePushAndCreate": true }\n');
+
+    expect(spawnSync(process.execPath, ["tools/agent-workflow/check.mts"], { cwd: project, encoding: "utf8" }).status).toBe(1);
+  });
+
+  it("exits 0 when everything went in", () => {
+    const project = createProjectWithKit();
+    const run = spawnSync(process.execPath, [join(REPOSITORY, "scripts/add-to-project.mts"), project, "agent-workflow", "--scope", "@acme"], { encoding: "utf8" });
+
+    expect(run.status).toBe(0);
+    expect(run.stdout).not.toContain("Not merged");
   });
 
   it("writes the changelog once, the commands, the skills for Codex and the workflow", () => {

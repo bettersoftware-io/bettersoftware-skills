@@ -186,6 +186,70 @@ describe("a worktree that cannot be made", () => {
     expect(git(remote.clone, "branch", "--list", "worktree-fix")).toBe("");
   });
 
+  it("does not hand git a base that is an option: the one that ran a command is refused, and nothing runs", () => {
+    const remote = createRemote();
+    const marker = join(dirname(remote.clone), "ran");
+    const { status, lines, path } = create(remote.clone, ["fix", "--base", `--upload-pack=touch ${marker};git-upload-pack`]);
+
+    expect(status).toBe(2);
+    expect(lines[0]).toMatch(/^usage: /);
+    expect(existsSync(marker)).toBe(false);
+    expect(existsSync(path)).toBe(false);
+  });
+
+  it.each([["-x"], ["--end-of-options"], ["a b"], ["a..b"], ["a/"], ["/a"], ["a//b"], ["a."], ["a:b"], ["+a"], ["a~1"], ["a^"], ["$(x)"], [""], ["a/-b"], ["x".repeat(201)]])(
+    "is not made from the base %j, which is not a plain branch name",
+    (base) => {
+      const remote = createRemote();
+      const { status, lines } = create(remote.clone, ["fix", "--base", base]);
+
+      expect(status).toBe(2);
+      expect(lines[0]).toMatch(/^usage: /);
+      expect(existsSync(join(dirname(remote.clone), "project-worktrees"))).toBe(false);
+    },
+  );
+
+  it("takes a base with a slash, a dot, a dash and an underscore in it", () => {
+    const remote = createRemote();
+
+    git(remote.other, "checkout", "--quiet", "-b", "release/1.x-next_one");
+    git(remote.other, "push", "--quiet", "origin", "release/1.x-next_one");
+
+    expect(create(remote.clone, ["fix", "--base", "release/1.x-next_one"]).status).toBe(0);
+  });
+
+  it("names the base to git after --end-of-options, so that git reads it as a branch whatever it is", () => {
+    const remote = createRemote();
+    const asked: string[][] = [];
+
+    newWorktree({
+      cwd: remote.clone,
+      argv: ["fix"],
+      run: (program, args, where) => {
+        asked.push(args);
+
+        return run(program, args, where);
+      },
+      runShown: () => ({ status: 0, stdout: "", stderr: "" }),
+      report: () => undefined,
+    });
+
+    expect(asked).toContainEqual(["fetch", "origin", "--end-of-options", "main"]);
+  });
+
+  it("is not made when origin's recorded main branch is not a plain branch name", () => {
+    const remote = createRemote();
+
+    git(remote.clone, "update-ref", "refs/remotes/origin/-x", "HEAD");
+    git(remote.clone, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/-x");
+
+    const { status, lines, path } = create(remote.clone, ["fix"]);
+
+    expect(status).toBe(2);
+    expect(lines[0]).toBe('SKIP new-worktree: origin\'s main branch is recorded as "-x", which is not a plain branch name. Nothing was made. Name the branch: --base <branch>');
+    expect(existsSync(path)).toBe(false);
+  });
+
   it("is not made outside a git repository", () => {
     const folder = dirname(createRemote().clone);
     const { status, lines } = create(folder, ["fix"]);

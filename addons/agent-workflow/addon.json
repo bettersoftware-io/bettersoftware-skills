@@ -1,6 +1,6 @@
 {
   "name": "agent-workflow",
-  "summary": "How an agent ships work: a hook that keeps each push and pull request step in a call of its own and approves the routine ones by their exact shape, a worktree script, a weekly tag and a changelog.",
+  "summary": "How an agent ships work: a hook that keeps each push and pull request step in a call of its own and, when the project turns that on, approves the routine ones by their exact shape, a worktree script, a weekly tag and a changelog.",
   "recommended": false,
   "packageJson": {
     ".": {
@@ -17,8 +17,14 @@
   },
   "startingFiles": [
     "CHANGELOG.md",
-    "tools/agent-workflow.config.mts"
+    "tools/agent-workflow.config.json"
   ],
+  "retiredFiles": {
+    "tools/agent-workflow.config.mts": {
+      "replacedBy": "tools/agent-workflow.config.json",
+      "note": "The hook now approves nothing until approvePushAndCreate or approveMerge is set to true in the new file; both ship as false. Read the add-on's README before turning either on, then delete the old file."
+    }
+  },
   "hostSettings": {
     ".claude/settings.json": {
       "permissions": {
@@ -35,7 +41,9 @@
           "Bash(git push *--all*)",
           "Bash(git push *--tags*)",
           "Bash(git push *--prune*)",
-          "Bash(gh pr merge *--admin*)"
+          "Bash(gh pr merge *--admin*)",
+          "Edit(/tools/agent-workflow/**)",
+          "Edit(/tools/agent-workflow.config.json)"
         ]
       },
       "hooks": {
@@ -46,7 +54,7 @@
               {
                 "type": "command",
                 "command": "node \"$CLAUDE_PROJECT_DIR/tools/agent-workflow/hooks/split-outward-commands.mts\" --host=claude-code",
-                "timeout": 5
+                "timeout": 30
               }
             ]
           }

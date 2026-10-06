@@ -1,7 +1,7 @@
 // Decides whether a tool call, as a whole, is one the hook may approve.
 //
 // The host runs the call, not the command text alone. So before the text is
-// read at all, three things about the call must hold. Each is an allowlist:
+// read at all, four things about the call must hold. Each is an allowlist:
 // what is not named here is "no".
 //
 //   1. The tool is `Bash`.
@@ -11,6 +11,8 @@
 //   3. The call runs in a checkout or a worktree of this project's own
 //      repository. The payload must say where (`cwd`), and saying nothing is
 //      a "no".
+//   4. The session is in a mode where a person is asked before a command
+//      runs, so that an approval takes away a question and nothing more.
 
 /** The fields of a Bash call that may be present, and the values they may have. */
 const APPROVABLE_FIELDS: Record<string, (value: unknown) => boolean> = {
@@ -26,11 +28,22 @@ const APPROVABLE_FIELDS: Record<string, (value: unknown) => boolean> = {
   dangerouslyDisableSandbox: (value) => value === false,
 };
 
+/**
+ * The permission modes an approval is given in. In `plan` nothing is meant to
+ * run. In `dontAsk` a command with no rule of its own is refused, and an
+ * approval would run it. In `auto` a classifier judges each command, and an
+ * approval would take its place. In `bypassPermissions` nothing asks, so
+ * there is nothing to approve. A mode this file does not name, and no mode
+ * at all, is "no".
+ */
+const APPROVING_MODES = ["default", "acceptEdits"];
+
 /** The fields a host sends that the approval reads. */
 export interface CallPayload {
   tool_name?: unknown;
   tool_input?: unknown;
   cwd?: unknown;
+  permission_mode?: unknown;
 }
 
 /**
@@ -41,7 +54,7 @@ export interface CallPayload {
 export function approvableCommand(payload: CallPayload, isOwnCheckout: (cwd: string) => boolean): string | undefined {
   const input = payload.tool_input;
 
-  if (payload.tool_name !== "Bash" || input === undefined || input === null) {
+  if (payload.tool_name !== "Bash" || input === undefined || input === null || !APPROVING_MODES.includes(payload.permission_mode as string)) {
     return undefined;
   }
 

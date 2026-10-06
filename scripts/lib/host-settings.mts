@@ -10,6 +10,11 @@
 //   - nothing is ever removed.
 //
 // Merging the same settings a second time changes nothing.
+//
+// Where the project's file has a value of another kind than the add-on needs
+// (`"permissions": null`, `"ask": "Bash(x)"`, `"PreToolUse": {}`), the first
+// rule holds and the project's value stands. That leaves the add-on's entries
+// out, so it is never silent: each such place is named in `skipped`.
 
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 
@@ -17,6 +22,8 @@ export interface MergeResult {
   merged: Json;
   /** One line per thing added, e.g. `permissions.allow: Bash(gh pr create *)`. Empty when nothing changed. */
   added: string[];
+  /** One line per place where the project's value is of another kind, with what was left out there. */
+  skipped: string[];
 }
 
 export class SettingsError extends Error {}
@@ -43,6 +50,7 @@ export function mergeSettings(current: Json, wanted: Json, path: string[] = []):
   if (isObject(current) && isObject(wanted)) {
     const merged: { [key: string]: Json } = { ...current };
     const added: string[] = [];
+    const skipped: string[] = [];
 
     for (const [key, value] of Object.entries(wanted)) {
       if (key in current) {
@@ -50,13 +58,14 @@ export function mergeSettings(current: Json, wanted: Json, path: string[] = []):
 
         merged[key] = inner.merged;
         added.push(...inner.added);
+        skipped.push(...inner.skipped);
       } else {
         merged[key] = value;
         added.push(...describeAdded(value, [...path, key]));
       }
     }
 
-    return { merged, added };
+    return { merged, added, skipped };
   }
 
   if (Array.isArray(current) && Array.isArray(wanted)) {
@@ -70,11 +79,26 @@ export function mergeSettings(current: Json, wanted: Json, path: string[] = []):
       }
     }
 
-    return { merged, added };
+    return { merged, added, skipped: [] };
   }
 
   // A plain value, or two values of different kinds: the project's stands.
-  return { merged: current, added: [] };
+  // A list or an object the add-on needed is then missing, and that is said.
+  if (kindOf(wanted) === "a value" || kindOf(current) === kindOf(wanted)) {
+    return { merged: current, added: [], skipped: [] };
+  }
+
+  const left = describeAdded(wanted, path).map((entry) => entry.slice(entry.indexOf(": ") + 2));
+
+  return {
+    merged: current,
+    added: [],
+    skipped: [`${path.join(".")} is ${kindOf(current)} in the project and ${kindOf(wanted)} is needed there, so ${left.length} entr${left.length === 1 ? "y was" : "ies were"} not merged: ${left.join("; ")}`],
+  };
+}
+
+function kindOf(value: Json): "a list" | "an object" | "a value" {
+  return Array.isArray(value) ? "a list" : isObject(value) ? "an object" : "a value";
 }
 
 /**

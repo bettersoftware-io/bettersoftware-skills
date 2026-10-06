@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { isPlainPath } from "./lib/files.mts";
 import {
+  createProgramFinder,
   createShellRunner,
   createStopper,
   LIMITS,
@@ -19,6 +20,7 @@ import {
   scriptRunBy,
   skipLines,
   splitChain,
+  splitStages,
   type StageRun,
   type Stopper,
 } from "./quiet.mts";
@@ -144,6 +146,120 @@ describe("splitting a chain", () => {
     ["pnpm a && "],
   ])("leaves %s whole, since splitting it would change what runs", (script) => {
     expect(splitChain(script)).toEqual([script.trim()]);
+  });
+});
+
+// Each stage runs in a shell of its own. So a chain is split only when no part
+// can change the shell for the parts after it: every part starts with a
+// program the shell finds as a file. The shell is asked; nothing here lists
+// what it would run itself.
+describe("splitting a chain into stages that each get a shell of their own", () => {
+  const isProgram = createProgramFinder(process.cwd());
+  const whole = (script: string): void => {
+    expect(splitStages(script, isProgram)).toEqual([script]);
+  };
+
+  it("splits a chain whose every part starts with a program on the PATH", () => {
+    expect(splitStages("pnpm gates && node tools/check.mts && pnpm test", isProgram)).toEqual(["pnpm gates", "node tools/check.mts", "pnpm test"]);
+  });
+
+  it("splits when a variable is set in front of a part, since that reaches the one command and no further", () => {
+    expect(splitStages("CI=1 pnpm test && NODE_ENV=production FORCE_COLOR=0 node build.mjs", isProgram)).toEqual(["CI=1 pnpm test", "NODE_ENV=production FORCE_COLOR=0 node build.mjs"]);
+  });
+
+  it.each([
+    ["changes folder", "cd packages && node check.mjs"],
+    ["sets a variable for what follows", "MODE=strict && node check.mjs"],
+    ["sets two", "A=1 B=2 && node check.mjs"],
+    ["exports one", "export STRICT=1 && node check.mjs"],
+    ["turns on a shell option", "set -e && node check.mjs"],
+    ["reads a file into the shell", ". ./env.sh && node check.mjs"],
+    ["does the same by its other name", "source ./env.sh && node check.mjs"],
+    ["evaluates text", "eval X=1 && node check.mjs"],
+    ["replaces the shell", "exec node a.mjs && node check.mjs"],
+    ["takes a variable away", "unset CI && node check.mjs"],
+    ["changes the file mask", "umask 077 && node check.mjs"],
+    ["sets a trap", "trap '' TERM && node check.mjs"],
+    ["defines an alias", "alias n=node && node check.mjs"],
+    ["starts with a test the shell does itself", "test -d packages && node check.mjs"],
+    ["starts with the other spelling of that test", "[ -d packages ] && node check.mjs"],
+    ["starts with true", "true && node check.mjs"],
+    ["starts with echo", "echo start && node check.mjs"],
+    ["negates a part", "! node a.mjs && node check.mjs"],
+    ["groups in braces", "{ node a.mjs && node check.mjs }"],
+    ["starts with a quoted word", '"node" a.mjs && node check.mjs'],
+    ["starts with a variable", "$RUNNER a.mjs && node check.mjs"],
+    ["sets a variable to quoted text in front", 'NAME="a b" node a.mjs && node check.mjs'],
+    ["sets a variable from another in front", "NAME=$OTHER node a.mjs && node check.mjs"],
+    ["starts with a word that is no program at all", "no-such-program-anywhere a && node check.mjs"],
+    ["has the unknown word last", "node check.mjs && no-such-program-anywhere"],
+    ["has it in the middle", "node a.mjs && cd packages && node check.mjs"],
+  ])("leaves whole a chain with a part that %s", (_name, script) => {
+    whole(script);
+  });
+
+  it.each([
+    ["the last exit code", "node a.mjs && node exit.mjs $?"],
+    ["the last argument", "node a.mjs 7 && node exit.mjs $_"],
+    ["the last background job", "node a.mjs && node wait.mjs $!"],
+    ["the shell's own process", "node a.mjs && node kill.mjs $$"],
+    ["an argument of the script", "node a.mjs && node b.mjs $1"],
+    ["an expansion in braces, which may assign", "node a.mjs ${MODE:=strict} && node b.mjs"],
+  ])("leaves whole a chain that reads %s", (_name, script) => {
+    whole(script);
+  });
+
+  it("still splits a chain that only reads variables by name", () => {
+    expect(splitStages("node a.mjs $HOME && node b.mjs $_private_name", isProgram)).toEqual(["node a.mjs $HOME", "node b.mjs $_private_name"]);
+  });
+
+  it("leaves a script that is not a chain as it is, whatever it starts with", () => {
+    expect(splitStages("cd packages", isProgram)).toEqual(["cd packages"]);
+    expect(splitStages("node a.mjs || true", isProgram)).toEqual(["node a.mjs || true"]);
+  });
+
+  it("asks the shell: a word is a program only when the shell finds it as a file", () => {
+    expect(isProgram("node")).toBe(true);
+    expect(isProgram("pnpm")).toBe(true);
+    expect(isProgram("/bin/sh")).toBe(true);
+
+    for (const word of ["cd", "export", "set", ".", "eval", "exec", "unset", "true", "echo", "test", "[", "!", "{", "if", "no-such-program-anywhere", "./no-such-file.sh", ""]) {
+      expect(isProgram(word), word).toBe(false);
+    }
+  });
+
+  it("finds a program the project installed, and a script named by its path", () => {
+    const root = createProject({}, { "node_modules/.bin/installed-tool": "#!/bin/sh\n", "scripts/run.sh": "#!/bin/sh\n", "scripts/not-executable.sh": "#!/bin/sh\n" });
+
+    chmodSync(join(root, "node_modules/.bin/installed-tool"), 0o755);
+    chmodSync(join(root, "scripts/run.sh"), 0o755);
+
+    const inProject = createProgramFinder(root);
+
+    expect(inProject("installed-tool")).toBe(true);
+    expect(inProject("./scripts/run.sh")).toBe(true);
+    expect(inProject("./scripts/not-executable.sh")).toBe(false);
+    expect(isProgram("installed-tool")).toBe(false);
+  });
+
+  it("does not take a file named after a thing the shell does itself for a program: the shell would not run the file", () => {
+    const root = createProject({}, { "node_modules/.bin/cd": "#!/bin/sh\n", "node_modules/.bin/export": "#!/bin/sh\n" });
+
+    chmodSync(join(root, "node_modules/.bin/cd"), 0o755);
+    chmodSync(join(root, "node_modules/.bin/export"), 0o755);
+
+    expect(createProgramFinder(root)("cd")).toBe(false);
+    expect(createProgramFinder(root)("export")).toBe(false);
+  });
+
+  it("plans a gate whose inner script cannot be split as one stage that pnpm runs, with its parts kept together", () => {
+    const scripts = { check: "cd packages && node check.mjs", "gate:fast": "pnpm run check && node a.mjs", "gate:full": "export CI=1 && pnpm gate:fast" };
+
+    expect(planStages(scripts, "gate:fast", isProgram)).toEqual([
+      { command: "pnpm run check", script: "gate:fast" },
+      { command: "node a.mjs", script: "gate:fast" },
+    ]);
+    expect(planStages(scripts, "gate:full", isProgram)).toEqual([{ command: "export CI=1 && pnpm gate:fast", script: "gate:full" }]);
   });
 });
 
@@ -562,6 +678,56 @@ describe("the quiet plan, run in order, against what pnpm runs", () => {
   }, 60_000);
 });
 
+// The same claim, for scripts whose parts depend on one another through the
+// shell. Each is run for real, by pnpm and by the quiet runner. The quiet
+// runner once split every one of these and ran each part in a fresh shell:
+// the first three then exited 0 where pnpm exits 1, and the stop hook
+// remembered a red tree as green.
+describe("the quiet gate and pnpm, for a script whose parts share a shell", () => {
+  const exitWith = (code: string): string => `node exit.mjs ${code}`;
+  const files = {
+    "check.mjs": "process.exit(0);\n",
+    "sub/check.mjs": "process.exit(1);\n",
+    "exit.mjs": "process.exit(Number(process.argv[2] ?? 0));\n",
+    "env.mjs": "process.exit(process.env[process.argv[2]] === process.argv[3] ? Number(process.argv[4]) : 0);\n",
+    "env.sh": "FROM_FILE=yes\nexport FROM_FILE\n",
+  };
+
+  it.each([
+    ["changes folder, and the check that fails is in that folder", { gate: "cd sub && node check.mjs" }, 1],
+    // Not `MODE`: the test runner sets that one, and a stage would inherit it.
+    ["sets a variable the next part tests", { gate: 'GATE_MODE=strict && test -z "$GATE_MODE"' }, 1],
+    ["sets a variable the next part hands to a program", { gate: "GATE_CODE=3 && node exit.mjs $GATE_CODE" }, 3],
+    ["exports a variable the next part reads", { gate: "export STRICT=1 && node env.mjs STRICT 1 1" }, 1],
+    ["reads a file of variables into the shell", { gate: ". ./env.sh && node env.mjs FROM_FILE yes 6" }, 6],
+    ["evaluates an assignment", { gate: 'eval X=1 && test "$X" != 1' }, 1],
+    ["takes away a variable pnpm set", { gate: "unset npm_lifecycle_event && node env.mjs npm_lifecycle_event gate 8" }, 0],
+    ["replaces the shell, so nothing after it runs", { gate: `exec ${exitWith("0")} && ${exitWith("9")}` }, 0],
+    ["passes the last argument on", { gate: `${exitWith("0")} 7 && node exit.mjs $_` }, 7],
+    ["turns on exit-on-error first", { gate: `set -e && ${exitWith("0")} && ${exitWith("4")}` }, 4],
+    ["ends in || true", { gate: `${exitWith("5")} && ${exitWith("0")} || true` }, 0],
+    ["negates its first part", { gate: `! ${exitWith("0")} && ${exitWith("9")}` }, 1],
+    ["negates a failing part and goes on", { gate: `! ${exitWith("3")} && ${exitWith("2")}` }, 2],
+    ["groups its parts in braces", { gate: `{ ${exitWith("0")} && ${exitWith("4")}; }` }, 4],
+    ["defines a function and calls it", { gate: "f() { return 3; } && f" }, 3],
+    ["sets a variable in front of one part only", { gate: "MODE=x node env.mjs MODE x 0 && node env.mjs MODE x 6" }, 0],
+    ["sets a variable in front of the part that fails on it", { gate: "node env.mjs MODE x 6 && MODE=x node env.mjs MODE x 6" }, 6],
+    ["changes folder inside a script the gate runs", { inner: "cd sub && node check.mjs", gate: `pnpm run inner && ${exitWith("0")}` }, 1],
+    ["changes folder inside a script the gate runs by its name with a colon", { "in:ner": "cd sub && node check.mjs", gate: `${exitWith("0")} && pnpm in:ner` }, 1],
+    ["exports a variable, then runs a chain that reads it", { "in:ner": `${exitWith("0")} && node env.mjs STRICT 1 5`, gate: "export STRICT=1 && pnpm in:ner" }, 5],
+    ["is a plain chain of programs that passes", { gate: `${exitWith("0")} && node check.mjs` }, 0],
+    ["is a plain chain of programs whose last part fails", { gate: `${exitWith("0")} && node check.mjs && ${exitWith("3")}` }, 3],
+  ])("give the same exit code when the gate %s", (_case, scripts, expected) => {
+    const root = createProject(scripts, files);
+    const loud = spawnSync("pnpm", ["run", "gate"], { cwd: root, encoding: "utf8" });
+    const quiet = runCommand(root, "gate");
+
+    // What pnpm does is the fact; the number beside each case only shows that the case is the one it is named for.
+    expect(loud.status, loud.stderr).toBe(expected);
+    expect(quiet.status, quiet.stdout).toBe(loud.status);
+  }, 60_000);
+});
+
 describe("the quiet gate and pnpm", () => {
   // The claim the stop hook and a person rely on: quiet changes what is
   // printed, never the verdict.
@@ -693,8 +859,9 @@ function createStages(table: Record<string, StageRun>, ran: string[] = []): RunS
   };
 }
 
+/** The plan, with every first word taken for a program: these tests are about which scripts are opened, and their commands are made up. */
 function commandsOf(scripts: Record<string, string>, script: string): string[] {
-  return planStages(scripts, script).map(({ command }) => command);
+  return planStages(scripts, script, () => true).map(({ command }) => command);
 }
 
 /** Runs a gate whose stages are the table's keys, on a clock that moves one second per stage. */

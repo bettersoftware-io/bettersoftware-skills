@@ -6,9 +6,22 @@
 // substitution. It expands nothing: `$branch` stays the text `$branch`.
 //
 // A command it cannot read (a quote that never closes) throws `ShellError`.
-// The caller decides what that means.
+// A command it will not read (too long, or nested too deep) throws
+// `LimitError`. The caller decides what each means.
 
 export class ShellError extends Error {}
+
+/** Not a `ShellError`: the text was not found unreadable, it was not read. */
+export class LimitError extends Error {}
+
+/** Longer than any command a person or an agent writes, a file in a heredoc included. Reading is one pass, so this bounds time. */
+export const LONGEST_SCRIPT = 1_000_000;
+/**
+ * How deep `$(…)`, backticks and `<(…)` may nest. Each level is a call of the
+ * reader inside itself: without a bound, a command nested some thousands deep
+ * ends the process with a stack overflow, and a hook that died answers nothing.
+ */
+export const DEEPEST_NESTING = 40;
 
 /** One command of a pipeline: its words, with quotes removed and redirections dropped. */
 export type Stage = string[];
@@ -31,12 +44,17 @@ interface Heredoc {
 const WORD_END = new Set([" ", "\t", "\n", ";", "&", "|", "<", ">", "(", ")"]);
 
 export function parseShell(text: string): Script {
+  if (text.length > LONGEST_SCRIPT) {
+    throw new LimitError(`the command is longer than ${LONGEST_SCRIPT} characters`);
+  }
+
   return new Scanner(text).script(undefined);
 }
 
 class Scanner {
   private readonly text: string;
   private position = 0;
+  private depth = 0;
   private readonly heredocs: Heredoc[] = [];
 
   constructor(text: string) {
@@ -49,6 +67,12 @@ class Scanner {
     let step: Step = [];
     let stage: Stage = [];
     let groups = 0;
+
+    this.depth += 1;
+
+    if (this.depth > DEEPEST_NESTING + 1) {
+      throw new LimitError(`the command nests substitutions more than ${DEEPEST_NESTING} deep`);
+    }
 
     const endStage = (): void => {
       if (stage.length > 0) {
@@ -137,6 +161,7 @@ class Scanner {
     }
 
     endStep();
+    this.depth -= 1;
 
     return script;
   }

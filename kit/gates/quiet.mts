@@ -42,6 +42,19 @@
 // subshell) is not split: it runs as one stage. That is still correct, only
 // less exact about which part failed.
 //
+// Each stage runs in a shell of its own, so nothing a part does to its shell
+// reaches the parts after it. `cd sub && node check.mjs`, split, would run the
+// check in the wrong folder; `export STRICT=1 && …` would lose the variable.
+// A wrong folder or a lost variable can turn a red gate green, so a chain is
+// split only when every part is certainly a program: its first word, after
+// any `NAME=value` in front, is one the stage's own shell finds as a file on
+// the `PATH` (`pnpm`, `node`, what `node_modules/.bin` holds). The shell is
+// asked (`command -v`); no list of its builtins is kept here, so a word this
+// does not know is never taken for harmless. `cd`, `export`, `set`, `.`,
+// `eval`, `exec`, a bare `NAME=value`, `!`, `{`, `time`, a function: none is
+// a file on the `PATH`, and the script runs whole. So does one that reads
+// what only the shell of the whole chain has: `$?`, `$_`, `$!`, `${…}`.
+//
 // Told to stop (SIGINT, SIGTERM), it never waits on the stage: the stage's
 // process group gets SIGTERM, then SIGKILL, and the run ends within seconds
 // with what the stage had printed, whatever the stage does. A second signal
@@ -54,7 +67,7 @@
 // `node_modules/.cache/arch/last-gate.log`, written as it arrives, so a run
 // that is killed loses nothing.
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { closeSync, constants as fileConstants, existsSync, mkdirSync, openSync, readFileSync, writeSync } from "node:fs";
 import { constants } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
@@ -93,6 +106,8 @@ export interface QuietOptions {
   script: string;
   write: (text: string) => void;
   runStage?: RunStage;
+  /** Whether a word is a program the stage's shell would find as a file. Replaced in tests whose commands are made up. */
+  isProgram?: IsProgram;
   /** Asked before each stage; the run stops when it answers true. */
   isStopped?: () => boolean;
   now?: () => number;
@@ -104,11 +119,19 @@ interface Manifest {
   scripts?: Record<string, string>;
 }
 
+/** Says whether a word, as the first of a command, is a program found as a file. */
+export type IsProgram = (word: string) => boolean;
+
 /**
  * The commands `script` runs, in order: its `&&` chain, with each part that
  * runs another chain of the project replaced by that chain's parts.
  */
-export function planStages(scripts: Record<string, string>, script: string, seen: string[] = []): { command: string; script?: string }[] {
+export function planStages(
+  scripts: Record<string, string>,
+  script: string,
+  isProgram: IsProgram = createProgramFinder(process.cwd()),
+  seen: string[] = [],
+): { command: string; script?: string }[] {
   const body = scripts[script];
 
   if (body === undefined) {
@@ -124,14 +147,64 @@ export function planStages(scripts: Record<string, string>, script: string, seen
     return [{ command: `pnpm run ${script}` }];
   }
 
-  return splitChain(body).flatMap((command) => {
+  return splitStages(body, isProgram).flatMap((command) => {
     const named = scriptRunBy(command);
 
     // Only a chain is opened up. Any other script is one stage, under the name a person would type.
-    return named !== undefined && splitChain(scripts[named] ?? "").length > 1
-      ? planStages(scripts, named, [...seen, script])
+    return named !== undefined && splitStages(scripts[named] ?? "", isProgram).length > 1
+      ? planStages(scripts, named, isProgram, [...seen, script])
       : [{ command, script }];
   });
+}
+
+/** `NAME=value` any number of times, then the command's first word. A value or a word with a quote or a `$` in it is not read. */
+const FIRST_WORD = /^(?:[A-Za-z_][A-Za-z0-9_]*=[A-Za-z0-9_./:@%+,=-]*\s+)*([A-Za-z0-9_./@+-]+)(?:\s|$)/;
+/** A `$` that is not the start of a plain variable's name: `$?`, `$_`, `$!`, `$$`, `$1`, `${…}`. */
+const SHELL_STATE = /\$(?![A-Za-z]|_[A-Za-z0-9_])/;
+
+/**
+ * The parts of a chain that may each run in a shell of its own: every part
+ * starts with a program, and none reads what only the chain's own shell has.
+ * Any other script comes back whole.
+ */
+export function splitStages(script: string, isProgram: IsProgram): string[] {
+  const parts = splitChain(script);
+  const separable =
+    !SHELL_STATE.test(script) &&
+    parts.every((part) => {
+      const word = FIRST_WORD.exec(part)?.[1];
+
+      return word !== undefined && isProgram(word);
+    });
+
+  return separable ? parts : [script.trim()];
+}
+
+/**
+ * Asks the shell a stage runs in whether a word is a program: `command -v`
+ * prints a path for a file on the `PATH`, and the bare word, or an alias's
+ * definition, for anything the shell would run itself. Each word is asked
+ * once. Where there is no such shell (Windows), nothing is a program, and
+ * every script runs whole.
+ */
+export function createProgramFinder(root: string): IsProgram {
+  const known = new Map<string, boolean>();
+  const path = [join(root, "node_modules", ".bin"), process.env.PATH ?? ""].join(delimiter);
+
+  return (word) => {
+    let found = known.get(word);
+
+    if (found === undefined) {
+      const asked = process.platform === "win32" ? undefined : spawnSync("/bin/sh", ["-c", 'command -v -- "$1"', "sh", word], { cwd: root, encoding: "utf8", env: { ...process.env, PATH: path } });
+      const answer = asked?.status === 0 ? asked.stdout.trim() : "";
+
+      // A word with a slash names a file itself, and the shell says it back when it can run it.
+      found = answer.startsWith("/") || (word.includes("/") && answer === word);
+      known.set(word, found);
+    }
+
+    return found;
+  };
 }
 
 /**
@@ -201,7 +274,15 @@ export function scriptEnvironment(root: string, manifest: Manifest, script: stri
 }
 
 /** Runs the stages of `script` until one fails, and returns the exit code `pnpm <script>` would give. */
-export async function runQuiet({ root, script, write, runStage = createShellRunner(), isStopped, now = Date.now }: QuietOptions): Promise<number> {
+export async function runQuiet({
+  root,
+  script,
+  write,
+  runStage = createShellRunner(),
+  isProgram = createProgramFinder(root),
+  isStopped,
+  now = Date.now,
+}: QuietOptions): Promise<number> {
   const manifestFile = join(root, "package.json");
 
   if (!existsSync(manifestFile)) {
@@ -209,7 +290,7 @@ export async function runQuiet({ root, script, write, runStage = createShellRunn
   }
 
   const manifest = JSON.parse(readFileSync(manifestFile, "utf8")) as Manifest;
-  const stages = planStages(manifest.scripts ?? {}, script).map(
+  const stages = planStages(manifest.scripts ?? {}, script, isProgram).map(
     (planned): Stage => ({ command: planned.command, env: planned.script === undefined ? {} : scriptEnvironment(root, manifest, planned.script) }),
   );
   const log = openLog(root);

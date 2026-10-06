@@ -70,10 +70,21 @@ addons/<name>/
   a key the project has keeps its value, a list gains the entries it lacks,
   a hook whose command is already registered is not added again, and
   nothing is removed. A second run changes nothing, and does not rewrite the
-  file. A file that is not JSON, or that the host keeps read-only, is left
-  alone, and the script says what is left to do. The merge cannot tell an
-  entry the project removed from one that was never there: a later run adds
-  it back.
+  file. A file that the host keeps read-only is left alone, and the script
+  says what is left to do. The merge cannot tell an entry the project removed
+  from one that was never there: a later run adds it back.
+  **What could not be merged is never silent.** A file that is not JSON, and
+  a place where the project's file holds a value of another kind than the
+  add-on needs (`"permissions": null`, `"ask": "Bash(x)"`,
+  `"PreToolUse": {}`), keep the project's value. The summary then lists each
+  such place under "Not merged", with the entries left out, and
+  `add-to-project.mts` exits 3: the add-on's files are in, and the add-on is
+  not whole.
+- `retiredFiles` names a file an older version of the add-on had the project
+  own and no longer reads, with the starting file that took its place
+  (`replacedBy`) and a sentence for the person (`note`). While the old file is
+  in the project every update says so, and writes the new starting file if
+  the project does not have it. A setting is never left silently unread.
 - `firstRun` is a command to run once after installing, before `verify`. It
   is for an add-on whose verdict depends on something the installer changes:
   `format-lint` asks for its fixer, because a package scope of another length

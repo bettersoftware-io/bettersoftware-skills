@@ -20,6 +20,13 @@
 // `pnpm install` and then `pnpm gate:fast` in it, and says READY only when
 // both passed.
 //
+// The name and the base are each one plain word: letters, digits and
+// `. _ / -`, starting with a letter or a digit. Both are handed to git, and a
+// word that starts with `-` is an option to it: `--upload-pack=<command>` as
+// the base once ran that command. The fetch also says `--end-of-options`
+// (git 2.24, 2019); an older git fails on that word, and the script then
+// stops at "could not fetch" and makes nothing.
+//
 // Exit 0: the worktree exists, and with `--ready` it is proven. Exit 1: it
 // exists and is not ready, or it was refused (the name is taken). Exit 2: it
 // could not be made (the fetch failed, this is not a git repository).
@@ -32,6 +39,10 @@ import { type Run, run, runShown } from "./lib/system.mts";
 
 const BRANCH_PREFIX = "worktree-";
 const REMOTE = "origin";
+/** A worktree's name: one word with no `/`, since it is also a folder's name. */
+const NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+/** A branch to start from. It may hold `/` (`release/1.x`); it may not start with `-`, hold `..`, or end in `/` or `.`. */
+const BASE = /^[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/;
 const USAGE = "usage: new-worktree.mts <name> [--ready] [--base <branch>]   e.g. new-worktree.mts rates-filter-fix --ready";
 
 export interface WorktreeOptions {
@@ -50,7 +61,7 @@ export function newWorktree({ cwd, argv, run: runProgram, runShown: runLong, rep
   const names = argv.filter((argument, index) => !argument.startsWith("--") && (baseAt === -1 || index !== baseAt + 1));
   const [name] = names;
 
-  if (name === undefined || names.length !== 1 || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name) || (baseAt !== -1 && argv[baseAt + 1] === undefined)) {
+  if (name === undefined || names.length !== 1 || !NAME.test(name) || (baseAt !== -1 && !isBase(argv[baseAt + 1]))) {
     report(USAGE);
 
     return 2;
@@ -83,7 +94,15 @@ export function newWorktree({ cwd, argv, run: runProgram, runShown: runLong, rep
   }
 
   const base = baseAt === -1 ? defaultBranch(git) : (argv[baseAt + 1] as string);
-  const fetched = git("fetch", REMOTE, base);
+
+  // What `origin/HEAD` names is read from the repository, so it is checked like a word a person gave.
+  if (!isBase(base)) {
+    report(`SKIP new-worktree: ${REMOTE}'s main branch is recorded as "${base}", which is not a plain branch name. Nothing was made. Name the branch: --base <branch>`);
+
+    return 2;
+  }
+
+  const fetched = git("fetch", REMOTE, "--end-of-options", base);
 
   if (fetched.status !== 0) {
     // Going on would cut the branch from whatever `origin/<base>` was at the last fetch.
@@ -140,6 +159,10 @@ export function newWorktree({ cwd, argv, run: runProgram, runShown: runLong, rep
   report(`state:    READY — dependencies installed, pnpm ${proof} passed`);
 
   return 0;
+}
+
+function isBase(value: string | undefined): value is string {
+  return value !== undefined && value.length <= 200 && BASE.test(value) && !value.includes("..") && !value.endsWith(".");
 }
 
 /** The branch `origin/HEAD` points at, or `main` when the clone does not record one. */
