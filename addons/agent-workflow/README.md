@@ -113,11 +113,14 @@ settings file.
 
 - A key the project has keeps the project's value.
 - A list gains the entries it lacks, after the ones it has.
-- A hook counts as there when its command is, whatever the project did to
-  the group around it (a longer timeout, a wider matcher). It is not added a
-  second time.
-- Nothing is removed. The one exception is a hook this add-on registered
-  under an older command line: see
+- A hook counts as there when its command is in a group whose matcher still
+  covers `Bash`: the same matcher, none, `*`, or a list that names it. A
+  longer timeout or a wider matcher changes nothing, and it is not added a
+  second time. Under any other matcher (`Edit`, `Nothing`) the command does
+  not run before a shell command, so the add-on's own group is added, and
+  the check fails until it is.
+- Nothing is removed. One command line is rewritten: that of a hook this
+  add-on registered under an older form. See
   [below](#updating-a-project-that-had-it) and `retiredHookCommands` in
   [the contract](../README.md).
 - When nothing is missing the file is not written at all, so its layout and
@@ -153,12 +156,13 @@ session of either host.
 - `tools/agent-workflow.config.json`, or the older `.mts`, is no longer
   read. The update and the check say so until the file is deleted.
 - `.claude/settings.json` may start the hook with `--host=claude-code` and a
-  timeout of 30. The update takes the argument off that command line and
-  changes nothing else of the entry: its timeout, its matcher and the hooks
-  beside it stay. If the new line is already registered, the old entry is
-  taken out instead, so the hook never runs twice. A command line that is
-  not the old one letter for letter is left alone and named. Until the
-  update runs, the old line still works: the hook ignores its arguments.
+  timeout of 30. The update takes the argument off that command line where
+  it stands and changes nothing else: the entry's timeout, its group, the
+  matcher and the hooks beside it stay, and no group is taken out. Only when
+  that leaves the same line twice in one group does the later one go. A
+  command line that is not the old one letter for letter is left alone and
+  named. Until the update runs, the old line still works: the hook ignores
+  its arguments.
 - The ask rule `Edit(/tools/agent-workflow.config.json)` stays, since a merge
   removes no rule. It does no harm.
 
@@ -320,7 +324,7 @@ against real repositories made in a temporary folder, with another folder as
 - `scripts/host-settings.test.mts`, `scripts/add-to-project.test.mts`: the
   merge and the installer.
 
-Every test was turned red by a mutant of its own and restored: 369 mutants
+Every test was turned red by a mutant of its own and restored: 394 mutants
 in `tests/mutants.json`, run with the coverage add-on's `mutation-check.mts`,
 all killed. Two of them are judged by the type checker, not by a test run. Each of its test commands was first seen green and selecting at
 least one test, since a filter that matches no test exits 0 and would read

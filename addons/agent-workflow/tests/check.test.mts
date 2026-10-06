@@ -132,6 +132,38 @@ describe("the add-on's check", () => {
     expect(lines.join("\n")).toMatch(new RegExp(`FAIL ${host}: ${path.replace(".", "\\.")} does not register tools/agent-workflow/hooks/split-outward-commands\\.mts`));
   });
 
+  it.each([
+    ["another tool", "Edit", false],
+    ["nothing", "Nothing", false],
+    ["a word that only holds the tool's name", "BashOutput", false],
+    ["a pattern", "^Bash$", false],
+    ["a list that names the tool", "Edit|Bash", true],
+    ["every tool", "*", true],
+    ["every tool, by an empty matcher", "", true],
+    ["every tool, by no matcher", undefined, true],
+  ])("reads a hook under a matcher for %s as one that runs before a shell command or not", (_name, matcher, runs) => {
+    const { status, lines } = runCheck(createProject({ ".codex/hooks.json": { hooks: { PreToolUse: [createGroup(CODEX_HOOK, matcher)] } } }));
+
+    expect(status).toBe(runs ? 0 : 1);
+    expect(lines.includes("PASS Codex: .codex/hooks.json runs the hook before each shell command")).toBe(runs);
+    expect(lines.join("\n").includes(`FAIL Codex: .codex/hooks.json registers tools/agent-workflow/hooks/split-outward-commands.mts only under a matcher that does not cover Bash (${JSON.stringify(matcher)}), so it does not run before a shell command.`)).toBe(!runs);
+  });
+
+  it("does not count a copy under another matcher as a second registration", () => {
+    const groups = [createGroup(CLAUDE_HOOK, "Edit", 5), createGroup(CLAUDE_HOOK, "Bash", 5)];
+    const { status, lines } = runCheck(createProject({ ".claude/settings.json": { hooks: { PreToolUse: groups } } }));
+
+    expect(status).toBe(0);
+    expect(lines.join("\n")).not.toContain("registers the hook");
+  });
+
+  it("does not take another command before a tool call for the hook", () => {
+    const { status, lines } = runCheck(createProject({ ".codex/hooks.json": { hooks: { PreToolUse: [createGroup("node tools/own/guard.mts", "Bash")] } } }));
+
+    expect(status).toBe(1);
+    expect(lines.join("\n")).toContain("FAIL Codex: .codex/hooks.json does not register");
+  });
+
   it("does not take a hook registered for another event as registered", () => {
     const { status, lines } = runCheck(createProject({ ".codex/hooks.json": { hooks: { PostToolUse: [createGroup(CODEX_HOOK)] } } }));
 

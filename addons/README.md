@@ -79,7 +79,9 @@ addons/<name>/
   permission rule. The key is the file's path. Those files belong to the
   project, so the entries are merged in and the file is never written over:
   a key the project has keeps its value, a list gains the entries it lacks,
-  a hook whose command is already registered is not added again, and
+  a hook whose command is already registered under a matcher that covers the
+  add-on's (the same one, none, `*`, or a list that names it) is not added
+  again, and
   nothing is removed (but see `retiredHookCommands`). A second run changes nothing, and does not rewrite the
   file. A file that the host keeps read-only is left alone, and the script
   says what is left to do. The merge cannot tell an entry the project removed
@@ -109,10 +111,11 @@ addons/<name>/
     cannot take out a hook it still wants.
   - A project's command is rewritten only when it is the key letter for
     letter, in a file and under an event where the manifest registers the
-    value. Only the command changes: the entry's timeout, the group's matcher
-    and the other hooks of the group stay.
-  - When the new line is already there, the old entry is taken out instead.
-    The old line is never taken out unless the new one is in the result.
+    value. It is rewritten where it stands. Only the command changes: the
+    entry's timeout, its group, the group's matcher and the other hooks of
+    the group stay. No group is ever taken out.
+  - One thing is taken out: when the rewrite leaves the same command line
+    twice in one group, the later one goes. The hook still runs there.
   - A command that only begins like the new line is left alone, the new line
     is added beside it, and the summary names it under "Still to do by hand".
   - The settings file is replaced in one step (a new file takes its place),

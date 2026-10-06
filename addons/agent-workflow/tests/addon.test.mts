@@ -512,17 +512,41 @@ describe("the add-on in a project that has the kit", () => {
     expect(startHook("git commit -m wip && git push -u origin worktree-a").stdout).toContain('"permissionDecision":"deny"');
   }, SPAWNS_TIMEOUT);
 
-  it("takes the old registration out, and adds nothing, in a project that has the new one beside it", () => {
+  it("rewrites the old registration where it stands, and takes nothing out, in a project that has the new one in a group beside it", () => {
     const project = createProjectAsBefore();
     const settings = readJson<HostSettings>(project, CLAUDE_SETTINGS);
+    const beside = { matcher: "Edit", hooks: [{ type: "command", command: CLAUDE_HOOK, timeout: 5 }] };
 
-    settings.hooks?.PreToolUse?.unshift({ matcher: "Bash", hooks: [{ type: "command", command: CLAUDE_HOOK, timeout: 5 }] });
+    settings.hooks?.PreToolUse?.unshift(beside);
     writeFile(project, CLAUDE_SETTINGS, JSON.stringify(settings));
 
     const updated = addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
 
-    expect(readJson<HostSettings>(project, CLAUDE_SETTINGS).hooks?.PreToolUse).toEqual([{ matcher: "Bash", hooks: [{ type: "command", command: CLAUDE_HOOK, timeout: 5 }] }]);
-    expect(updated.settingsChanges).toEqual([`${CLAUDE_SETTINGS}: hooks.PreToolUse: took out ${OLD_CLAUDE_HOOK}, an older command line of a hook that is registered as ${CLAUDE_HOOK}`]);
+    expect(readJson<HostSettings>(project, CLAUDE_SETTINGS).hooks?.PreToolUse).toEqual([beside, { matcher: "Bash", hooks: [{ type: "command", command: CLAUDE_HOOK, timeout: 30 }] }]);
+    expect(updated.settingsChanges).toEqual([`${CLAUDE_SETTINGS}: hooks.PreToolUse: ${OLD_CLAUDE_HOOK} is now ${CLAUDE_HOOK}`]);
+    expect(addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" }).settingsChanges).toEqual([]);
+  });
+
+  it("adds its Bash group in a project whose only copy of the hook is under a matcher that runs for no shell command, and its proof says why", () => {
+    const project = createProjectWithKit();
+
+    addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
+
+    const settings = readJson<HostSettings>(project, CLAUDE_SETTINGS);
+    const moved = [{ matcher: "Nothing", hooks: [{ type: "command", command: CLAUDE_HOOK, timeout: 5 }] }];
+
+    writeFile(project, CLAUDE_SETTINGS, JSON.stringify({ ...settings, hooks: { ...settings.hooks, PreToolUse: moved } }));
+
+    const proof = spawnSync(process.execPath, ["tools/agent-workflow/check.mts"], { cwd: project, encoding: "utf8" });
+
+    expect(proof.status).toBe(1);
+    expect(proof.stdout).toContain(`FAIL Claude Code: ${CLAUDE_SETTINGS} registers ${HOOK_SCRIPT} only under a matcher that does not cover Bash ("Nothing"), so it does not run before a shell command.`);
+
+    const updated = addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
+
+    expect(updated.settingsChanges).toEqual([`${CLAUDE_SETTINGS}: hooks.PreToolUse: ${CLAUDE_HOOK}`]);
+    expect(readJson<HostSettings>(project, CLAUDE_SETTINGS).hooks?.PreToolUse).toEqual([...moved, ...(MANIFEST.hostSettings[CLAUDE_SETTINGS]?.hooks?.PreToolUse ?? [])]);
+    expect(spawnSync(process.execPath, ["tools/agent-workflow/check.mts"], { cwd: project, encoding: "utf8" }).status).toBe(0);
   });
 
   it("says a setting file is left on each update until it is deleted, and changes the settings once", () => {

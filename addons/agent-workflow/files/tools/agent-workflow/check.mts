@@ -29,6 +29,8 @@ import { ASK_RULES, CLAUDE_SETTINGS, CODEX_HOOKS, COMMAND_NEEDS, EDIT_ASK_RULES,
 import { isMainModule } from "./lib/main.mts";
 import { installedIn } from "./requires.mts";
 
+/** The name both hosts give the tool that runs a shell command. */
+const SHELL_TOOL = "Bash";
 const REFUSED_SAMPLE = "git add -A && git commit -m wip && git push";
 const UNANSWERED_SAMPLE = "git push origin main";
 /** A routine push in the exact form an older version of the hook let run without a prompt. */
@@ -96,10 +98,15 @@ export function check({ root, runHook, report }: CheckOptions): number {
       continue;
     }
 
-    const registered = hookCommands(settings).filter((command) => command.includes(HOOK_SCRIPT));
+    const everywhere = registrations(settings).filter(({ command }) => command.includes(HOOK_SCRIPT));
+    const registered = everywhere.filter(({ matcher }) => coversShell(matcher)).map(({ command }) => command);
 
-    if (registered.length === 0) {
+    if (everywhere.length === 0) {
       fail(`${host}: ${path} does not register ${HOOK_SCRIPT} under hooks.PreToolUse. ${FIX}`);
+    } else if (registered.length === 0) {
+      fail(
+        `${host}: ${path} registers ${HOOK_SCRIPT} only under a matcher that does not cover ${SHELL_TOOL} (${everywhere.map(({ matcher }) => JSON.stringify(matcher)).join(", ")}), so it does not run before a shell command. ${FIX}`,
+      );
     } else {
       report(`PASS ${host}: ${path} runs the hook before each shell command`);
     }
@@ -212,13 +219,23 @@ function readSettings(root: string, path: string): Settings | "absent" | "unread
   }
 }
 
-/** Every command registered to run before a tool call. */
-function hookCommands(settings: Settings): string[] {
+/** Every command registered to run before a tool call, with the matcher of its group. */
+function registrations(settings: Settings): { command: string; matcher: unknown }[] {
   const groups = (settings.hooks as { PreToolUse?: unknown } | undefined)?.PreToolUse;
 
-  return (Array.isArray(groups) ? groups : []).flatMap((group: { hooks?: unknown }) =>
-    (Array.isArray(group?.hooks) ? group.hooks : []).flatMap((hook: { command?: unknown }) => (typeof hook?.command === "string" ? [hook.command] : [])),
+  return (Array.isArray(groups) ? groups : []).flatMap((group: { hooks?: unknown; matcher?: unknown }) =>
+    (Array.isArray(group?.hooks) ? group.hooks : []).flatMap((hook: { command?: unknown }) => (typeof hook?.command === "string" ? [{ command: hook.command, matcher: group.matcher }] : [])),
   );
+}
+
+/**
+ * Whether a group with this matcher runs before a shell command, as far as
+ * that can be told without reading a pattern: no matcher, an empty one or
+ * `*`, or a list of names that holds the shell tool's. The installer reads a
+ * matcher the same way.
+ */
+function coversShell(matcher: unknown): boolean {
+  return matcher === undefined || matcher === "" || matcher === "*" || (typeof matcher === "string" && matcher.split("|").includes(SHELL_TOOL));
 }
 
 /** Runs the shipped hook the way a host does: the payload on its standard input. */
