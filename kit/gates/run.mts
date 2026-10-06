@@ -22,6 +22,7 @@ import {
 } from "./lib/contracts.mts";
 import { checkDependencies } from "./lib/depcruise.mts";
 import { isGitIgnored, isMainModule } from "./lib/files.mts";
+import { checkIgnoredSource } from "./lib/ignored-source.mts";
 import { checkInstructionPaths, instructionsSkipReason } from "./lib/instructions.mts";
 import { checkLanguage, languageSkipReason } from "./lib/language.mts";
 import { checkNodeFloor, nodeFloorSkipReason } from "./lib/node-floor.mts";
@@ -54,7 +55,7 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
   if (files) {
     const relativeFiles = files
       .map((file) => relative(project.root, resolve(project.root, file)))
-      // A file git ignores is judged by no gate, here as in a full run.
+      // A file git ignores outside every package is judged by no gate, here as in a full run.
       .filter((file) => !file.startsWith("..") && existsSync(join(project.root, file)) && !isGitIgnored(project.root, file));
 
     // Each of these reads the one file and, at most, the declaration: cheap
@@ -72,6 +73,7 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
         "app-harness",
         "test-ids",
         "types-only",
+        "ignored-source",
       ],
       skipped: dropUndefined({
         "typescript-only": languageSkipReason(project),
@@ -92,6 +94,7 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
         ...checkAppHarness(project, relativeFiles),
         ...checkTestIds(project, relativeFiles),
         ...checkTypesOnly(project, relativeFiles),
+        ...checkIgnoredSource(project, relativeFiles),
       ],
     };
   }
@@ -112,6 +115,7 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
       "test-ids",
       "types-only",
       "playwright-pin",
+      "ignored-source",
     ],
     skipped: dropUndefined({
       "typescript-only": languageSkipReason(project),
@@ -142,6 +146,7 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
       ...checkTestIds(project),
       ...checkTypesOnly(project),
       ...checkPlaywrightPin(project),
+      ...checkIgnoredSource(project),
     ],
   };
 }

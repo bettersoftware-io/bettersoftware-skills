@@ -15,7 +15,7 @@ directly by stripping the types, which needs Node 22.18 or later, and
 
 | Part | What it checks | Needs |
 |---|---|---|
-| `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction, the paths the agent instructions name, the task cache, every package's scripts, where the Node floor is declared, the hash on the package manager, the one app harness, test ids, types-only packages, the one Playwright version | Node; `dependency-cruiser` for the dependency gate |
+| `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction, the paths the agent instructions name, the task cache, every package's scripts, where the Node floor is declared, the hash on the package manager, the one app harness, test ids, types-only packages, the one Playwright version, no ignored code in a package | Node; `dependency-cruiser` for the dependency gate |
 | `eslint.config.mts` + `eslint-rules/` | Fourteen AST lint rules of its own (naming, reading order, fixtures, page objects, no browser driver in an end-to-end spec, no real sleeps in tests, one import per module), and the settings of ESLint's rules that go with them: function declarations, blank lines, named object types, no CommonJS, React's hook rules | `eslint`, `typescript-eslint`, `eslint-plugin-react-hooks` |
 | `gates/quiet.mts` | Nothing of its own: it runs a gate script of the project and prints only the stage that failed | Node |
 | `check-react-policies.mts` | Every package that imports React is under the lint rules for its role, and a client's `reactCompiler` matches its build | `eslint` |
@@ -46,6 +46,7 @@ A project declares its layers once, in `architecture.config.mts`
 | `test-ids` | A test id is written as a string literal, in a component, a selector or a query, outside the client's test-ids file |
 | `types-only` | A package declared `typesOnly` exports a runtime value |
 | `playwright-pin` | A `package.json` asks for `@playwright/test` or `playwright` as a range; two ask for two versions; another version is installed; a workflow's Playwright image has another version |
+| `ignored-source` | A package holds a code file that git ignores, outside its installed and generated folders. Inside a package no file is left out of any gate for being ignored |
 
 ```bash
 node tools/arch/gates/run.mts                 # every gate
@@ -437,33 +438,59 @@ it adds nothing at runtime. The `types-only` gate fails on each
 marked `type`, and each `export * from`. Tests are left out. With no such
 package the gate reports `SKIP`.
 
-### A file git ignores is judged by nothing
+### A file git ignores: left out outside the packages, never inside one
 
-A file git ignores is not part of the project: nobody else has it, and CI
-never sees it. A finding in one fails on one machine and passes everywhere
-else. In the demo project a Claude Code plugin's working folder
-(`.remember/`, which ignores itself with a `.gitignore` of its own) held a
-timestamp file ending in `.ts`, and the typed lint failed on it.
+Two rules, and the second is there because of the first.
 
-So the gates' file walker and the lint config ask git what it ignores
-(`git ls-files --others --ignored --exclude-standard --directory`, as the
-stop hook does) and leave those files out: in a full run, in the editor
-hook's run, and in `architectureLint()`'s first block, which is how
-`pnpm lint` and the `strict-lint` add-on's typed run get it.
+**Outside every package, a file git ignores is judged by nothing.** It is
+not part of the project: nobody else has it, and CI never sees it. A finding
+in one fails on one machine and passes everywhere else. In the demo project
+a Claude Code plugin's working folder (`.remember/`, which ignores itself
+with a `.gitignore` of its own) held a timestamp file ending in `.ts`, and
+the typed lint failed on it. So the gates' file walker and the lint config
+leave such files out: in a full run, in the editor hook's run, and in
+`architectureLint()`'s first block, which is how `pnpm lint` and the
+`strict-lint` add-on's typed run get it.
 
-Git is asked, and no `.gitignore` is read here, because the answer has more
-sources than the root file. ESLint's own `includeIgnoreFile` (from
-`eslint/config`; the one in `@eslint/compat` 2.1.1 is deprecated in its
-favour) converts the files it is given. With `gitignoreResolution` it
-resolves a nested file's patterns from that file's folder, but it does not
-find nested files, and it knows nothing of `.git/info/exclude` or a
-person's global list. Git knows all four.
+**Inside a package, nothing is left out for being ignored.** Otherwise the
+one being checked could take a file past every check with one line in a
+`.gitignore`, and the stop hook would be green on code nobody judged: the
+file is still built and bundled. A package is every workspace package and
+every package `architecture.config.mts` declares. An ignored entry that is in
+one, is one, or is a folder that holds one, is judged like any other file.
 
-- A committed file is never ignored, whatever a pattern says.
-- A new file that nothing ignores is judged: untracked is not ignored.
+It is also a finding by itself, from the `ignored-source` gate: a code file
+(`.ts`, `.tsx`, `.mts`, `.js`, `.css`, …) in a package that git ignores, by
+any rule. Other tools read ignore rules for themselves (Biome, knip, a CSS
+lint) and would pass over the file; the gate does not. Installed and
+generated folders (`node_modules`, `dist`, `coverage`, `reports`, the
+caches) are the closed list of what a package may ignore.
+
+How git is asked:
+
+- **Git says which paths are ignored**
+  (`git ls-files --others --ignored … --directory`, as the stop hook does).
+  No `.gitignore` is read or turned into patterns here. A rule in a folder's
+  own file is relative to that folder, with anchors, negations, `**` and
+  escapes that only git reads as git does: `.remember/.gitignore` holding
+  `*` hides `.remember/` and nothing else. ESLint is handed patterns made
+  from the paths git listed (a path, or a whole ignored folder), with every
+  glob character taken literally.
+- **Only the `.gitignore` files in the repository count for leaving a file
+  out** (`--exclude-per-directory=.gitignore`). A rule in
+  `.git/info/exclude`, or in a person's global list, is on one machine and in
+  no commit. It hides nothing from a gate or from the lint. The stop hook's
+  hash of the tree follows the same rule, so a file named only there is
+  still in the hash; and any `.gitignore` is a file in the tree, so changing
+  one changes the hash and a remembered green does not outlive it.
+- ESLint's own `includeIgnoreFile` (from `eslint/config`; the one in
+  `@eslint/compat` 2.1.1 is deprecated in its favour) was weighed. It turns
+  the text of the files it is given into patterns, does not find a nested
+  file, and cannot be told "not inside a package".
+- A committed file is never ignored, whatever a pattern says. A new file
+  that nothing ignores is judged: untracked is not ignored.
 - Outside a git repository git cannot say, nothing is left out, and every
-  check runs as before. The closed list of generated folders
-  (`node_modules`, `dist`, `coverage`, …) does not depend on git.
+  check runs as before.
 - The lint asks about the folder it is run in, which is the project root.
 
 ### A gate that judged nothing has not passed

@@ -300,9 +300,12 @@ function hashWorkingTree(root: string): string | undefined {
 }
 
 function hashFiles(root: string): string | undefined {
-  const judged = listFiles(root, ["--cached", "--others", "--exclude-standard"]);
+  // Only the `.gitignore` files in the tree decide what is left out. A rule in
+  // `.git/info/exclude` or a global list is no file here, so a change to it
+  // would not change this hash: it must not be able to hide a file from it.
+  const judged = listFiles(root, ["--cached", "--others", "--exclude-per-directory=.gitignore"]);
   // `--directory` names an ignored folder once and does not walk it, so this never reads node_modules.
-  const ignored = listFiles(root, ["--others", "--ignored", "--exclude-standard", "--directory"]);
+  const ignored = listFiles(root, ["--others", "--ignored", "--exclude-per-directory=.gitignore", "--directory"]);
 
   if (judged === undefined || ignored === undefined) {
     return undefined;

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -309,6 +309,53 @@ describe("a tree that has already passed", () => {
     await judgeStop({ cwd: project }, gate.run);
 
     expect(gate.runs()).toBe(3);
+  });
+
+  it.each([".gitignore", "lib/.gitignore"])("is judged again after %s changes: a remembered green does not outlive a new rule", async (ignoreFile) => {
+    const project = createGitProject({ "gate:full": "true" });
+    const gate = createCountedGate(green);
+
+    mkdirSync(join(project, "lib"), { recursive: true });
+    writeFileSync(join(project, "lib/a.ts"), "export const a = 1;\n");
+    await judgeStop({ cwd: project }, gate.run);
+    appendFileSync(join(project, ignoreFile), "a.ts\n");
+    await judgeStop({ cwd: project }, gate.run);
+
+    expect(gate.runs()).toBe(2);
+  });
+
+  it("is judged again after a file changes that only .git/info/exclude names: a rule in no file of the tree hides nothing", async () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const gate = createCountedGate(green);
+
+    writeFileSync(join(project, ".git/info/exclude"), "hidden.ts\n");
+    writeFileSync(join(project, "hidden.ts"), "export const h = 1;\n");
+    await judgeStop({ cwd: project }, gate.run);
+    writeFileSync(join(project, "hidden.ts"), "export const h = 2;\n");
+    await judgeStop({ cwd: project }, gate.run);
+
+    expect(gate.runs()).toBe(2);
+  });
+
+  it("is judged again after a file changes that only the person's global list names", async () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const gate = createCountedGate(green);
+    const home = mkdtempSync(join(tmpdir(), "arch-hooks-home-"));
+
+    writeFileSync(join(home, "ignore"), "hidden.ts\n");
+    writeFileSync(join(home, "gitconfig"), `[core]\n\texcludesFile = ${join(home, "ignore")}\n`);
+    vi.stubEnv("GIT_CONFIG_GLOBAL", join(home, "gitconfig"));
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
+
+    writeFileSync(join(project, "hidden.ts"), "export const h = 1;\n");
+    expect(spawnSync("git", ["check-ignore", "hidden.ts"], { cwd: project }).status).toBe(0);
+    await judgeStop({ cwd: project }, gate.run);
+    writeFileSync(join(project, "hidden.ts"), "export const h = 2;\n");
+    await judgeStop({ cwd: project }, gate.run);
+
+    expect(gate.runs()).toBe(2);
   });
 
   it("is judged again after a file is renamed with its content unchanged", async () => {

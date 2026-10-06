@@ -261,10 +261,12 @@ export function architectureLint(
         "**/reports/**",
         "**/.turbo/**",
         "**/__screenshots__/**",
-        // What git ignores is not the project's either: nobody else has the
-        // file. Git is asked, so a `.gitignore` in any folder counts, and
-        // outside a repository this adds nothing. ESLint reads these from the
-        // folder it is run in, which is the project root.
+        // What git ignores outside the packages is not the project's either:
+        // nobody else has the file. Git is asked which paths those are, so a
+        // `.gitignore` in any folder counts as git reads it, and outside a
+        // repository this adds nothing. Inside a package nothing is left
+        // out for being ignored. ESLint reads these from the folder it is
+        // run in, which is the project root.
         ...gitIgnoredGlobs(root),
       ],
     },

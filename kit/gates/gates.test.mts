@@ -41,6 +41,7 @@ describe("a project that follows the rules", () => {
       "test-ids",
       "types-only",
       "playwright-pin",
+      "ignored-source",
     ]);
     expect(result.skipped).toEqual({});
     expect(formatFindings(result)).toContain("all gates passed.");
@@ -434,6 +435,7 @@ describe("the per-file path the editor hook uses", () => {
       "app-harness",
       "test-ids",
       "types-only",
+      "ignored-source",
     ]);
     expect(new Set(result.findings.map((finding) => finding.file))).toEqual(
       new Set([UI, "packages/client-react/src/feed.ts"]),

@@ -2,8 +2,13 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
+import { createRequire } from "node:module";
 import { join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { CONFIG_FILES, discoverWorkspace } from "./config.mts";
+
+const require = createRequire(import.meta.url);
 
 // Folders that hold only installed or generated files. This is a closed list on
 // purpose: skipping every dot-folder would let source in `.github/`,
@@ -40,12 +45,13 @@ const TEST_SCAFFOLDING = new RegExp(TEST_SCAFFOLDING_SOURCE);
 
 /**
  * Every source file under `directory`, as paths from `root`. Missing folder →
- * none. A file git ignores is left out, like a generated one: see
- * `listGitIgnored`.
+ * none. A file git ignores outside every package is left out, like a
+ * generated one; inside a package nothing is. See `listGitIgnored` and
+ * `listPackageFolders`.
  */
 export function listSourceFiles(root: string, directory: string): string[] {
   const found: string[] = [];
-  const ignored = ignoredUnder(root);
+  const { skipped: ignored } = ignoredUnder(root);
 
   function walk(relative: string): void {
     for (const entry of readdirSync(join(root, relative), { withFileTypes: true })) {
@@ -78,20 +84,23 @@ export function listSourceFiles(root: string, directory: string): string[] {
  * once, with nothing of what it holds. Undefined when git cannot say: it is
  * not installed, or `root` is in no repository.
  *
- * A file git ignores is not part of the project. Nobody else has it and CI
- * never sees it, so a finding in it fails here and passes there: a local
- * tool's working folder once failed the lint with a file that only that
- * machine had. Git is asked, and no `.gitignore` is read here, because the
- * answer has more sources than the root file: a `.gitignore` in any folder
- * (that tool's folder ignored itself with one), `.git/info/exclude`, and the
- * person's own global list.
+ * Git is asked which paths are ignored. No `.gitignore` is read or turned
+ * into patterns here: a rule in a folder's own `.gitignore` is relative to
+ * that folder, and has negations, anchors and escapes that only git reads
+ * the way git does.
+ *
+ * Only the `.gitignore` files inside the repository count. A rule in
+ * `.git/info/exclude`, or in a person's global list, is on one machine and in
+ * no commit, so it can hide nothing from a check: a file it names is judged
+ * like any other.
  *
  * A file that is committed is never in this list, whatever a pattern says:
  * git does not ignore what it tracks.
  */
-export function listGitIgnored(root: string): string[] | undefined {
+export function listGitIgnored(root: string, rules: "the repository's own" | "any" = "the repository's own"): string[] | undefined {
   // `--directory` names an ignored folder once and does not walk it, so this never reads node_modules.
-  const listed = spawnSync("git", ["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z"], {
+  const from = rules === "any" ? "--exclude-standard" : "--exclude-per-directory=.gitignore";
+  const listed = spawnSync("git", ["ls-files", "--others", "--ignored", from, "--directory", "-z"], {
     cwd: root,
     encoding: "utf8",
     maxBuffer: 256 * 1024 * 1024,
@@ -100,24 +109,67 @@ export function listGitIgnored(root: string): string[] | undefined {
   return listed.status === 0 ? listed.stdout.split("\0").filter(Boolean) : undefined;
 }
 
-/** Asked once for each root in a run: every gate lists files, and the answer does not change under them. */
-const IGNORED = new Map<string, string[]>();
+/**
+ * The folders that hold the project's code: every workspace package, and
+ * every package the architecture config declares. Nothing in one of them is
+ * ever left out for being ignored. Otherwise the one being checked could take
+ * a file out of every check with a line in a `.gitignore`, and the file would
+ * still be built.
+ */
+export function listPackageFolders(root: string): string[] {
+  const declared = CONFIG_FILES.map((name) => join(root, name)).find((file) => existsSync(file));
+  let packages: string[] = [];
 
-function ignoredUnder(root: string): string[] {
+  try {
+    // Node can `require()` an ES module, so the config is read without waiting.
+    packages = declared === undefined ? [] : Object.keys((require(declared) as { default?: { packages?: object } }).default?.packages ?? {});
+  } catch {
+    // A config that cannot be loaded stops the gates by itself, with its own message.
+  }
+
+  return [...new Set([...packages.map((path) => path.replace(/^\.?\/+/, "").replace(/\/+$/, "")), ...discoverWorkspace(root).map(({ path }) => path)])].sort();
+}
+
+interface Ignored {
+  /** What may be left out: ignored, and neither in a package, nor a package, nor a folder that holds one. */
+  skipped: string[];
+  /**
+   * What git ignores that touches a package, by any rule: a `.gitignore`, the
+   * exclude list, a global one. Judged like any other file, and reported by
+   * the `ignored-source` gate: other tools (a formatter, a CSS lint) read
+   * those rules for themselves and would pass over the file.
+   */
+  inPackages: string[];
+}
+
+/** Asked once for each root in a run: every gate lists files, and the answer does not change under them. */
+const IGNORED = new Map<string, Ignored>();
+
+function ignoredUnder(root: string): Ignored {
   let ignored = IGNORED.get(root);
 
   if (ignored === undefined) {
     // Outside a repository nothing is ignored, and every file is judged.
-    ignored = listGitIgnored(root) ?? [];
+    const entries = listGitIgnored(root) ?? [];
+    const byAnyRule = listGitIgnored(root, "any") ?? [];
+    const packages = byAnyRule.length === 0 ? [] : listPackageFolders(root);
+    const touchesPackage = (entry: string): boolean =>
+      packages.some((path) => entry.startsWith(`${path}/`) || (entry.endsWith("/") && `${path}/`.startsWith(entry)));
+
+    ignored = { skipped: entries.filter((entry) => !touchesPackage(entry)), inPackages: byAnyRule.filter(touchesPackage) };
     IGNORED.set(root, ignored);
   }
 
   return ignored;
 }
 
-/** True when git ignores `path` (from `root`), or a folder it is in. Always false outside a repository. */
+/**
+ * True when `path` (from `root`) is left out of every check: git ignores it,
+ * or a folder it is in, and it is not part of a package. Always false outside
+ * a repository.
+ */
 export function isGitIgnored(root: string, path: string): boolean {
-  return isAmong(ignoredUnder(root), path);
+  return isAmong(ignoredUnder(root).skipped, path);
 }
 
 function isAmong(ignored: string[], path: string): boolean {
@@ -125,16 +177,59 @@ function isAmong(ignored: string[], path: string): boolean {
 }
 
 /**
- * `listGitIgnored`, as patterns for a tool that takes globs (ESLint's
+ * What is left out, as patterns for a tool that takes globs (ESLint's
  * `ignores`): a folder with everything under it, a file by its path, and every
- * character a glob would read as a pattern taken literally.
+ * character a glob would read as a pattern taken literally. Made from the
+ * paths git listed, never from the text of a `.gitignore`.
  */
 export function gitIgnoredGlobs(root: string): string[] {
-  return (listGitIgnored(root) ?? []).map((entry) => {
+  return ignoredUnder(root).skipped.map((entry) => {
     const literal = entry.replace(/[\\*?[\]{}()!+@]/g, "\\$&");
 
     return entry.endsWith("/") ? `${literal}**` : literal;
   });
+}
+
+const CODE_FILE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|css)$/;
+
+/**
+ * Every code file in a package that git ignores, as paths from `root`: the
+ * files themselves, and the ones in an ignored folder. Installed and
+ * generated folders are the closed list of what a package may ignore, and
+ * nothing in them is listed.
+ */
+export function listIgnoredCode(root: string): string[] {
+  const packages = listPackageFolders(root);
+  const inPackage = (path: string): boolean => packages.some((folder) => path.startsWith(`${folder}/`));
+  const found = new Set<string>();
+
+  function walk(folder: string): void {
+    for (const entry of readdirSync(join(root, folder), { withFileTypes: true })) {
+      const path = `${folder}/${entry.name}`;
+
+      if (entry.isDirectory()) {
+        if (!SKIPPED_DIRECTORIES.has(entry.name)) {
+          walk(path);
+        }
+      } else if (CODE_FILE.test(entry.name) && inPackage(path)) {
+        found.add(path);
+      }
+    }
+  }
+
+  for (const entry of ignoredUnder(root).inPackages) {
+    if (isGeneratedPath(entry.replace(/\/$/, ""))) {
+      continue;
+    }
+
+    if (entry.endsWith("/")) {
+      walk(entry.slice(0, -1));
+    } else if (CODE_FILE.test(entry) && inPackage(entry)) {
+      found.add(entry);
+    }
+  }
+
+  return [...found].sort();
 }
 
 /**
