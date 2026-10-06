@@ -27,7 +27,7 @@ push. The Dockerfile check reads files only, so it is in `gate:fast`.
 | Workflow lint and audit | `.github/workflows/ci-security.yml` | On pull requests, on main and weekly: actionlint, zizmor, `pnpm audit --prod` |
 | Dependency Review | `.github/workflows/dependency-review.yml` | On pull requests: fails one that brings in a known advisory or a strong-copyleft licence |
 | Scorecard | `.github/workflows/scorecard.yml` | Weekly and when `.github/` or branch protection changes: findings to code scanning. Gates nothing |
-| `pnpm check:dockerfiles` | `tools/ci-security/check-dockerfiles.mts` | Reads every Dockerfile: each base image named by digest, the last stage not run as root, no package installed outside a lockfile. `SKIP` when the project has none. Joins `gate:fast` |
+| `pnpm check:dockerfiles` | `tools/ci-security/check-dockerfiles.mts` | Reads every Dockerfile the way Docker does: each image the build pulls named by digest, the last stage not run as root, no package installed outside a lockfile. A file it cannot read that way fails. `SKIP` when the project has none. Joins `gate:fast` |
 | Security policy | `SECURITY.md` | How to report in private, what to expect, what is in scope. Written once, then the project's own |
 | Dependabot (the default) | `.github/dependabot.yml` | Weekly version updates for npm and for actions, never a release younger than seven days. Written once, then the project's own |
 | Renovate (`ci-security:renovate`) | `.github/renovate.json5` | The same policy for Renovate, in place of the Dependabot file. Written once, then the project's own |
@@ -161,13 +161,63 @@ The starter has no Dockerfile, so a new project sees the `SKIP` line (exit
 
 | It fails on | Why |
 |---|---|
-| A `FROM` whose image has no `@sha256:` digest, or is a build argument | A tag is moved to a new image whenever its owner pushes one. A digest names one image for good. Scorecard's Pinned-Dependencies check reports the same line |
-| A last stage with no `USER`, or one that ends as `root` or `0` | The build needs root; the running program does not. Without it a way out of the program is a root shell in the container |
-| A `RUN` with `npm install -g`, `pnpm add -g`, `yarn global add`, `npx` or `dlx` | The package has no pinned version and no checksum. Install from a lockfile |
+| An image with no `@sha256:` digest of 64 lowercase hex digits, or with a variable in it: in a `FROM`, a `COPY --from=` or a `RUN --mount=…,from=` | A tag is moved to a new image whenever its owner pushes one. A digest names one image for good. Scorecard's Pinned-Dependencies check reports the `FROM` lines |
+| A last stage that ends as `root` or `0`, as a user the check cannot tell (`USER ${APP}`, `USER "root"`, `USER +0`), or with no `USER` in it or in the stages it is built from | The build needs root; the running program does not. Without it a way out of the program is a root shell in the container |
+| A `RUN` that installs globally or fetches and runs: `npm install -g` in any word order, `pnpm add -g`, `bun add -g`, `yarn global add`, `npx`, `pnpx`, `bunx`, `npm exec`, `dlx`. In the shell form, the list form, a heredoc's body and after `ONBUILD` | The package has no pinned version and no checksum. Install from a lockfile |
+| A file Docker would refuse, or could read in another way than the check | A rule held on another reading of the file is not held |
 
-`scratch` and a stage of the same file are accepted as a base. Files are
-found by name (`Dockerfile`, `Dockerfile.*`, `*.Dockerfile`, `Containerfile`)
-anywhere outside installed and generated folders and `tools/`.
+`scratch` and an earlier stage of the same file are accepted as a base. Files
+are found by name (`Dockerfile`, `Dockerfile.*`, `*.Dockerfile`, and
+`Containerfile` in the same three forms, in any letter case) in every folder
+but `node_modules` and `.git`. A link with such a name is followed. A
+Dockerfile that cannot be opened is a finding, and so is a link to a folder.
+
+**It reads the file as Docker does.** The first version split the file into
+lines and looked at the first word of each. Docker does more, and each
+difference was a way to pass the check with a file that breaks a rule:
+
+| In the file | What Docker does | What the first version saw |
+|---|---|---|
+| `US\` at the end of a line, `ER root` on the next | Joins the two with nothing between: `USER root` | Two lines it did not know, and the `USER node` above them |
+| `USER root \` as the last line, or `RUN npm install -g x \` | Runs it | Nothing: it waited for a next line |
+| `RUN echo a\\`, then `USER root` | Two instructions: two backslashes join nothing | One `RUN` |
+| `# escape=` and a backtick at the top, then `RUN echo \`, then `USER root` | Two instructions: the backslash joins nothing now | One `RUN` |
+| `COPY <<EOF /etc/motd`, `USER node`, `EOF` | Writes a file that holds the text `USER node` | A `USER node` instruction |
+| `RUN <<EOF`, `npm install -g x`, `EOF` | Runs the install | A line that is not a `RUN` |
+| `RUN ["npm", "install", "-g", "x"]` | Runs the install | No `npm install` in a row |
+| `RUN npm -g install x` | Installs globally | No `-g` after `install` |
+| `FROM 0` | Pulls the image called `0` | The first stage |
+| `COPY --from=nginx:1 …`, `RUN --mount=type=bind,from=golang:1 …` | Pulls the image | Nothing: not a `FROM` |
+| `USER "root"`, `USER r\oot`, `USER +0`, `USER 00` | Root: it takes quotes and backslashes out, and the number is 0 | A user that is not `root` or `0` |
+| `USER ${APP}` | Whatever the build is given | A user that is not root |
+| A `Dockerfile` that is a link, or one in `dist/` | Builds it | Nothing: not looked at |
+
+So the check now follows Docker's rules for lines, parser directives,
+heredocs and stages, and where it cannot be sure it fails the file:
+
+- **A word Docker does not know** as an instruction fails, and so does a
+  control character, a no-break space or a byte order mark in the middle of
+  the file. Docker and an editor do not show such a line the same way.
+- **A heredoc** is accepted in one form: `<<EOF`, `<<-EOF`, `<<"EOF"` or
+  `<<'EOF'` as a word of its own, on a line with no other quote, no backslash
+  and no `${`, and with a name that is not an instruction. In any other form
+  Docker and a shell split the line into words in their own ways, and an older
+  Docker reads the body as instructions.
+- **`# syntax=`** may name `docker/dockerfile` only. Another frontend reads
+  every line in its own way.
+- **A variable in an image** fails whatever its default, a pinned one too, and
+  in front of a digest too. `--build-arg` replaces the value on the command
+  line, and one strict rule is easier to hold than a proof per case.
+- **The last stage is the one that ships.** `docker build --target` can ship
+  an earlier one, and `--build-context` can replace any image; the check
+  cannot see a command line. A stage that is `FROM` an earlier stage starts as
+  that stage's user. A stage from an outside image starts as root as far as
+  the check can know, so it must set `USER` itself.
+- **`ONBUILD USER`** does not set the stage's user: it acts in the stage that
+  is `FROM` this one, and is counted there. **`ONBUILD RUN`** is held to the
+  packages rule on its own line: it is the same install, one build later.
+
+The header of `check-dockerfiles.mts` has the whole list.
 
 The source project runs no linter on its Dockerfile. These are the three
 things it fixed in it by hand and now holds with a pin, a grep and a review;
@@ -227,7 +277,7 @@ it. With no network it fails with a connection error; it does not pass.
 
 ## How it was tested
 
-**The tools.** 147 tests in `tests/`, run with
+**The tools.** 356 tests in `tests/`, run with
 `pnpm vitest run addons/ci-security` from this repository's root. No test
 touches the network: a download is a function that returns bytes, the archive
 extraction and the linter run are stand-ins. `system.test.mts` runs the real
@@ -248,9 +298,33 @@ writing the mutants: a single test covered two deletions of a stale binary, so
 neither could be seen alone. It is now two tests.
 
 For the Dockerfile check, the security policy, the two bots' files and the
-manifest (2026-10-06): `tests/mutants.json`, 51 of 51 killed. One more test,
-that the policy is at the root, lists files; it was made red by hand with a
-second policy under `files/docs/`.
+manifest (2026-10-06): `tests/mutants.json`, 251 of 251 killed, 231 of them
+for the Dockerfile check. One more test, that the policy is at the root, lists
+files; it was made red by hand with a second policy under `files/docs/`.
+
+**The Dockerfile check against Docker's own reader** (2026-10-06). The check
+claims to read a file as Docker does, so it was compared with the program
+that does: BuildKit 0.33.1's Dockerfile frontend, built into a small Go
+program that needs no daemon. For a Dockerfile it prints the images the build
+would pull, the commands it would run and the user of the last stage, or the
+error. It is not part of this repository.
+
+- Every Dockerfile the tests write (228 different ones) went through both. No
+  file passes the check while BuildKit refuses it, pulls an image with no
+  digest or ends as root. The first version of the check passed 43 that break
+  a rule (6 pull an image with no digest, 20 end as root or as a user that
+  cannot be told, 17 run an install outside a lockfile) and 26 more that
+  BuildKit refuses. For the packages rule the comparison is by a pattern over
+  the commands BuildKit would run: BuildKit has no opinion on a command.
+- 20,000 Dockerfiles made of hostile lines in a random order (continuations,
+  directives, heredocs, stages, `ONBUILD`): the check passed 1,255 and
+  BuildKit agreed on each. Of the first 5,000 the first version passed 1,539
+  that BuildKit refuses (1,444) or reads as breaking a rule (95).
+
+The check fails more files than BuildKit refuses, on purpose (a variable in
+an image, a heredoc in a form it does not accept). Not compared: a real
+`docker build`, since no daemon ran, an older Docker with no heredocs, and
+what `# syntax=` does, which the daemon decides.
 
 **The Renovate config** was read by Renovate's own validator
 (`renovate-config-validator --strict`, Renovate 44.133.0, 2026-10-06), as the
@@ -262,6 +336,7 @@ expressions; the config has none.
 
 **The Dockerfile check** was also run on the source project's own
 Dockerfile, which is written to these three rules: `PASS`, 1 file, 1 `FROM`.
+That run was of the first version of the check and was not repeated.
 
 **In a project**, on macOS arm64, 2026-10-05. Created with
 `create-project.mts`, then `add-to-project.mts <project> ci-security`,
@@ -346,7 +421,13 @@ On 2026-10-06, in projects with every add-on and the scope
 - **The Dockerfile check reads text.** It does not build, and it does not
   know an image by its content: a digest that names the wrong image passes.
   It does not follow an `ARG` to its value; it asks for the image written
-  out. `pip`, `apt` and `curl | sh` are not judged.
+  out. It does not see a command line: `--target` ships another stage than
+  the last, and `--build-context` replaces an image. A base image from
+  outside may set a user that is not root; the check asks for a `USER` line
+  all the same. `pip`, `apt`, `curl | sh`, a command built from variables and
+  a script that is copied in and run are not judged, and neither is the image
+  that `# syntax=docker/dockerfile:1` pulls by its tag. A file named
+  `dockerfile.ts` is read as a Dockerfile and fails.
 - **A project from before `SECURITY.md` was shipped** gets it on the next
   update of the add-on, unless its copy of the add-on is from before
   templates were kept (2026-10-06); then copy it from

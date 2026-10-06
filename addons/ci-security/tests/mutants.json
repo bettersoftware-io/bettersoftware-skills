@@ -14,186 +14,11 @@
     "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"passes, and says how much it judged\""
   },
   {
-    "name": "dockerfiles: scratch and a stage are bases",
+    "name": "dockerfiles: only a FROM is counted as an image",
     "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "if (image === \"scratch\" || stages.includes(image)) {",
-    "replace": "if (stages.includes(image)) {",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts the empty image and a stage\""
-  },
-  {
-    "name": "dockerfiles: a tag with no digest",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "if (!DIGEST.test(image)) {",
-    "replace": "if (false) {",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on a tag with no digest\""
-  },
-  {
-    "name": "dockerfiles: a digest cut short",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "[0-9a-f]{64}$/",
-    "replace": "[0-9a-f]{62,64}$/",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"on a digest that is cut short\""
-  },
-  {
-    "name": "dockerfiles: a build argument",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "if (image.includes(\"$\")) {",
-    "replace": "if (false) {",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on an image that is a build argument\""
-  },
-  {
-    "name": "dockerfiles: a name is a stage only after it",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "checkImage(file, line, image, stages));",
-    "replace": "checkImage(file, line, image, [...stages, \"later\"]));",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"judges every stage\""
-  },
-  {
-    "name": "dockerfiles: no USER, at the FROM line",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "      line: lastFrom.line,\n",
-    "replace": "      line: 1,\n",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails when the last stage sets none\""
-  },
-  {
-    "name": "dockerfiles: root by number",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "/^(root|0)(:|$)/",
-    "replace": "/^(root)(:|$)/",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails when the last stage ends as root\""
-  },
-  {
-    "name": "dockerfiles: the last USER counts",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "    } else if (keyword === \"USER\") {\n      user = instruction;",
-    "replace": "    } else if (keyword === \"USER\") {\n      user ??= instruction;",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"judges the last USER of the last stage\""
-  },
-  {
-    "name": "dockerfiles: a USER of an earlier stage",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "      lastFrom = instruction;\n      user = undefined;",
-    "replace": "      lastFrom = instruction;",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"does not count a USER of an earlier stage\""
-  },
-  {
-    "name": "dockerfiles: a user that starts like root",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "/^(root|0)(:|$)/",
-    "replace": "/^(root|0)/",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts a user that only starts like root\""
-  },
-  {
-    "name": "dockerfiles: RUN npm install -g",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "/\\bnpm\\s+(?:install|i|add)\\b",
-    "replace": "/\\bnpm\\s+(?:i|add)\\b",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN npm install -g\""
-  },
-  {
-    "name": "dockerfiles: RUN npm i --global",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "/\\bnpm\\s+(?:install|i|add)\\b[^&|;]*\\s(?:-g|--global)\\b/",
-    "replace": "/\\bnpm\\s+(?:install|i|add)\\b[^&|;]*\\s(?:-g)\\b/",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN npm i --global\""
-  },
-  {
-    "name": "dockerfiles: RUN \u2026 && npm install x -g",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "/\\bnpm\\s+(?:install|i|add)\\b[^&|;]*\\s(?:-g|--global)\\b/",
-    "replace": "/\\bnpm\\s+(?:install|i|add)\\b\\s(?:-g|--global)\\b/",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN apt-get update\""
-  },
-  {
-    "name": "dockerfiles: RUN pnpm add -g",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "/\\bpnpm\\s+(?:add|install|i)\\b",
-    "replace": "/\\bpnpm\\s+(?:install|i)\\b",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN pnpm add -g\""
-  },
-  {
-    "name": "dockerfiles: RUN yarn global add",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "/\\byarn\\s+global\\s+add\\b/",
-    "replace": "/\\byarn\\s+globalx\\s+add\\b/",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN yarn global add\""
-  },
-  {
-    "name": "dockerfiles: RUN npx",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "/\\bnpx\\s/",
-    "replace": "/\\bnpxx\\s/",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN npx turbo\""
-  },
-  {
-    "name": "dockerfiles: RUN pnpm dlx",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "/\\b(?:pnpm|yarn)\\s+dlx\\b/",
-    "replace": "/\\b(?:yarn)\\s+dlx\\b/",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN pnpm dlx\""
-  },
-  {
-    "name": "dockerfiles: accepts RUN npm ci",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "/\\bnpx\\s/",
-    "replace": "/\\bnpm\\s/",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts RUN npm ci\""
-  },
-  {
-    "name": "dockerfiles: accepts RUN npm install",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "/\\bnpx\\s/",
-    "replace": "/\\bnpm\\s/",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts RUN npm install\""
-  },
-  {
-    "name": "dockerfiles: accepts RUN pnpm install --frozen-lockfile",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "/\\bpnpm\\s+(?:add|install|i)\\b[^&|;]*\\s(?:-g|--global)\\b/",
-    "replace": "/\\bpnpm\\s+(?:add|install|i)\\b[^&|;]*\\s(?:-\\S+)\\b/",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts RUN pnpm install --frozen-lockfile\""
-  },
-  {
-    "name": "dockerfiles: -g of another command",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "/\\bnpm\\s+(?:install|i|add)\\b[^&|;]*\\s(?:-g|--global)\\b/",
-    "replace": "/\\bnpm\\s+(?:install|i|add)\\b.*\\s(?:-g|--global)\\b/",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts RUN npm install && echo\""
-  },
-  {
-    "name": "dockerfiles: accepts RUN pnpm --filter",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "/\\b(?:pnpm|yarn)\\s+dlx\\b/",
-    "replace": "/\\b(?:pnpm|yarn)\\s+/",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts RUN pnpm --filter\""
-  },
-  {
-    "name": "dockerfiles: a command over several lines",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "const continued = trimmed.endsWith(\"\\\\\");",
-    "replace": "const continued = false;",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"runs over several lines as one\""
-  },
-  {
-    "name": "dockerfiles: the keyword in upper case",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "keyword: keyword.toUpperCase(), rest",
-    "replace": "keyword, rest",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"drops comments and blank lines\""
-  },
-  {
-    "name": "dockerfiles: no FROM",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "\"There is no FROM line,",
-    "replace": "\"No base,",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"says a file with no FROM\""
-  },
-  {
-    "name": "dockerfiles: which files",
-    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
-    "find": "SKIPPED_FOLDERS.has(entry.name) || path === INSTALLED_TOOLING ? []",
-    "replace": "SKIPPED_FOLDERS.has(entry.name) ? []",
-    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"finds them by name anywhere in the project\""
+    "find": "keyword === \"FROM\" && !onbuild).length",
+    "replace": "(keyword === \"FROM\" || keyword === \"COPY\") && !onbuild).length",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"counts every FROM\""
   },
   {
     "name": "dockerfiles: the file and the line",
@@ -203,7 +28,7 @@
     "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"names the file and the line of each finding\""
   },
   {
-    "name": "dockerfiles: the script prints the SKIP",
+    "name": "dockerfiles: the script prints the result",
     "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
     "find": "    console.log(formatResult(result));",
     "replace": "    console.log(\"\");",
@@ -215,6 +40,1581 @@
     "find": "result.findings.length > 0 ? 1 : 0;",
     "replace": "result.findings.length > 0 ? 0 : 0;",
     "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"exits 1 on a finding and 0 on none\""
+  },
+  {
+    "name": "dockerfiles: a file that cannot be read as Docker does is a finding",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      findings.push({ file, line: unreadable.line, message: `${unreadable.message} Nothing else in this file was judged.` });\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"exits 1 on a Dockerfile it cannot read as Docker does\""
+  },
+  {
+    "name": "dockerfiles: a file that cannot be read says nothing else was judged",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": " Nothing else in this file was judged.` });",
+    "replace": "` });",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a word Docker does not know\""
+  },
+  {
+    "name": "dockerfiles: a file that cannot be opened is a finding",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      findings.push({ file, line: 1, message: source.problem });\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on a Dockerfile it may not read\""
+  },
+  {
+    "name": "dockerfiles: a link to nothing is a finding",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      findings.push({ file, line: 1, message: source.problem });\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on a link to nothing\""
+  },
+  {
+    "name": "dockerfiles: a link to a folder is not a file",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "if (!statSync(path).isFile()) {",
+    "replace": "if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on a link to a folder\""
+  },
+  {
+    "name": "dockerfiles: file names in any letter case",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "(dockerfile|containerfile)$/i;",
+    "replace": "(dockerfile|containerfile)$/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"finds them by name in any letter case\""
+  },
+  {
+    "name": "dockerfiles: Containerfile.* is one",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/^(dockerfile|containerfile)(\\..+)?$|",
+    "replace": "/^(dockerfile)(\\..+)?$|^containerfile$|",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"finds them by name in any letter case\""
+  },
+  {
+    "name": "dockerfiles: *.Containerfile is one",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "|\\.(dockerfile|containerfile)$/i;",
+    "replace": "|\\.(dockerfile)$/i;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"finds them by name in any letter case\""
+  },
+  {
+    "name": "dockerfiles: a .dockerignore is not one",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": " && !IGNORE_FILE.test(entry.name)",
+    "replace": "",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"finds them by name in any letter case\""
+  },
+  {
+    "name": "dockerfiles: node_modules is not looked into",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "new Set([\"node_modules\", \".git\"])",
+    "replace": "new Set([\".git\"])",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"finds them by name in any letter case\""
+  },
+  {
+    "name": "dockerfiles: .git is not looked into",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "new Set([\"node_modules\", \".git\"])",
+    "replace": "new Set([\"node_modules\"])",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"finds them by name in any letter case\""
+  },
+  {
+    "name": "dockerfiles: dist is looked into",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "new Set([\"node_modules\", \".git\"])",
+    "replace": "new Set([\"node_modules\", \".git\", \"dist\"])",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"finds them by name in any letter case\""
+  },
+  {
+    "name": "dockerfiles: tools is looked into",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "return SKIPPED_FOLDERS.has(entry.name) ? []",
+    "replace": "return SKIPPED_FOLDERS.has(entry.name) || path === \"tools\" ? []",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"finds them by name in any letter case\""
+  },
+  {
+    "name": "dockerfiles: a link is not skipped",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "return DOCKERFILE.test(entry.name) && !IGNORE_FILE",
+    "replace": "return entry.isFile() && DOCKERFILE.test(entry.name) && !IGNORE_FILE",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"follows a link named like a Dockerfile\""
+  },
+  {
+    "name": "dockerfiles: a folder named like a Dockerfile is walked",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      if (entry.isDirectory()) {\n        return SKIPPED_FOLDERS",
+    "replace": "      if (entry.isDirectory() && !DOCKERFILE.test(entry.name)) {\n        return SKIPPED_FOLDERS",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"walks into a folder named like a Dockerfile\""
+  },
+  {
+    "name": "dockerfiles: the keyword in any letter case",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const keyword = word.toUpperCase();",
+    "replace": "const keyword = word;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a keyword in mixed case\""
+  },
+  {
+    "name": "dockerfiles: a continued line is joined with nothing between",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "        joined += part.text;",
+    "replace": "        joined += ` ${part.text.trim()}`;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"and fails: a keyword cut in two by a line end\""
+  },
+  {
+    "name": "dockerfiles: a continued line keeps its leading blanks",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "        const part = cutContinuation(line, escape);",
+    "replace": "        const part = cutContinuation(content, escape);",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"drops comments and blank lines, upper-cases\""
+  },
+  {
+    "name": "dockerfiles: the end of the file ends a continued instruction",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    const instruction = readInstruction(joined, start, escape);",
+    "replace": "    if (continued) {\n      continue;\n    }\n\n    const instruction = readInstruction(joined, start, escape);",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"reads a last line that ends in a backslash\""
+  },
+  {
+    "name": "dockerfiles: two escape characters do not join lines",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": " || body.endsWith(escape + escape)",
+    "replace": "",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"and fails: two backslashes\""
+  },
+  {
+    "name": "dockerfiles: two escape characters do not join lines (pass side)",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": " || body.endsWith(escape + escape)",
+    "replace": "",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"and passes: two backslashes\""
+  },
+  {
+    "name": "dockerfiles: blanks after the escape character",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  const body = line.replace(/[ \\t]+$/, \"\");",
+    "replace": "  const body = line;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"and fails: blanks after the backslash\""
+  },
+  {
+    "name": "dockerfiles: blanks after the escape character (pass side)",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  const body = line.replace(/[ \\t]+$/, \"\");",
+    "replace": "  const body = line;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"and passes: blanks after the backslash\""
+  },
+  {
+    "name": "dockerfiles: a comment inside an instruction is dropped",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      if (content !== \"\" && !content.startsWith(\"#\")) {",
+    "replace": "      if (content !== \"\") {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a comment and a blank line in an instruction\""
+  },
+  {
+    "name": "dockerfiles: a blank line inside an instruction is dropped",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      if (content !== \"\" && !content.startsWith(\"#\")) {",
+    "replace": "      if (!content.startsWith(\"#\")) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a comment and a blank line in an instruction\""
+  },
+  {
+    "name": "dockerfiles: a comment line joins nothing",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "cutContinuation(first.startsWith(\"#\") ? \"\" : first, escape)",
+    "replace": "cutContinuation(first, escape)",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a comment that ends in a backslash\""
+  },
+  {
+    "name": "dockerfiles: the line an instruction starts on",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    const start = index + 1;",
+    "replace": "    const start = index;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"drops comments and blank lines, upper-cases\""
+  },
+  {
+    "name": "dockerfiles: Windows line ends on a continued line",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "(line.endsWith(\"\\r\") ? line.slice(0, -1) : line)",
+    "replace": "line",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"reads Windows line ends: a continued line\""
+  },
+  {
+    "name": "dockerfiles: Windows line ends at the end of a heredoc",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "(line.endsWith(\"\\r\") ? line.slice(0, -1) : line)",
+    "replace": "line",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"reads Windows line ends: the end of a heredoc\""
+  },
+  {
+    "name": "dockerfiles: a word Docker does not know",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (!INSTRUCTIONS.has(keyword)) {",
+    "replace": "  if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a word Docker does not know\""
+  },
+  {
+    "name": "dockerfiles: USER is an instruction Docker knows",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  \"USER\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts USER node\""
+  },
+  {
+    "name": "dockerfiles: escape changes the character",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      escape = value;\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"and fails: escape changes what joins lines\""
+  },
+  {
+    "name": "dockerfiles: escape changes the character (pass side)",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      escape = value;\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"and passes: escape as a backtick joins\""
+  },
+  {
+    "name": "dockerfiles: with another escape character a backslash joins nothing",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      escape = value;\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"escape as a backtick leaves a backslash\""
+  },
+  {
+    "name": "dockerfiles: a directive only at the top",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    if (!DIRECTIVES.has(name)) {\n      break;",
+    "replace": "    if (!DIRECTIVES.has(name)) {\n      continue;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"after a comment it is a comment\""
+  },
+  {
+    "name": "dockerfiles: a blank line ends the directives",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    const name = key.toLowerCase();\n",
+    "replace": "    const name = key.toLowerCase();\n\n    if ((lines[next] ?? \"\").trim() === \"\") {\n      continue;\n    }\n",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"after a blank line it is a comment\""
+  },
+  {
+    "name": "dockerfiles: a comment with another key ends the directives",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "new Set([\"syntax\", \"escape\", \"check\"])",
+    "replace": "new Set([\"syntax\", \"escape\", \"check\", \"shell\"])",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"after a comment with a key Docker has not\""
+  },
+  {
+    "name": "dockerfiles: check is a directive",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "new Set([\"syntax\", \"escape\", \"check\"])",
+    "replace": "new Set([\"syntax\", \"escape\"])",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"after syntax, check and a byte order mark\""
+  },
+  {
+    "name": "dockerfiles: a directive's key in any letter case",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    const name = key.toLowerCase();",
+    "replace": "    const name = key;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"in upper case, with blanks\""
+  },
+  {
+    "name": "dockerfiles: blanks before a directive",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "DIRECTIVE.exec((lines[next] ?? \"\").replace(/^[ \\t]+/, \"\")) ?? []",
+    "replace": "DIRECTIVE.exec(lines[next] ?? \"\") ?? []",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"in upper case, with blanks\""
+  },
+  {
+    "name": "dockerfiles: a directive given twice",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    if (seen.has(name)) {",
+    "replace": "    if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"given twice\""
+  },
+  {
+    "name": "dockerfiles: an escape character Docker does not take",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      if (value !== \"\\\\\" && value !== \"`\") {",
+    "replace": "      if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a character Docker does not take\""
+  },
+  {
+    "name": "dockerfiles: another frontend",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    if (name === \"syntax\" && !DOCKER_FRONTEND.test(value)) {",
+    "replace": "    if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"and fails: another frontend\""
+  },
+  {
+    "name": "dockerfiles: a frontend named almost like Docker's",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "dockerfile([:@][A-Za-z0-9._:@-]+)?$/;",
+    "replace": "dockerfile([:@][A-Za-z0-9._:@-]+)?/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a frontend named almost like\""
+  },
+  {
+    "name": "dockerfiles: Docker's frontend by digest",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "dockerfile([:@][A-Za-z0-9._:@-]+)?$/;",
+    "replace": "dockerfile(:[A-Za-z0-9._:-]+)?$/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"frontend by digest\""
+  },
+  {
+    "name": "dockerfiles: Docker's frontend by tag",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "dockerfile([:@][A-Za-z0-9._:@-]+)?$/;",
+    "replace": "dockerfile$/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"frontend by tag\""
+  },
+  {
+    "name": "dockerfiles: a byte order mark at the start",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "source.charCodeAt(0) === BYTE_ORDER_MARK ? source.slice(1) : source",
+    "replace": "source",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"and passes: a byte order mark at the start\""
+  },
+  {
+    "name": "dockerfiles: a byte order mark anywhere else",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  [0xfeff, 0xfeff],\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a byte order mark not at the start\""
+  },
+  {
+    "name": "dockerfiles: a NUL byte",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  [0x00, 0x08],",
+    "replace": "  [0x01, 0x08],",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a NUL byte\""
+  },
+  {
+    "name": "dockerfiles: a no-break space",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  [0xa0, 0xa0],\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a no-break space\""
+  },
+  {
+    "name": "dockerfiles: the line of a strange character",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    line += code === 0x0a ? 1 : 0;",
+    "replace": "    line += 0;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a no-break space\""
+  },
+  {
+    "name": "dockerfiles: a carriage return inside a line",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "code === 0x0d ? text.charCodeAt(at + 1) !== 0x0a :",
+    "replace": "code === 0x0d ? false :",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a carriage return inside a line\""
+  },
+  {
+    "name": "dockerfiles: a line separator",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  [0x2028, 0x202f],\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a line separator\""
+  },
+  {
+    "name": "dockerfiles: a form feed",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  [0x0b, 0x0c],\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a form feed\""
+  },
+  {
+    "name": "dockerfiles: a byte that is not UTF-8",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  [0xfffd, 0xfffd],\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a byte that is not UTF-8\""
+  },
+  {
+    "name": "dockerfiles: a tab is text",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  [0x00, 0x08],",
+    "replace": "  [0x00, 0x09],",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"tabs between the words\""
+  },
+  {
+    "name": "dockerfiles: ONBUILD ONBUILD is refused",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (onbuild && NOT_A_TRIGGER.has(keyword)) {",
+    "replace": "  if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"ONBUILD ONBUILD\""
+  },
+  {
+    "name": "dockerfiles: ONBUILD FROM is refused",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "new Set([\"ONBUILD\", \"FROM\", \"MAINTAINER\"])",
+    "replace": "new Set([\"ONBUILD\", \"MAINTAINER\"])",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"another way: ONBUILD FROM\""
+  },
+  {
+    "name": "dockerfiles: an instruction after ONBUILD is marked",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    return readInstruction(rest, line, escape, true);",
+    "replace": "    return readInstruction(rest, line, escape, false);",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"it does not set this stage\""
+  },
+  {
+    "name": "dockerfiles: a flag in quotes",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    if (/['\"]/.test(flag) || flag.includes(escape)) {",
+    "replace": "    if (flag.includes(escape)) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a flag in quotes\""
+  },
+  {
+    "name": "dockerfiles: a flag with the escape character",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    if (/['\"]/.test(flag) || flag.includes(escape)) {",
+    "replace": "    if (/['\"]/.test(flag)) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a flag with a backslash\""
+  },
+  {
+    "name": "dockerfiles: flags are not arguments",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    flags.push(flag);\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"COPY from an image by tag\""
+  },
+  {
+    "name": "dockerfiles: an instruction with nothing after it",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (args === \"\" && !MAY_STAND_ALONE.has(keyword)) {",
+    "replace": "  if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"an instruction with nothing after it\""
+  },
+  {
+    "name": "dockerfiles: USER with nothing after it",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (args === \"\" && !MAY_STAND_ALONE.has(keyword)) {",
+    "replace": "  if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"USER with nothing after it\""
+  },
+  {
+    "name": "dockerfiles: nothing after the flags of an instruction",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (args === \"\" && !MAY_STAND_ALONE.has(keyword)) {",
+    "replace": "  if (rest === \"\" && !MAY_STAND_ALONE.has(keyword)) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"COPY with flags and nothing after them\""
+  },
+  {
+    "name": "dockerfiles: RUN may stand alone",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "new Set([\"RUN\", \"CMD\", \"ENTRYPOINT\", \"FROM\"])",
+    "replace": "new Set([\"CMD\", \"ENTRYPOINT\", \"FROM\"])",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"with nothing after them\""
+  },
+  {
+    "name": "dockerfiles: CMD may stand alone",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "new Set([\"RUN\", \"CMD\", \"ENTRYPOINT\", \"FROM\"])",
+    "replace": "new Set([\"RUN\", \"ENTRYPOINT\", \"FROM\"])",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"with nothing after them\""
+  },
+  {
+    "name": "dockerfiles: ENTRYPOINT may stand alone",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "new Set([\"RUN\", \"CMD\", \"ENTRYPOINT\", \"FROM\"])",
+    "replace": "new Set([\"RUN\", \"CMD\", \"FROM\"])",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"with nothing after them\""
+  },
+  {
+    "name": "dockerfiles: FROM with no image has a finding of its own",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "new Set([\"RUN\", \"CMD\", \"ENTRYPOINT\", \"FROM\"])",
+    "replace": "new Set([\"RUN\", \"CMD\", \"ENTRYPOINT\"])",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"no image at all\""
+  },
+  {
+    "name": "dockerfiles: a list that holds a number",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "args.startsWith(\"[\") && isListOfOtherThanText(args)) {",
+    "replace": "args.startsWith(\"[\") && false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a list that holds a number\""
+  },
+  {
+    "name": "dockerfiles: a heredoc's body is not instructions",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      index = end + 1;",
+    "replace": "      index += 0;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"USER and FROM in the body of a RUN heredoc\""
+  },
+  {
+    "name": "dockerfiles: a COPY heredoc's body is not instructions",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      index = end + 1;",
+    "replace": "      index += 0;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"USER in the body of a COPY heredoc\""
+  },
+  {
+    "name": "dockerfiles: a heredoc only after RUN, COPY and ADD",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (!HEREDOC_INSTRUCTIONS.has(keyword) || !joined.includes(\"<<\") ||",
+    "replace": "  if (!joined.includes(\"<<\") ||",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a heredoc after CMD\""
+  },
+  {
+    "name": "dockerfiles: a heredoc after COPY",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "new Set([\"RUN\", \"COPY\", \"ADD\"])",
+    "replace": "new Set([\"RUN\", \"ADD\"])",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"two heredocs on one line\""
+  },
+  {
+    "name": "dockerfiles: no heredoc in a JSON list",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": " || readExecForm(args) !== undefined) {",
+    "replace": ") {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a list that holds a heredoc\""
+  },
+  {
+    "name": "dockerfiles: a heredoc with a dash drops leading tabs",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "(chomp ? line.replace(/^\\t+/, \"\") : line) === name",
+    "replace": "line === name",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a heredoc in quotes that drops its tabs\""
+  },
+  {
+    "name": "dockerfiles: a heredoc with no dash keeps leading tabs",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "(chomp ? line.replace(/^\\t+/, \"\") : line) === name",
+    "replace": "line.replace(/^\\t+/, \"\") === name",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a tab before the name, in a heredoc that keeps\""
+  },
+  {
+    "name": "dockerfiles: a heredoc ends on its name and nothing else",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "(chomp ? line.replace(/^\\t+/, \"\") : line) === name",
+    "replace": "(chomp ? line.replace(/^\\t+/, \"\") : line).trimEnd() === name",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a heredoc whose end has a blank after it\""
+  },
+  {
+    "name": "dockerfiles: a heredoc ends on its name, not on a line that starts with it",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "(chomp ? line.replace(/^\\t+/, \"\") : line) === name",
+    "replace": "(chomp ? line.replace(/^\\t+/, \"\") : line).trim() === name",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"USER after a heredoc that only looks open\""
+  },
+  {
+    "name": "dockerfiles: a heredoc with no body",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "at >= index && ",
+    "replace": "at > index && ",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a heredoc with no body\""
+  },
+  {
+    "name": "dockerfiles: a heredoc that never ends",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      if (end === -1) {\n        throw",
+    "replace": "      if (end === -1) {\n        break;\n      }\n\n      if (end === -1) {\n        throw",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a heredoc that never ends\""
+  },
+  {
+    "name": "dockerfiles: a heredoc with no space before it",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    if (whole === undefined && UNCLEAR_IN_A_HEREDOC_LINE.test(word)) {",
+    "replace": "    if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a heredoc with no space before it\""
+  },
+  {
+    "name": "dockerfiles: a shift is not a heredoc",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    if (whole === undefined && UNCLEAR_IN_A_HEREDOC_LINE.test(word)) {",
+    "replace": "    if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a shift, a heredoc to Docker\""
+  },
+  {
+    "name": "dockerfiles: a heredoc sign inside double quotes",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/<<|['\"\\\\]|\\$\\{/;",
+    "replace": "/<<|['\\\\]|\\$\\{/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a heredoc sign inside quotes\""
+  },
+  {
+    "name": "dockerfiles: a heredoc sign inside single quotes",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/<<|['\"\\\\]|\\$\\{/;",
+    "replace": "/<<|[\"\\\\]|\\$\\{/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a heredoc sign inside single quotes\""
+  },
+  {
+    "name": "dockerfiles: a heredoc after a backslash",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/<<|['\"\\\\]|\\$\\{/;",
+    "replace": "/<<|['\"]|\\$\\{/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a heredoc after a backslash\""
+  },
+  {
+    "name": "dockerfiles: a heredoc sign inside a variable's braces",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/<<|['\"\\\\]|\\$\\{/;",
+    "replace": "/<<|['\"\\\\]/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a heredoc sign inside a variable\""
+  },
+  {
+    "name": "dockerfiles: a heredoc after a list",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/<<|['\"\\\\]|\\$\\{/;",
+    "replace": "/<<|['\\\\]|\\$\\{/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a heredoc after a list\""
+  },
+  {
+    "name": "dockerfiles: a word that holds the heredoc sign",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/<<|['\"\\\\]|\\$\\{/;",
+    "replace": "/['\"\\\\]|\\$\\{/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a heredoc with no space before it\""
+  },
+  {
+    "name": "dockerfiles: a heredoc named like an instruction",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    if (INSTRUCTIONS.has(name.toUpperCase())) {",
+    "replace": "    if (INSTRUCTIONS.has(name)) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a heredoc named like an instruction\""
+  },
+  {
+    "name": "dockerfiles: a heredoc with a file descriptor",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const HEREDOC = /^\\d*<<",
+    "replace": "const HEREDOC = /^<<",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"keeps the body of a heredoc out\""
+  },
+  {
+    "name": "dockerfiles: a heredoc in double quotes",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "|\"(\\w[\\w.-]*)\"|",
+    "replace": "|",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a heredoc in quotes that drops its tabs\""
+  },
+  {
+    "name": "dockerfiles: a heredoc in single quotes",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "|'(\\w[\\w.-]*)')$/;",
+    "replace": ")$/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a heredoc fed to a shell\""
+  },
+  {
+    "name": "dockerfiles: a heredoc named like a file",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "(?:(\\w[\\w.-]*)|",
+    "replace": "(?:(\\w+)|",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"two heredocs on one line\""
+  },
+  {
+    "name": "dockerfiles: a heredoc after ONBUILD RUN",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    return readInstruction(rest, line, escape, true);",
+    "replace": "    return { ...readInstruction(rest, line, escape, true), keyword: \"ONBUILD\" };",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a heredoc after ONBUILD RUN\""
+  },
+  {
+    "name": "dockerfiles: a tag with no digest",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (image === \"scratch\" || PINNED.test(image)) {",
+    "replace": "  if (image === \"scratch\" || PINNED.test(image) || !image.includes(\"@\")) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on a tag with no digest\""
+  },
+  {
+    "name": "dockerfiles: no tag",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (image === \"scratch\" || PINNED.test(image)) {",
+    "replace": "  if (image === \"scratch\" || PINNED.test(image) || !image.includes(\":\")) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on no tag\""
+  },
+  {
+    "name": "dockerfiles: the empty image",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (image === \"scratch\" || PINNED.test(image)) {",
+    "replace": "  if (PINNED.test(image)) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts the empty image\""
+  },
+  {
+    "name": "dockerfiles: a digest cut short",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "@sha256:[0-9a-f]{64}$/;",
+    "replace": "@sha256:[0-9a-f]{62,64}$/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a digest cut short\""
+  },
+  {
+    "name": "dockerfiles: a digest too long",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "@sha256:[0-9a-f]{64}$/;",
+    "replace": "@sha256:[0-9a-f]{64,}$/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a digest too long\""
+  },
+  {
+    "name": "dockerfiles: a tag after the digest",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "@sha256:[0-9a-f]{64}$/;",
+    "replace": "@sha256:[0-9a-f]{64}/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a tag after the digest\""
+  },
+  {
+    "name": "dockerfiles: a digest in upper case",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "@sha256:[0-9a-f]{64}$/;",
+    "replace": "@sha256:[0-9a-fA-F]{64}$/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a digest in upper case\""
+  },
+  {
+    "name": "dockerfiles: a digest of another kind",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "@sha256:[0-9a-f]{64}$/;",
+    "replace": "@sha(256|512):([0-9a-f]{64}){1,2}$/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a digest of another kind\""
+  },
+  {
+    "name": "dockerfiles: a digest with no hex",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "@sha256:[0-9a-f]{64}$/;",
+    "replace": "@sha256:([0-9a-f]{64})?$/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a digest with no hex\""
+  },
+  {
+    "name": "dockerfiles: an image in quotes",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const PINNED = /^[A-Za-z0-9][A-Za-z0-9._/:-]*@sha256:[0-9a-f]{64}$/;",
+    "replace": "const PINNED = /^\"?[A-Za-z0-9][A-Za-z0-9._/:-]*@sha256:[0-9a-f]{64}\"?$/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"an image in quotes\""
+  },
+  {
+    "name": "dockerfiles: a tag and a digest",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const PINNED = /^[A-Za-z0-9][A-Za-z0-9._/:-]*@",
+    "replace": "const PINNED = /^[A-Za-z0-9][A-Za-z0-9._/-]*@",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts a tag and a digest\""
+  },
+  {
+    "name": "dockerfiles: a registry with a port",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const PINNED = /^[A-Za-z0-9][A-Za-z0-9._/:-]*@",
+    "replace": "const PINNED = /^[A-Za-z0-9][A-Za-z0-9._:-]*@",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a registry with a port\""
+  },
+  {
+    "name": "dockerfiles: a variable in front of a digest",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const PINNED = /^[A-Za-z0-9][A-Za-z0-9._/:-]*@",
+    "replace": "const PINNED = /[A-Za-z0-9][A-Za-z0-9._/:-]*@",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a variable in front of a digest\""
+  },
+  {
+    "name": "dockerfiles: a build argument",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (image.includes(\"$\")) {",
+    "replace": "  if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on an image that is a build argument\""
+  },
+  {
+    "name": "dockerfiles: a build argument is told from a digest that is wrong",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (image.includes(\"$\")) {",
+    "replace": "  if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a default that is pinned\""
+  },
+  {
+    "name": "dockerfiles: a wrong digest is told from no digest",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (image.includes(\"@\")) {",
+    "replace": "  if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a digest in upper case\""
+  },
+  {
+    "name": "dockerfiles: a comment after the image",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (words.length !== 3 || as.toUpperCase() !== \"AS\") {",
+    "replace": "  if (words.length !== 3) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a comment after the image\""
+  },
+  {
+    "name": "dockerfiles: a word after the stage's name",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (words.length !== 3 || as.toUpperCase() !== \"AS\") {",
+    "replace": "  if (words.length < 3 || as.toUpperCase() !== \"AS\") {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a word after the stage\""
+  },
+  {
+    "name": "dockerfiles: AS in any letter case",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (words.length !== 3 || as.toUpperCase() !== \"AS\") {",
+    "replace": "  if (words.length !== 3 || as !== \"AS\") {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"the keywords in lower case\""
+  },
+  {
+    "name": "dockerfiles: no image at all",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (words.length === 1) {",
+    "replace": "  if (words.length <= 1) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"no image at all\""
+  },
+  {
+    "name": "dockerfiles: a FROM flag Docker does not know",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (unknownFlag !== undefined) {",
+    "replace": "  if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a flag Docker does not know\""
+  },
+  {
+    "name": "dockerfiles: the platform flag",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "flags.find((flag) => !flag.startsWith(\"--platform=\"))",
+    "replace": "flags.find((flag) => !flag.startsWith(\"--platform=linux\"))",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a platform from a build argument\""
+  },
+  {
+    "name": "dockerfiles: a stage name Docker refuses",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (!STAGE_NAME.test(name.toLowerCase())) {",
+    "replace": "  if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a stage name Docker refuses\""
+  },
+  {
+    "name": "dockerfiles: a FROM that Docker refuses is reported before its image",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const message = problem ?? (base",
+    "replace": "const message = (base",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a comment after the image\""
+  },
+  {
+    "name": "dockerfiles: a stage is a base",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "(base === undefined ? judgeImage(image, `The base image",
+    "replace": "(true ? judgeImage(image, `The base image",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"the name of an earlier stage\""
+  },
+  {
+    "name": "dockerfiles: a stage's name is kept in lower case",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  return { image, name: name.toLowerCase() };",
+    "replace": "  return { image, name };",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a name given in another letter case\""
+  },
+  {
+    "name": "dockerfiles: a FROM names a stage in lower case only",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      const base = named.get(image);",
+    "replace": "      const base = named.get(image.toLowerCase());",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a stage named in upper case\""
+  },
+  {
+    "name": "dockerfiles: a number is not a stage in a FROM",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      if (name !== undefined) {\n        named.set(name, stage);",
+    "replace": "      named.set(String(stages.length - 1), stage);\n\n      if (name !== undefined) {\n        named.set(name, stage);",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"the number of a stage\""
+  },
+  {
+    "name": "dockerfiles: a name is a stage only after it",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      const base = named.get(image);",
+    "replace": "      const base = named.get(image) ?? (image === \"later\" ? { triggers: [] } : undefined);",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a name before its stage\""
+  },
+  {
+    "name": "dockerfiles: COPY --from an image",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (keyword === \"COPY\" || keyword === \"ADD\") {",
+    "replace": "  if (keyword === \"ADD\") {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"COPY from an image by tag\""
+  },
+  {
+    "name": "dockerfiles: ADD --from an image",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (keyword === \"COPY\" || keyword === \"ADD\") {",
+    "replace": "  if (keyword === \"COPY\") {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"ADD from an image by tag\""
+  },
+  {
+    "name": "dockerfiles: COPY --from a variable",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (image.includes(\"$\")) {",
+    "replace": "  if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"COPY from an image in a variable\""
+  },
+  {
+    "name": "dockerfiles: COPY --from a stage, its name in any letter case",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      const byName = named.get(image.toLowerCase());",
+    "replace": "      const byName = named.get(image);",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"its name in another case\""
+  },
+  {
+    "name": "dockerfiles: COPY --from a stage by name",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      const isStage = (byName !== undefined && byName !== stage) || byNumber;",
+    "replace": "      const isStage = byNumber;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"COPY from a stage by name\""
+  },
+  {
+    "name": "dockerfiles: COPY --from the stage it is in, by name",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "(byName !== undefined && byName !== stage)",
+    "replace": "(byName !== undefined)",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"COPY from the stage it is in, by name\""
+  },
+  {
+    "name": "dockerfiles: COPY --from the stage it is in, by number",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "Number(image) < stages.length - 1;",
+    "replace": "Number(image) < stages.length;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"COPY from the stage it is in, by number\""
+  },
+  {
+    "name": "dockerfiles: COPY --from a stage that does not exist",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "Number(image) < stages.length - 1;",
+    "replace": "Number(image) < 9;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"COPY from a stage that does not exist\""
+  },
+  {
+    "name": "dockerfiles: COPY --from a stage by number",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const byNumber = keyword !== \"RUN\" && /^\\d+$/.test(image) && Number(image) < stages.length - 1;",
+    "replace": "const byNumber = false;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"COPY from a stage by number\""
+  },
+  {
+    "name": "dockerfiles: COPY --from a later stage",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      const byName = named.get(image.toLowerCase());",
+    "replace": "      const byName = named.get(image.toLowerCase()) ?? (image === \"later\" ? { triggers: [] } : undefined);",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"COPY from a later stage\""
+  },
+  {
+    "name": "dockerfiles: a number is not a stage in a mount",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const byNumber = keyword !== \"RUN\" && /^\\d+$/",
+    "replace": "const byNumber = /^\\d+$/",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a mount from a number\""
+  },
+  {
+    "name": "dockerfiles: a mount's from in any letter case",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    .filter((field) => /^from=/i.test(field))",
+    "replace": "    .filter((field) => /^from=/.test(field))",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a mount from a number\""
+  },
+  {
+    "name": "dockerfiles: a mount from an image",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    .filter((flag) => flag.startsWith(\"--mount=\"))",
+    "replace": "    .filter((flag) => flag.startsWith(\"--mountx=\"))",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a mount from an image by tag\""
+  },
+  {
+    "name": "dockerfiles: the fields of a mount",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": ".slice(\"--mount=\".length).split(\",\"))",
+    "replace": ".slice(\"--mount=\".length).split(\";\"))",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a mount from an image by tag\""
+  },
+  {
+    "name": "dockerfiles: a mount from the stage it is in",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "(byName !== undefined && byName !== stage)",
+    "replace": "(byName !== undefined)",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a mount from the stage it is in\""
+  },
+  {
+    "name": "dockerfiles: a mount with no image",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    .filter((field) => /^from=/i.test(field))",
+    "replace": "    .filter((field) => /^(from|target)=/i.test(field))",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a mount with no image\""
+  },
+  {
+    "name": "dockerfiles: COPY from the build context",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": ".filter((flag) => flag.startsWith(\"--from=\"))",
+    "replace": ".filter((flag) => flag.startsWith(\"--\"))",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"COPY from the build context\""
+  },
+  {
+    "name": "dockerfiles: no USER, at the FROM line",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "        line: lastFrom.line,\n",
+    "replace": "        line: 1,\n",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails when the last stage sets none\""
+  },
+  {
+    "name": "dockerfiles: no USER is a finding",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (user === undefined) {\n    return [\n",
+    "replace": "  if (user === undefined) {\n    return [];\n  }\n\n  if (user === undefined) {\n    return [\n",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails when the last stage sets none\""
+  },
+  {
+    "name": "dockerfiles: root by name",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "kind: user === \"root\" || /^0+$/.test(user) ? \"root\" : \"other\"",
+    "replace": "kind: /^0+$/.test(user) ? \"root\" : \"other\"",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"ends as USER root\""
+  },
+  {
+    "name": "dockerfiles: root by number",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "kind: user === \"root\" || /^0+$/.test(user) ? \"root\" : \"other\"",
+    "replace": "kind: user === \"root\" ? \"root\" : \"other\"",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"ends as USER 0\""
+  },
+  {
+    "name": "dockerfiles: root as 00",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "kind: user === \"root\" || /^0+$/.test(user) ? \"root\" : \"other\"",
+    "replace": "kind: user === \"root\" || /^0$/.test(user) ? \"root\" : \"other\"",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"ends as USER 00\""
+  },
+  {
+    "name": "dockerfiles: root with a group",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "(:[A-Za-z0-9_.-]+)?$/;",
+    "replace": "$/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"ends as USER root:root\""
+  },
+  {
+    "name": "dockerfiles: a user that starts like root",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "kind: user === \"root\" || /^0+$/.test(user) ? \"root\" : \"other\"",
+    "replace": "kind: user.startsWith(\"root\") || /^0+$/.test(user) ? \"root\" : \"other\"",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts USER rootless\""
+  },
+  {
+    "name": "dockerfiles: a group of 0 is not the user",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "kind: user === \"root\" || /^0+$/.test(user) ? \"root\" : \"other\"",
+    "replace": "kind: user === \"root\" || /^0+$/.test(value.replace(/^.*:/, \"\")) ? \"root\" : \"other\"",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts USER 1000:0\""
+  },
+  {
+    "name": "dockerfiles: a user that starts with an underscore",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const PLAIN_USER = /^([A-Za-z_][A-Za-z0-9_.-]*|[0-9]+)",
+    "replace": "const PLAIN_USER = /^([A-Za-z][A-Za-z0-9_.-]*|[0-9]+)",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts USER _apt\""
+  },
+  {
+    "name": "dockerfiles: a root that cannot be told is reported",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (user.kind === \"unknown\") {",
+    "replace": "  if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"which may be root\""
+  },
+  {
+    "name": "dockerfiles: a variable as the user",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const PLAIN_USER = /^([A-Za-z_][A-Za-z0-9_.-]*|[0-9]+)",
+    "replace": "const PLAIN_USER = /^([A-Za-z_$][A-Za-z0-9_.-]*|[0-9]+)",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on USER .APP_USER, which\""
+  },
+  {
+    "name": "dockerfiles: a variable in braces as the user",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const PLAIN_USER = /^([A-Za-z_][A-Za-z0-9_.-]*|[0-9]+)",
+    "replace": "const PLAIN_USER = /^([A-Za-z_$][A-Za-z0-9_.{}-]*|[0-9]+)",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on USER ..APP_USER., which\""
+  },
+  {
+    "name": "dockerfiles: a user in quotes",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const PLAIN_USER = /^([A-Za-z_][A-Za-z0-9_.-]*|[0-9]+)",
+    "replace": "const PLAIN_USER = /^[\"']?([A-Za-z_][A-Za-z0-9_.-]*[\"']?|[0-9]+)",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on USER .root., which\""
+  },
+  {
+    "name": "dockerfiles: a user with a backslash",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const PLAIN_USER = /^([A-Za-z_][A-Za-z0-9_.-]*|[0-9]+)",
+    "replace": "const PLAIN_USER = /^([A-Za-z_][A-Za-z0-9_.\\\\-]*|[0-9]+)",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on USER r.oot, which\""
+  },
+  {
+    "name": "dockerfiles: a number with a sign",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const PLAIN_USER = /^([A-Za-z_][A-Za-z0-9_.-]*|[0-9]+)",
+    "replace": "const PLAIN_USER = /^[+-]?([A-Za-z_][A-Za-z0-9_.-]*|[0-9]+)",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on USER .0, which\""
+  },
+  {
+    "name": "dockerfiles: two words after USER",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "(:[A-Za-z0-9_.-]+)?$/;",
+    "replace": "(:[A-Za-z0-9_.-]+)?/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on USER node extra\""
+  },
+  {
+    "name": "dockerfiles: the last USER counts",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "        stage.user = readUser(args, line, false);",
+    "replace": "        stage.user ??= readUser(args, line, false);",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"judges the last USER of the last stage\""
+  },
+  {
+    "name": "dockerfiles: a stage starts as its base stage's user",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      stage = { user: userFromBase(base), triggers: [] };",
+    "replace": "      stage = { user: undefined, triggers: [] };",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a stage starts as its base stage\""
+  },
+  {
+    "name": "dockerfiles: an outside image starts as root",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      stage = { user: userFromBase(base), triggers: [] };",
+    "replace": "      stage = { user: userFromBase(base ?? stages.at(-1)), triggers: [] };",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"an outside image starts as root\""
+  },
+  {
+    "name": "dockerfiles: only the base stage's user counts",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      stage = { user: userFromBase(base), triggers: [] };",
+    "replace": "      stage = { user: userFromBase(base ?? stages.at(0)), triggers: [] };",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"only the base stage counts\""
+  },
+  {
+    "name": "dockerfiles: a user through two stages",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "{ ...base.user, inherited: true }",
+    "replace": "(base.user.inherited ? undefined : { ...base.user, inherited: true })",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"and so through two stages\""
+  },
+  {
+    "name": "dockerfiles: a base stage's root says where it is set",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "{ ...base.user, inherited: true }",
+    "replace": "{ ...base.user }",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a base stage's root is its child\""
+  },
+  {
+    "name": "dockerfiles: a base stage's variable is the child's",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (user.kind === \"unknown\") {",
+    "replace": "  if (user.kind === \"unknown\" && !user.inherited) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a base stage's variable is its child\""
+  },
+  {
+    "name": "dockerfiles: the child's own USER comes after its base's",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "        stage.user = readUser(args, line, false);",
+    "replace": "        stage.user ??= readUser(args, line, false);",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"the child's own USER comes after\""
+  },
+  {
+    "name": "dockerfiles: ONBUILD USER does not take the user away",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      if (onbuild) {\n        stage.triggers.push(instruction);",
+    "replace": "      if (false) {\n        stage.triggers.push(instruction);",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"nor take it away\""
+  },
+  {
+    "name": "dockerfiles: ONBUILD USER acts in the stage built from it",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (trigger !== undefined) {",
+    "replace": "  if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"it acts in the stage built from this one\""
+  },
+  {
+    "name": "dockerfiles: ONBUILD USER can set a user that passes",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  if (trigger !== undefined) {",
+    "replace": "  if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"and there it can set a user that passes\""
+  },
+  {
+    "name": "dockerfiles: the last ONBUILD USER counts",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "  const trigger = base.triggers.at(-1);",
+    "replace": "  const trigger = base.triggers.at(0);",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"the last one of a stage counts\""
+  },
+  {
+    "name": "dockerfiles: ONBUILD USER does not act two stages on",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      stage = { user: userFromBase(base), triggers: [] };",
+    "replace": "      stage = { user: userFromBase(base), triggers: [...(base?.triggers ?? [])] };",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"it does not act two stages on\""
+  },
+  {
+    "name": "dockerfiles: an instruction before the first FROM",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      if (keyword !== \"ARG\" || onbuild) {",
+    "replace": "      if (onbuild) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"an instruction before the first FROM\""
+  },
+  {
+    "name": "dockerfiles: ONBUILD ARG before the first FROM",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      if (keyword !== \"ARG\" || onbuild) {",
+    "replace": "      if (keyword !== \"ARG\") {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"ONBUILD ARG before the first FROM\""
+  },
+  {
+    "name": "dockerfiles: ARG before the first FROM",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      if (keyword !== \"ARG\" || onbuild) {",
+    "replace": "      if (true) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts ARG before the first FROM\""
+  },
+  {
+    "name": "dockerfiles: no FROM",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "\"There is no FROM line,",
+    "replace": "\"No base,",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"an empty file\""
+  },
+  {
+    "name": "dockerfiles: no FROM, with its other findings",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    return [...findings, { file, line: 1, message: \"There is no FROM line",
+    "replace": "    return [{ file, line: 1, message: \"There is no FROM line",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"no FROM, and its other finding with it\""
+  },
+  {
+    "name": "dockerfiles: RUN npm install -g",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const GLOBAL_FLAG = /^(-g|--global(=true)?|--location=global)$/;",
+    "replace": "const GLOBAL_FLAG = /^(--global(=true)?|--location=global)$/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN npm install -g corepack\""
+  },
+  {
+    "name": "dockerfiles: RUN npm i --global",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const GLOBAL_FLAG = /^(-g|--global(=true)?|--location=global)$/;",
+    "replace": "const GLOBAL_FLAG = /^(-g|--global=true|--location=global)$/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN npm i --global\""
+  },
+  {
+    "name": "dockerfiles: RUN npm --global=true",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const GLOBAL_FLAG = /^(-g|--global(=true)?|--location=global)$/;",
+    "replace": "const GLOBAL_FLAG = /^(-g|--global|--location=global)$/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN npm --global=true add\""
+  },
+  {
+    "name": "dockerfiles: RUN npm install --location=global",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const GLOBAL_FLAG = /^(-g|--global(=true)?|--location=global)$/;",
+    "replace": "const GLOBAL_FLAG = /^(-g|--global(=true)?)$/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN npm install typescript --location=global\""
+  },
+  {
+    "name": "dockerfiles: RUN npm install --location global",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": " || (word === \"--location\" && words[index + 1] === \"global\")",
+    "replace": "",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN npm install --location global\""
+  },
+  {
+    "name": "dockerfiles: RUN \u2026 && npm install x -g",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "words.slice(words.indexOf(tool) + 1).some(",
+    "replace": "words.slice(words.indexOf(tool) + 1, words.indexOf(tool) + 3).some((word) => GLOBAL_FLAG.test(word)) && words.slice(words.indexOf(tool) + 1).some(",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN apt-get update\""
+  },
+  {
+    "name": "dockerfiles: the flag before the word that installs",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "words.slice(words.indexOf(tool) + 1).some(",
+    "replace": "words.slice(words.indexOf(tool) + 1, words.indexOf(tool) + 2).some(",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN npm -g install\""
+  },
+  {
+    "name": "dockerfiles: npm i",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "{ tool: \"npm\", verbs: [\"install\", \"i\", \"add\",",
+    "replace": "{ tool: \"npm\", verbs: [\"install\", \"add\",",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN npm i --global\""
+  },
+  {
+    "name": "dockerfiles: npm add",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "{ tool: \"npm\", verbs: [\"install\", \"i\", \"add\",",
+    "replace": "{ tool: \"npm\", verbs: [\"install\", \"i\",",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN npm --global=true add\""
+  },
+  {
+    "name": "dockerfiles: npm isntall",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "\"isntal\", \"isntall\"]",
+    "replace": "\"isntal\"]",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"npm isntall -g\""
+  },
+  {
+    "name": "dockerfiles: npm by its path",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": ".map((word) => word.replace(/^.*\\//, \"\"))",
+    "replace": "",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"npm isntall -g\""
+  },
+  {
+    "name": "dockerfiles: npm in quotes",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    .replace(/['\"\\\\]/g, \"\");",
+    "replace": "    .replace(/[\\\\]/g, \"\");",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN .npm. install\""
+  },
+  {
+    "name": "dockerfiles: npm with a backslash in it",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    .replace(/['\"\\\\]/g, \"\");",
+    "replace": "    .replace(/['\"]/g, \"\");",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN n.pm install\""
+  },
+  {
+    "name": "dockerfiles: npm in sh -c",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    .replace(/['\"\\\\]/g, \"\");",
+    "replace": "    .replace(/[\"\\\\]/g, \"\");",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN sh -c\""
+  },
+  {
+    "name": "dockerfiles: npm in a command substitution",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const COMMAND_ENDS = /[;&|\\n(){}`]/;",
+    "replace": "const COMMAND_ENDS = /[;&|\\n{}`]/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN echo\""
+  },
+  {
+    "name": "dockerfiles: -g of another command",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const COMMAND_ENDS = /[;&|\\n(){}`]/;",
+    "replace": "const COMMAND_ENDS = /[;|\\n(){}`]/;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts RUN npm install .. echo\""
+  },
+  {
+    "name": "dockerfiles: npm install with no flag",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "GLOBAL_INSTALLS.filter(({ tool, verbs }) => isGlobal && runs(tool, verbs))",
+    "replace": "GLOBAL_INSTALLS.filter(({ tool, verbs }) => runs(tool, verbs))",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts RUN npm install\""
+  },
+  {
+    "name": "dockerfiles: pnpm install from a lockfile",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "GLOBAL_INSTALLS.filter(({ tool, verbs }) => isGlobal && runs(tool, verbs))",
+    "replace": "GLOBAL_INSTALLS.filter(({ tool, verbs }) => runs(tool, verbs))",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts RUN pnpm install --frozen-lockfile\""
+  },
+  {
+    "name": "dockerfiles: npm ci",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const RUNNERS = [\"npx\", \"pnpx\", \"bunx\"];",
+    "replace": "const RUNNERS = [\"npx\", \"pnpx\", \"bunx\", \"npm\"];",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts RUN npm ci\""
+  },
+  {
+    "name": "dockerfiles: npm ls -g",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "{ tool: \"npm\", verbs: [\"install\", \"i\", \"add\",",
+    "replace": "{ tool: \"npm\", verbs: [\"ls\", \"install\", \"i\", \"add\",",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts RUN npm ls -g\""
+  },
+  {
+    "name": "dockerfiles: npm run with -g for the script",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "{ tool: \"npm\", verbs: [\"install\", \"i\", \"add\",",
+    "replace": "{ tool: \"npm\", verbs: [\"run\", \"install\", \"i\", \"add\",",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts RUN npm run build\""
+  },
+  {
+    "name": "dockerfiles: RUN pnpm add -g",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "{ tool: \"pnpm\", verbs: [\"add\", \"install\", \"i\", \"update\", \"up\"]",
+    "replace": "{ tool: \"pnpm\", verbs: [\"install\", \"i\", \"update\", \"up\"]",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN pnpm add -g\""
+  },
+  {
+    "name": "dockerfiles: RUN pnpm --global install",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "{ tool: \"pnpm\", verbs: [\"add\", \"install\", \"i\", \"update\", \"up\"]",
+    "replace": "{ tool: \"pnpm\", verbs: [\"add\", \"i\", \"update\", \"up\"]",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN pnpm --global install\""
+  },
+  {
+    "name": "dockerfiles: RUN bun add --global",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "{ tool: \"bun\", verbs: [\"add\", \"install\", \"i\"], what: \"bun add -g\" }",
+    "replace": "{ tool: \"bun\", verbs: [\"install\", \"i\"], what: \"bun add -g\" }",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN bun add --global\""
+  },
+  {
+    "name": "dockerfiles: RUN yarn global add",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "runs(\"yarn\", [\"global\"]) && words.includes(\"add\")",
+    "replace": "runs(\"yarn\", [\"globalx\"]) && words.includes(\"add\")",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN yarn global add\""
+  },
+  {
+    "name": "dockerfiles: yarn add",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "runs(\"yarn\", [\"global\"]) && words.includes(\"add\")",
+    "replace": "words.includes(\"yarn\") && words.includes(\"add\")",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts RUN yarn add\""
+  },
+  {
+    "name": "dockerfiles: yarn global list",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "runs(\"yarn\", [\"global\"]) && words.includes(\"add\")",
+    "replace": "runs(\"yarn\", [\"global\"])",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts RUN yarn global list\""
+  },
+  {
+    "name": "dockerfiles: RUN npx",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const RUNNERS = [\"npx\", \"pnpx\", \"bunx\"];",
+    "replace": "const RUNNERS = [\"pnpx\", \"bunx\"];",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN npx turbo\""
+  },
+  {
+    "name": "dockerfiles: RUN pnpx",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const RUNNERS = [\"npx\", \"pnpx\", \"bunx\"];",
+    "replace": "const RUNNERS = [\"npx\", \"bunx\"];",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN pnpx\""
+  },
+  {
+    "name": "dockerfiles: RUN bunx",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const RUNNERS = [\"npx\", \"pnpx\", \"bunx\"];",
+    "replace": "const RUNNERS = [\"npx\", \"pnpx\"];",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN bunx\""
+  },
+  {
+    "name": "dockerfiles: RUN pnpm dlx",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "{ tool: \"pnpm\", verbs: [\"dlx\"], what: \"dlx\" }",
+    "replace": "{ tool: \"pnpm\", verbs: [\"dlxx\"], what: \"dlx\" }",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN pnpm dlx\""
+  },
+  {
+    "name": "dockerfiles: RUN yarn dlx",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "{ tool: \"yarn\", verbs: [\"dlx\"], what: \"dlx\" }",
+    "replace": "{ tool: \"yarn\", verbs: [\"dlxx\"], what: \"dlx\" }",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN yarn dlx\""
+  },
+  {
+    "name": "dockerfiles: RUN npm exec",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "{ tool: \"npm\", verbs: [\"exec\", \"x\"], what: \"npm exec\" }",
+    "replace": "{ tool: \"npm\", verbs: [\"x\"], what: \"npm exec\" }",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN npm exec\""
+  },
+  {
+    "name": "dockerfiles: RUN bun x",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "{ tool: \"bun\", verbs: [\"x\"], what: \"bun x\" }",
+    "replace": "{ tool: \"bun\", verbs: [\"xx\"], what: \"bun x\" }",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN bun x\""
+  },
+  {
+    "name": "dockerfiles: pnpm exec runs what is installed",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "{ tool: \"pnpm\", verbs: [\"dlx\"], what: \"dlx\" }",
+    "replace": "{ tool: \"pnpm\", verbs: [\"dlx\", \"exec\"], what: \"dlx\" }",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts RUN pnpm --filter\""
+  },
+  {
+    "name": "dockerfiles: RUN as a list",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "[exec.join(\" \")]",
+    "replace": "[exec.join(\",\")]",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN ..npm., .install\""
+  },
+  {
+    "name": "dockerfiles: RUN npx as a list",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "[exec.join(\" \")]",
+    "replace": "[args]",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN ..npx\""
+  },
+  {
+    "name": "dockerfiles: RUN npm ci as a list",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "[exec.join(\" \")]",
+    "replace": "[exec.join(\" -g npm install \")]",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts RUN ..npm., .ci\""
+  },
+  {
+    "name": "dockerfiles: a command over several lines",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      if (content !== \"\" && !content.startsWith(\"#\")) {",
+    "replace": "      if (content !== \"\" && content.startsWith(\"#\")) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"several lines, a comment in them\""
+  },
+  {
+    "name": "dockerfiles: a word cut in two by a line end",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "        joined += part.text;",
+    "replace": "        joined += ` ${part.text}`;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"Docker runs it: a word cut in two\""
+  },
+  {
+    "name": "dockerfiles: the body of a heredoc is run",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "[args, ...heredocs.map(({ body }) => body)]",
+    "replace": "[args]",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"Docker runs it: the body of a heredoc\""
+  },
+  {
+    "name": "dockerfiles: the body of a heredoc that drops its tabs",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "[args, ...heredocs.map(({ body }) => body)]",
+    "replace": "[args]",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"Docker runs it: a heredoc that drops its tabs\""
+  },
+  {
+    "name": "dockerfiles: a heredoc fed to a shell",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "[args, ...heredocs.map(({ body }) => body)]",
+    "replace": "[args]",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"Docker runs it: a heredoc fed to a shell\""
+  },
+  {
+    "name": "dockerfiles: the second heredoc of a line",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "[args, ...heredocs.map(({ body }) => body)]",
+    "replace": "[args, ...heredocs.slice(0, 1).map(({ body }) => body)]",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"the second heredoc of a line\""
+  },
+  {
+    "name": "dockerfiles: a command that goes on in a heredoc's body",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    .replace(/\\\\\\n/g, \"\")\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a command that goes on in the body\""
+  },
+  {
+    "name": "dockerfiles: a comment in a heredoc's body",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    .replace(/^\\s*#.*$/gm, \"\")\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a comment in a heredoc\""
+  },
+  {
+    "name": "dockerfiles: ONBUILD RUN",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    if (keyword === \"RUN\") {\n      for (const what",
+    "replace": "    if (keyword === \"RUN\" && !onbuild) {\n      for (const what",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"ONBUILD RUN, one build later\""
+  },
+  {
+    "name": "dockerfiles: two kinds in one RUN, once each",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "[...new Set(scripts.flatMap(listUnpinnedInstallsIn))]",
+    "replace": "scripts.flatMap(listUnpinnedInstallsIn)",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"two kinds in one RUN\""
+  },
+  {
+    "name": "dockerfiles: a file written by COPY is not run",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    if (keyword === \"RUN\") {\n      for (const what",
+    "replace": "    if (keyword === \"RUN\" || keyword === \"COPY\") {\n      for (const what",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"a file written by COPY\""
+  },
+  {
+    "name": "dockerfiles: CMD is not a RUN",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    if (keyword === \"RUN\") {\n      for (const what",
+    "replace": "    if (keyword === \"RUN\" || keyword === \"CMD\") {\n      for (const what",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"CMD, which runs in the container\""
   },
   {
     "name": "addon: each script runs a tool it ships",

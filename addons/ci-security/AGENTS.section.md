@@ -8,7 +8,7 @@ needs none and is in `gate:fast`. This section is what they cannot decide.
 ```bash
 pnpm lint:workflows              # actionlint (valid?) then zizmor (safe?)
 pnpm lint:workflows zizmor       # one of them
-pnpm check:dockerfiles           # base images by digest, no root, no package outside a lockfile
+pnpm check:dockerfiles           # images by digest, no root, no package outside a lockfile
 ```
 
 Exit 0 is a pass. Exit 1 is a finding, named in the linter's output above the
@@ -59,10 +59,24 @@ the project: an advisory was published for a version already in the lockfile.
 
 ### When you add or change a Dockerfile
 
-Run `pnpm check:dockerfiles`. Take a digest from the registry
-(`docker buildx imagetools inspect <image>:<tag>`), never from memory, and
-keep the tag in front of it for the reader. Do not turn an image into a
-build argument to get past the check. Skip this when no Dockerfile changed.
+Run `pnpm check:dockerfiles`. Skip this when no Dockerfile changed.
+
+- Take a digest from the registry
+  (`docker buildx imagetools inspect <image>:<tag>`), never from memory, and
+  keep the tag in front of it for the reader. The same for an image in
+  `COPY --from=` and in `RUN --mount=…,from=`.
+- Write the image and the user out. A variable in either fails, whatever its
+  default: `FROM ${BASE}`, `USER ${APP_USER}`.
+- End the last stage with `USER` and a plain name or number that is not root.
+- Write a heredoc as `<<EOF` on a line with no quotes, and put the script in
+  its body.
+- "Nothing else in this file was judged" means the check could not read the
+  file as Docker does. Fix that line first, then run it again: the other
+  findings come after.
+
+Do not get past a finding by another spelling, by moving the Dockerfile, or
+by a `--build-arg` or `--target` on the command line. If you believe a finding
+is wrong, say so and leave it red.
 
 ### The update bot
 
