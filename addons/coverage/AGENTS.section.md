@@ -20,7 +20,9 @@ what it cannot decide.
    (`<` for `>`, a dropped guard) in a JSON spec and run
    `pnpm mutation-check mutants.json`; the format is at the top of
    `tools/coverage/mutation-check.mts`. `SURVIVED` means the test cannot see
-   that mistake: strengthen the test. Skip this only for a test that already
+   that mistake: strengthen the test. `NO TESTS` means the row's command ran
+   no test, usually a `-t` filter that matches no title (vitest cuts an
+   `it.each` title at 40 characters): fix the command. Skip this only for a test that already
    failed in front of you before the code existed.
 5. Run `pnpm coverage` again.
 

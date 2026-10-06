@@ -28,17 +28,41 @@
 //   SURVIVED  the test stayed green — it cannot see this mistake. That is a
 //             finding about the test: strengthen it, or write down why this
 //             behaviour is left unchecked
+//   NO TESTS  the test command ran no test before any mutant was applied, or
+//             left no count of the tests it ran. Nothing was mutated
 //   ERROR     the mutant could not be judged, and the reason is given
 //
 // Exit 0: every mutant was killed. Exit 1: one survived. Exit 2: the spec
-// could not be read, or a mutant could not be judged.
+// could not be read, or a mutant could not be judged (NO TESTS, ERROR).
+//
+// A command that runs no test is green, so every mutant behind it would read
+// SURVIVED, or KILLED with a runner that fails on no match. Each command is
+// therefore run once on the unchanged files, and must be green with at least
+// one test passed or failed. Skipped tests do not count.
+//
+// The count comes from a report file, never from what the runner prints:
+//
+//   - A command that names `vitest` gets `--reporter=json --outputFile=…`
+//     added at its end. So vitest must be the last program in the command.
+//   - Any other runner writes the file itself. Its path is in the environment
+//     as MUTATION_CHECK_REPORT, and the file is JSON with `numPassedTests`
+//     and `numFailedTests` (jest: `--json --outputFile="$MUTATION_CHECK_REPORT"`).
+//     A command that mentions MUTATION_CHECK_REPORT is run as written.
+//   - A command that cannot count (a script that exits 0 or 1) says so in its
+//     row, with the reason: `"uncounted": "a script, not a test runner"`. It
+//     is then judged on its exit code alone, as before.
+//
+// The usual way to run nothing: a `-t` filter that no title matches. vitest
+// cuts an `it.each` title at 40 characters, so a filter copied from a longer
+// title in the source matches nothing. Filter on the first words.
 //
 // A spec is code, not data: its `test` commands run in a shell. Do not run a
 // spec you have not read.
 
 import { execSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 
 import { isMainModule } from "./lib/main.mts";
 
@@ -48,9 +72,11 @@ export interface Mutant {
   find: string;
   replace: string;
   test: string;
+  /** Why this command is judged on its exit code alone, with no count of the tests it ran. */
+  uncounted?: string;
 }
 
-export type MutantStatus = "KILLED" | "SURVIVED" | "ERROR";
+export type MutantStatus = "KILLED" | "SURVIVED" | "NO TESTS" | "ERROR";
 
 export interface MutantResult {
   name: string;
@@ -59,7 +85,13 @@ export interface MutantResult {
   detail: string;
 }
 
-export type TestRun = "green" | "red" | "timed out";
+export type Verdict = "green" | "red" | "timed out";
+
+export interface TestRun {
+  verdict: Verdict;
+  /** Tests that passed or failed; a skipped test is not one. Undefined when the command left no count. */
+  testsRun?: number;
+}
 
 /** Runs a mutant's test command in the project root. Replaced in tests. */
 export type RunTest = (command: string) => TestRun;
@@ -93,6 +125,10 @@ export function readSpec(path: string): Mutant[] {
       }
     }
 
+    if (mutant.uncounted !== undefined && (typeof mutant.uncounted !== "string" || mutant.uncounted.trim() === "")) {
+      throw new MutationError(`${path}: mutant ${index + 1} has an "uncounted" that does not say why`);
+    }
+
     if (mutant.find === mutant.replace) {
       throw new MutationError(`${path}: mutant ${index + 1} ("${String(mutant.name)}") changes nothing`);
     }
@@ -122,6 +158,17 @@ export async function runMutants(spec: Mutant[], { root, runTest, announce, isSt
   return results;
 }
 
+const NOTHING_RAN = [
+  "the test command ran 0 tests with no mutant applied, so no run of it can show anything.",
+  "Usually a filter matches no test: vitest cuts an `it.each` title at 40 characters, and a skipped test is not counted",
+].join("\n");
+
+const NOT_COUNTED = [
+  "the test command left no count of the tests it ran, so a green run may be a run of nothing.",
+  "vitest is counted when it is the last program in the command; another runner writes $MUTATION_CHECK_REPORT;",
+  'a command that cannot count says why in the row: "uncounted": "<reason>"',
+].join("\n");
+
 /** Applies one mutant, runs its test, and restores the file whatever happens. */
 function runMutant(mutant: Mutant, root: string, runTest: RunTest, baselines: Map<string, TestRun>): Omit<MutantResult, "name"> {
   const path = resolve(root, mutant.file);
@@ -142,25 +189,35 @@ function runMutant(mutant: Mutant, root: string, runTest: RunTest, baselines: Ma
 
   baselines.set(mutant.test, baseline);
 
-  if (baseline !== "green") {
+  // Asked before the verdict: a runner that fails when nothing matched is red
+  // for this reason, and the row should say so.
+  if (baseline.testsRun === 0) {
+    return { status: "NO TESTS", detail: NOTHING_RAN };
+  }
+
+  if (baseline.verdict !== "green") {
     // A test that is red anyway would "kill" every mutant.
     return {
       status: "ERROR",
-      detail: `the test ${baseline === "red" ? "is red" : "timed out"} before the mutant is applied, so a red run would prove nothing`,
+      detail: `the test ${baseline.verdict === "red" ? "is red" : "timed out"} before the mutant is applied, so a red run would prove nothing`,
     };
+  }
+
+  if (baseline.testsRun === undefined && mutant.uncounted === undefined) {
+    return { status: "NO TESTS", detail: NOT_COUNTED };
   }
 
   try {
     // A function, so `$&` and `$1` in the replacement are written as they are.
     writeFileSync(path, original.replace(mutant.find, () => mutant.replace));
 
-    const run = runTest(mutant.test);
+    const { verdict } = runTest(mutant.test);
 
-    if (run === "red") {
+    if (verdict === "red") {
       return { status: "KILLED", detail: "" };
     }
 
-    return run === "green"
+    return verdict === "green"
       ? { status: "SURVIVED", detail: "the test passes with the mutant applied" }
       : { status: "ERROR", detail: "the test timed out with the mutant applied; that is not a red test" };
   } finally {
@@ -170,12 +227,16 @@ function runMutant(mutant: Mutant, root: string, runTest: RunTest, baselines: Ma
 
 export function formatTable(results: MutantResult[], total: number): string {
   const killed = results.filter((result) => result.status === "KILLED").length;
-  const lines = ["mutants", ...results.map(({ status, name, detail }) => `  ${status.padEnd(9)}${name}${detail ? `\n           ${detail}` : ""}`)];
+  const lines = ["mutants", ...results.map(({ status, name, detail }) => `  ${status.padEnd(9)}${name}${indentDetail(detail)}`)];
 
   lines.push("", `${killed} of ${total} killed.`);
 
   if (results.length < total) {
     lines.push(`Stopped after ${results.length}; the rest did not run.`);
+  }
+
+  if (results.some((result) => result.status === "NO TESTS")) {
+    lines.push("A NO TESTS row was not judged: its test command has to run a test, and say how many, before a mutant means anything.");
   }
 
   if (results.some((result) => result.status === "SURVIVED")) {
@@ -185,25 +246,77 @@ export function formatTable(results: MutantResult[], total: number): string {
   return lines.join("\n");
 }
 
+/** Each line of a row's reason, under the row's name. */
+function indentDetail(detail: string): string {
+  return detail === "" ? "" : detail.split("\n").map((line) => `\n           ${line}`).join("");
+}
+
 export function exitCodeFor(results: MutantResult[], total: number): 0 | 1 | 2 {
-  if (results.some((result) => result.status === "ERROR")) {
+  if (results.some((result) => result.status === "ERROR" || result.status === "NO TESTS")) {
     return 2;
   }
 
   return results.length === total && results.every((result) => result.status === "KILLED") ? 0 : 1;
 }
 
-/** Runs `command` in a shell. Output is discarded: only red or green matters. */
+/** The environment variable that tells a test command where to write its count. */
+export const REPORT_VARIABLE = "MUTATION_CHECK_REPORT";
+
+/**
+ * Runs `command` in a shell. What it prints is discarded: red or green is its
+ * exit code, and the number of tests is read from the report file.
+ */
 export function createShellRunner(root: string, timeoutSeconds: number): RunTest {
   return (command) => {
-    try {
-      execSync(command, { cwd: root, stdio: "ignore", timeout: timeoutSeconds * 1000 });
+    // A folder of its own for each run, so a count is never one an earlier run left.
+    const folder = mkdtempSync(join(tmpdir(), "mutation-check-"));
+    const report = join(folder, "report.json");
 
-      return "green";
-    } catch (error) {
-      return (error as { code?: string }).code === "ETIMEDOUT" ? "timed out" : "red";
+    try {
+      return { verdict: runInShell(askForReport(command, report), root, timeoutSeconds, report), testsRun: readTestsRun(report) };
+    } finally {
+      rmSync(folder, { recursive: true, force: true });
     }
   };
+}
+
+function runInShell(command: string, root: string, timeoutSeconds: number, report: string): Verdict {
+  try {
+    execSync(command, { cwd: root, stdio: "ignore", timeout: timeoutSeconds * 1000, env: { ...process.env, [REPORT_VARIABLE]: report } });
+
+    return "green";
+  } catch (error) {
+    return (error as { code?: string }).code === "ETIMEDOUT" ? "timed out" : "red";
+  }
+}
+
+/**
+ * The command, asked to write a machine-readable report to `report`. Only
+ * vitest is known well enough to be asked: its flags go at the end, so they
+ * reach it only when it is the last program named. A command that mentions
+ * the report variable has made its own arrangement and is left as written.
+ */
+export function askForReport(command: string, report: string): string {
+  if (command.includes(REPORT_VARIABLE) || !/(^|[\s/])vitest(\s|$)/.test(command)) {
+    return command;
+  }
+
+  return `${command} --reporter=json --outputFile="${report}"`;
+}
+
+/** How many tests passed or failed, by the report; undefined when it is absent or says nothing of it. */
+export function readTestsRun(report: string): number | undefined {
+  if (!existsSync(report)) {
+    return undefined;
+  }
+
+  try {
+    const { numPassedTests, numFailedTests } = JSON.parse(readFileSync(report, "utf8")) as Record<string, unknown>;
+
+    return typeof numPassedTests === "number" && typeof numFailedTests === "number" ? numPassedTests + numFailedTests : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 interface CommandLine {
