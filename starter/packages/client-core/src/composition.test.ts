@@ -1,23 +1,13 @@
-import { Subject } from "rxjs";
 import { describe, expect, it } from "vitest";
 
-import type { Price } from "@app/domain";
-
-import { createApp } from "./composition.ts";
+import { createAppHarness } from "./testing/appHarness.ts";
 
 describe("the application", () => {
   it("shows the prices its price port produces", () => {
-    const prices$ = new Subject<Price>();
-    const app = createApp({
-      price: {
-        prices: () => {
-          return prices$;
-        },
-      },
-    });
+    const { app, deliverPrice } = createAppHarness();
     const subscription = app.presenters.prices.rows$.subscribe();
 
-    prices$.next({ symbol: "EURUSD", mid: 1.1 });
+    deliverPrice({ symbol: "EURUSD", mid: 1.1 });
 
     expect(
       app.presenters.prices.rows$.getValue().map((row) => {
@@ -29,13 +19,7 @@ describe("the application", () => {
   });
 
   it("builds a separate selection machine for each component that asks", () => {
-    const app = createApp({
-      price: {
-        prices: () => {
-          return new Subject<Price>();
-        },
-      },
-    });
+    const { app } = createAppHarness();
     const first = app.machines.createSelection();
     const second = app.machines.createSelection();
 

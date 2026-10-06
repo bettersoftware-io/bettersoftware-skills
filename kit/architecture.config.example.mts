@@ -23,24 +23,39 @@ const config: ArchitectureConfig = {
     "packages/domain": { role: "domain", npm: ["rxjs"] },
 
     // Wire protocol: DTOs and message names shared by the core's adapters and
-    // the server.
-    "packages/shared": { role: "shared" },
+    // the server. `noNodeBuiltins` holds any package to the domain's rule: no
+    // Node built-in in production code, so it loads in a browser.
+    "packages/shared": { role: "shared", noNodeBuiltins: true },
 
-    // Presenters, state machines, adapters. Framework-free.
-    "packages/client-core": { role: "core" },
+    // Presenters, state machines, adapters. Framework-free. The three options
+    // are the defaults: the files that may import an adapter (to re-export
+    // it), the function that builds the application, and the one test helper
+    // that may call it.
+    "packages/client-core": {
+      role: "core",
+      noNodeBuiltins: true,
+      mayImportAdapters: ["src/index.ts"],
+      compose: "createApp",
+      appHarness: "src/testing/appHarness.ts",
+    },
 
     // The one place the stream library meets the UI framework.
     "packages/react-bindings": { role: "bindings" },
 
     // A client holds two folders: `src/app` (composition root) and `src/ui`
     // (dumb UI). Override with `app`, `ui`, `uiBridge` and `entry` if needed.
-    "packages/client-react": { role: "client" },
+    // `testIds` is the file in `ui` that holds every test id (the default).
+    "packages/client-react": { role: "client", testIds: "testids.ts" },
 
     "packages/server": { role: "server" },
 
     // Tests that run two sides against each other, such as a client adapter
     // against the real server. The one package that may import every layer.
     "packages/integration": { role: "integration" },
+
+    // A package of shared types adds `typesOnly: true`: it may then export no
+    // runtime value.
+    // "packages/core-api": { role: "leaf", typesOnly: true },
   },
 
   // Folders whose modules implement ports. Each one that implements a port
@@ -54,6 +69,17 @@ const config: ArchitectureConfig = {
   // the files a tool can only load as JavaScript, each with the reason.
   language: "typescript",
   javascriptAllowed: {},
+
+  // Every package needs a `typecheck` and a `test` script. A package with no
+  // tests is listed here with the reason.
+  packagesWithoutTests: {},
+
+  // A library that may be imported only from the packages listed.
+  vendorOnlyIn: {
+    react: ["packages/react-bindings", "packages/client-react"],
+    "react-dom": ["packages/react-bindings", "packages/client-react"],
+    ws: ["packages/server"],
+  },
 };
 
 export default config;

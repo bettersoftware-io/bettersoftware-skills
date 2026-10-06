@@ -15,7 +15,7 @@ directly by stripping the types, which needs Node 22.18 or later, and
 
 | Part | What it checks | Needs |
 |---|---|---|
-| `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction, the paths the agent instructions name, the task cache | Node; `dependency-cruiser` for the dependency gate |
+| `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction, the paths the agent instructions name, the task cache, every package's scripts, the one app harness, test ids, types-only packages | Node; `dependency-cruiser` for the dependency gate |
 | `eslint.config.mts` + `eslint-rules/` | Thirteen AST lint rules of its own (naming, reading order, fixtures, page objects, no real sleeps in tests, one import per module), and the settings of ESLint's rules that go with them: function declarations, blank lines, named object types, no CommonJS, React's hook rules | `eslint`, `typescript-eslint`, `eslint-plugin-react-hooks` |
 | `hooks/after-edit.mts` | Runs the per-file gates on the file an agent just wrote | Claude Code or Codex |
 | `hooks/before-stop.mts` | Refuses to let an agent finish while `gate:full` is red, on any tree that has not already passed it | Claude Code or Codex; git |
@@ -30,14 +30,18 @@ A project declares its layers once, in `architecture.config.mts`
 | `structure` | A workspace package has no declared role; a required role is missing; the domain has no ports folder; a package has a runtime dependency outside its closed list; a client holds source outside its composition root and its UI folder; an integration package holds anything but tests |
 | `typescript-only` | The project holds a `.js`, `.jsx`, `.mjs` or `.cjs` source file that is not listed as an exception |
 | `dumb-ui` | A UI file imports the stream library, touches storage, reads configuration, opens a connection, or sets a timer |
-| `port-contracts` | A port has no contract test; the contract never calls one of the port's methods; an adapter folder that implements a port does not run that port's contract |
-| `dependencies` | An import points outward; the domain uses a Node built-in; the core imports a UI framework; the UI imports the composition root or an adapter; anything imports an integration package; there is a cycle |
+| `port-contracts` | A port has no contract test; the contract never calls one of the port's methods; the contract imports an implementation; an adapter folder that implements a port does not run that port's contract |
+| `dependencies` | An import points outward; the domain, or a package that asked, uses a Node built-in; the core imports a UI framework; a presenter or a state machine imports an adapter; production code imports test scaffolding; a confined library is imported outside its packages; the UI imports the composition root or an adapter; anything imports an integration package; there is a cycle |
 | `agent-docs` | `AGENTS.md` or `CLAUDE.md` names a file or folder that does not exist |
 | `task-cache` | A cached task in `turbo.json` has a key that leaves out the packages a package imports; a package's tsconfig extends a file outside the package that is not a global dependency; a package with tests that need a port caches its `test` task |
+| `package-scripts` | A workspace package has no `typecheck` script, or no `test` (or `test:…`) script and no listed reason |
+| `app-harness` | A test calls the function that builds the whole application, anywhere but the one harness file |
+| `test-ids` | A test id is written as a string literal, in a component, a selector or a query, outside the client's test-ids file |
+| `types-only` | A package declared `typesOnly` exports a runtime value |
 
 ```bash
 node tools/arch/gates/run.mts                 # every gate
-node tools/arch/gates/run.mts --file src/ui/A.tsx   # per-file gates only
+node tools/arch/gates/run.mts --file src/ui/A.tsx   # per-file gates only: all but dependencies, agent-docs, task-cache
 node tools/arch/gates/run.mts --json          # machine-readable
 ```
 
@@ -171,6 +175,104 @@ A skip is weaker than a failure, and the name is a convention no gate can
 check: a test that opens a port under another name simply fails in the
 sandbox, as before.
 
+### Every package is typechecked and tested
+
+A task runner runs a task only in the packages that declare its script, and
+says nothing about the rest. A new package with no `typecheck` script is never
+typechecked, with every run green. The `package-scripts` gate reads each
+workspace package's `package.json` and fails when it has no `typecheck`, or no
+`test` and no `test:…` script. An integration package needs both too.
+
+A package that has no tests says so, with the reason. It still needs
+`typecheck`:
+
+```ts
+packagesWithoutTests: {
+  "packages/core-api": "it holds only types, so there is nothing to run",
+},
+```
+
+### Test scaffolding stays in tests
+
+A `testing/` folder, a page object (`*.page.*`), a `*.testHelpers.*` file, a
+`__tests__` or `__testUtils__` folder and a test are written for tests. The
+`dependencies` gate fails when a production file in any declared package
+imports one, from its own package or another: a fake would ship in the product.
+
+### A core is handed its ports
+
+In a `core` package, only the adapters themselves, the tests, and the entry
+(`src/index.ts`, which re-exports the adapters for the client's composition
+root) may import a folder listed under `adapters`. A presenter, a state
+machine and the function that composes them take the port as an argument.
+`mayImportAdapters` on the package replaces the list of exempt files.
+
+### A contract imports no implementation
+
+A contract is handed the implementation it tests. One that imports a simulator
+or an adapter can only ever test that one. The `port-contracts` gate fails on
+an import, in a file under `__contracts__`, that lands in a folder listed
+under `adapters` or in another workspace package. An npm package is not
+judged: the test runner is one.
+
+### The application is built in one test helper
+
+The function that composes the application takes every port. A test that
+calls it wires its own set of fakes, so a port added later has to be added to
+each such test. The `app-harness` gate fails when a test, a page object or a
+file in a `testing/` folder calls it, except the one harness. Both names are
+options of the `core` package, with the starter's as defaults:
+
+```ts
+"packages/client-core": {
+  role: "core",
+  compose: "createApp",
+  appHarness: "src/testing/appHarness.ts",
+},
+```
+
+When no core package defines that function the gate reports `SKIP`.
+
+### One file holds the test ids
+
+`data-testid="price-row"` in a component and `getByTestId("price-row")` in a
+page object are two copies of one name. The `test-ids` gate fails on a test id
+written as a string literal: the attribute, a `[data-testid="…"]` selector,
+and any `…ByTestId("…")` query. It reads every declared package and leaves
+out the client's test-ids file, `testids.ts` in its UI folder unless the
+client says otherwise (`testIds`).
+
+### No Node built-in, for any package that asks
+
+The domain uses no Node built-in. Any other package asks for the same rule
+with `noNodeBuiltins: true`, which is how a package that ends up in a browser
+is kept loadable there. Tests and test scaffolding are left out.
+
+### A library kept to the packages that own it
+
+`npm` on a package is the closed list of what its `package.json` may depend
+on. `vendorOnlyIn` is the other half, about imports: the library may be
+imported only from the packages listed, tests included.
+
+```ts
+vendorOnlyIn: {
+  react: ["packages/react-bindings", "packages/client-react"],
+  ws: ["packages/server"],
+},
+```
+
+A name that ends in `/` covers a whole scope. An import that names only types
+is not counted.
+
+### A package of types exports no value
+
+A package declared `typesOnly: true` is safe to import from anywhere because
+it adds nothing at runtime. The `types-only` gate fails on each
+`export const`, `let`, `var`, `function`, `class` or `enum`, each
+`export default` of a value, each `export { … }` with a member that is not
+marked `type`, and each `export * from`. Tests are left out. With no such
+package the gate reports `SKIP`.
+
 ### A gate that judged nothing has not passed
 
 Four cases are reported instead of being read as clean:
@@ -197,6 +299,17 @@ Four cases are reported instead of being read as clean:
   literal is reported.
 - `name-fixture-factories` sees a zero-parameter fixture. A factory that takes
   arguments and has a bare-noun name is not caught.
+- `takes-ports-as-arguments`, like the rule above, sees a direct import of an
+  adapter module, not one re-exported through a package's index. The same
+  holds for a contract that imports its own package's index.
+- A rule that follows an option is not made when the option is absent: no
+  `adapters`, no `takes-ports-as-arguments`; no `vendorOnlyIn`, no confinement.
+  The `dependencies` gate does not report those as skipped.
+- `app-harness` sees a call, `createApp(…)`. The function passed by name to
+  something else that calls it is not caught.
+- `test-ids` and `types-only` match text after stripping comments. A test id
+  built in a template literal is reported, unless the literal opens with
+  `${` (a selector built from a constant); `export declare` is not.
 
 ## Lint rules
 
@@ -303,5 +416,5 @@ It was `gate:fast` until a run with the smallest model stopped there with
 pnpm test
 ```
 
-The gate and hook tests run against three fixture projects in `gates/fixtures/`
-(`clean`, `broken`, `dormant`).
+The gate and hook tests run against five fixture projects in `gates/fixtures/`
+(`clean`, `broken`, `dormant`, `javascript`, `no-workspace`).

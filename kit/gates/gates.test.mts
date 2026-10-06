@@ -3,7 +3,7 @@ import { mkdtempSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import type { Finding } from "./lib/config.mts";
 import { ConfigError } from "./lib/config.mts";
@@ -28,6 +28,10 @@ describe("a project that follows the rules", () => {
       "dependencies",
       "agent-docs",
       "task-cache",
+      "package-scripts",
+      "app-harness",
+      "test-ids",
+      "types-only",
     ]);
     expect(result.skipped).toEqual({});
     expect(formatFindings(result)).toContain("all gates passed.");
@@ -50,9 +54,12 @@ describe("a project that breaks the rules", () => {
       .map((finding) => finding.message)
       .join("\n");
 
-  it("is judged", async () => {
+  // Judged once, before any case, so that one case can be run alone.
+  beforeAll(async () => {
     findings = (await runGates({ root: broken })).findings;
+  });
 
+  it("is judged", () => {
     expect(findings.length).toBeGreaterThan(0);
   });
 
@@ -194,13 +201,108 @@ describe("a project that breaks the rules", () => {
     expect(edges).toContain("client-react-ui-never-imports-app");
     expect(edges).toContain("client-react-ui-never-imports-adapters");
   });
+
+  it("names a package with no typecheck script or no test script, an integration package too", () => {
+    const unchecked = messages("package-scripts", "packages/react-bindings/package.json");
+
+    expect(unchecked).toContain('no "typecheck" script');
+    expect(unchecked).toContain('no "test" script');
+    expect(of("package-scripts", "packages/checks/package.json").map((finding) => finding.message)).toEqual([
+      expect.stringContaining('no "test" script'),
+    ]);
+  });
+
+  it("accepts a test:* script, and a package listed as having no tests with the reason", () => {
+    expect(of("package-scripts", "packages/client-react/package.json")).toEqual([]);
+    expect(of("package-scripts", "packages/rogue/package.json")).toEqual([]);
+    expect(of("package-scripts", "packages/domain/package.json")).toEqual([]);
+  });
+
+  it("names production code that imports test scaffolding, and leaves a test that does alone", () => {
+    expect(messages("dependencies", "packages/client-core/src/presenters/ratesPresenter.ts")).toContain(
+      "no-test-scaffolding-in-production: imports packages/client-core/src/testing/fakePrices.ts",
+    );
+    expect(messages("dependencies", "packages/client-core/src/presenters/ratesPresenter.test.ts")).not.toContain(
+      "no-test-scaffolding-in-production",
+    );
+  });
+
+  it("names a presenter that imports an adapter, and leaves the entry, the harness and a test alone", () => {
+    expect(messages("dependencies", "packages/client-core/src/presenters/ratesPresenter.ts")).toContain(
+      "client-core-takes-ports-as-arguments: imports packages/client-core/src/adapters/wsPrice.ts",
+    );
+    expect(messages("dependencies")).toContain("client-core-takes-ports-as-arguments");
+    expect(
+      of("dependencies")
+        .filter((finding) => finding.message.includes("takes-ports-as-arguments"))
+        .map((finding) => finding.file),
+    ).toEqual(["packages/client-core/src/presenters/ratesPresenter.ts"]);
+  });
+
+  it("names a contract that imports an implementation, with its line", () => {
+    const impure = of("port-contracts", "packages/domain/src/ports/__contracts__/QuotePortContract.ts");
+
+    expect(impure.map((finding) => finding.line)).toEqual([1, 3, 4]);
+    expect(impure[0]?.message).toContain("packages/domain/src/simulators");
+    expect(impure[1]?.message).toContain("packages/client-core/src/adapters");
+    expect(impure[2]?.message).toContain("@fx/rogue");
+  });
+
+  it("names a test that builds the application itself, with its line", () => {
+    expect(of("app-harness").map(({ file, line }) => `${file}:${line}`)).toEqual([
+      "packages/client-core/src/presenters/ratesPresenter.test.ts:10",
+    ]);
+    expect(messages("app-harness")).toContain("packages/client-core/src/testing/appHarness.ts");
+  });
+
+  it("names a raw test id in a component, a selector and a query, with its line", () => {
+    const lines = (file: string): (number | undefined)[] => of("test-ids", file).map((finding) => finding.line);
+
+    expect(lines("packages/client-react/src/ui/PriceRow.tsx")).toEqual([6, 8]);
+    expect(lines("packages/client-react/src/ui/PriceRow.page.tsx")).toEqual([12, 13, 15]);
+    expect(of("test-ids", "packages/client-react/src/ui/testids.ts")).toEqual([]);
+    expect(messages("test-ids")).toContain("packages/client-react/src/ui/testids.ts");
+  });
+
+  it("names a Node built-in in a package that asked to run anywhere, and leaves its tests alone", () => {
+    expect(messages("dependencies", "packages/client-core/src/machines/clock.ts")).toContain(
+      "client-core-no-node-builtins: imports os",
+    );
+    expect(messages("dependencies", "packages/client-core/src/presenters/ratesPresenter.test.ts")).not.toContain(
+      "no-node-builtins",
+    );
+  });
+
+  it("names a vendor imported outside the packages it is confined to", () => {
+    const confined = of("dependencies").filter((finding) => finding.message.startsWith("ws-only-in-its-packages"));
+
+    expect(confined.map((finding) => finding.file)).toEqual(["packages/client-core/src/machines/clock.ts"]);
+    expect(confined[0]?.message).toContain("imports ws.");
+    expect(confined[0]?.message).toContain("packages/checks");
+  });
+
+  it("names every runtime export of a types-only package, with its line", () => {
+    expect(of("types-only").map(({ file, line }) => `${file}:${line}`)).toEqual(
+      [3, 4, 5, 6, 11, 14, 15].map((line) => `packages/contract-types/src/index.ts:${line}`),
+    );
+    expect(messages("types-only")).toContain("VERSION");
+  });
 });
 
 describe("the per-file path the editor hook uses", () => {
   it("judges only the files it is given", async () => {
     const result = await runGates({ root: broken, files: [UI, "packages/client-react/src/feed.ts"] });
 
-    expect(result.gates).toEqual(["structure", "typescript-only", "dumb-ui"]);
+    expect(result.gates).toEqual([
+      "structure",
+      "typescript-only",
+      "dumb-ui",
+      "port-contracts",
+      "package-scripts",
+      "app-harness",
+      "test-ids",
+      "types-only",
+    ]);
     expect(new Set(result.findings.map((finding) => finding.file))).toEqual(
       new Set([UI, "packages/client-react/src/feed.ts"]),
     );
@@ -213,6 +315,45 @@ describe("the per-file path the editor hook uses", () => {
     });
 
     expect(result.findings.map((finding) => finding.file)).toEqual(["packages/checks/src/retryPolicy.ts"]);
+  });
+
+  it("judges a contract, a manifest, a test, a query and a types-only file given alone", async () => {
+    const files = [
+      "packages/domain/src/ports/__contracts__/QuotePortContract.ts",
+      "packages/checks/package.json",
+      "packages/client-core/src/presenters/ratesPresenter.test.ts",
+      "packages/client-react/src/ui/PriceRow.page.tsx",
+      "packages/contract-types/src/index.ts",
+    ];
+    const result = await runGates({ root: broken, files });
+    const gateOf = (file: string): string[] => [
+      ...new Set(result.findings.filter((finding) => finding.file === file).map((finding) => finding.gate)),
+    ];
+
+    expect(files.map(gateOf)).toEqual([["port-contracts"], ["package-scripts"], ["app-harness"], ["test-ids"], ["types-only"]]);
+  });
+
+  it("says nothing about the same kinds of file when they follow the rules", async () => {
+    const result = await runGates({
+      root: clean,
+      files: [
+        "packages/domain/src/ports/__contracts__/PricePortContract.ts",
+        "packages/contract-types/package.json",
+        "packages/client-core/src/presenters/pricesPresenter.test.ts",
+        "packages/client-core/src/testing/appHarness.ts",
+        "packages/client-react/src/ui/PriceList.page.tsx",
+        "packages/contract-types/src/index.ts",
+      ],
+    });
+
+    expect(result.findings).toEqual([]);
+    expect(result.skipped).toEqual({});
+  });
+
+  it("reports a per-file gate the project gave nothing to judge as skipped", async () => {
+    const result = await runGates({ root: join(fixtures, "dormant"), files: ["packages/domain/src/main.ts"] });
+
+    expect(Object.keys(result.skipped)).toEqual(["app-harness", "test-ids", "types-only"]);
   });
 
   it("ignores a file outside the project and a file that no longer exists", async () => {
@@ -275,10 +416,20 @@ describe("a gate with nothing to judge", () => {
       "port-contracts": "no port interfaces were found, so there was nothing to check",
       "agent-docs": "no AGENTS.md or CLAUDE.md was found, so there was nothing to check",
       "task-cache": "no turbo.json was found, so there was nothing to check",
+      "app-harness": "no core package defines createApp(…), so there was no application for a test to build",
+      "test-ids": "no client package is declared, so there was nothing to check",
+      "types-only": "no package is declared typesOnly, so there was nothing to check",
     });
     expect(report).toContain("SKIP dumb-ui");
     expect(report).toContain("SKIP port-contracts");
     expect(report).not.toContain("PASS dumb-ui");
+  });
+
+  it("skips the script check when the project has no workspace package", async () => {
+    const result = await runGates({ root: join(fixtures, "no-workspace") });
+
+    expect(result.skipped["package-scripts"]).toBe("no workspace package was found, so there was nothing to check");
+    expect(formatFindings(result)).toContain("SKIP package-scripts");
   });
 });
 

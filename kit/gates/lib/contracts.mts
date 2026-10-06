@@ -1,14 +1,15 @@
 // Contract gate: every port has a contract test, the contract calls every
-// method of the port, and every adapter folder that implements a port runs
-// that contract. One suite, run against the simulator and the real adapter
-// alike, is what proves they are interchangeable.
+// method of the port, every adapter folder that implements a port runs that
+// contract, and the contract imports no implementation. One suite, run
+// against the simulator and the real adapter alike, is what proves they are
+// interchangeable.
 
 import { existsSync, readFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, dirname, join, normalize } from "node:path";
 
 import type { DomainPackage, Finding, Project } from "./config.mts";
 import { packagesWithRole } from "./config.mts";
-import { isTestFile, listSourceFiles, readCodeLines } from "./files.mts";
+import { isInside, isTestFile, listSourceFiles, readCodeLines } from "./files.mts";
 
 const GATE = "port-contracts";
 const PORT_FILE = /Port\.ts$/;
@@ -32,8 +33,9 @@ export function portContractsSkipReason({ root, config }: Project): string | und
   return ports.length === 0 ? "no port interfaces were found, so there was nothing to check" : undefined;
 }
 
-export function checkPortContracts({ root, config }: Project): Finding[] {
-  const findings: Finding[] = [];
+export function checkPortContracts(project: Project): Finding[] {
+  const { root, config } = project;
+  const findings: Finding[] = checkContractsImportNoImplementation(project);
 
   for (const domain of packagesWithRole(config, "domain")) {
     const portsFolder = `${domain.path}/${domain.ports}`;
@@ -174,4 +176,47 @@ function methodNameOf(member: string): string | undefined {
   const isFunctionProperty = /^:\s*(<[^(]*>)?\s*\(/.test(rest) && rest.includes("=>");
 
   return isMethod || isFunctionProperty ? name : undefined;
+}
+
+const IMPORTED = /(?:\bfrom|\bimport|\brequire\s*\()\s*\(?\s*["']([^"']+)["']/g;
+
+/**
+ * A contract that imports an implementation can be run against that one only.
+ * Read from source, so it has a line and the after-edit hook can judge one
+ * file. An npm package is not judged: the test runner is one.
+ */
+export function checkContractsImportNoImplementation({ root, config, workspace }: Project, onlyFiles?: string[]): Finding[] {
+  const findings: Finding[] = [];
+
+  for (const domain of packagesWithRole(config, "domain")) {
+    const contracts = `${domain.path}/${domain.ports}/__contracts__`;
+    const files = onlyFiles?.filter((file) => isInside(file, contracts)) ?? listSourceFiles(root, contracts);
+    const ownAndAllowed = [domain.path, ...(domain.mayImport ?? [])];
+
+    for (const file of files) {
+      readCodeLines(root, file).forEach((code, index) => {
+        for (const [, specifier] of code.matchAll(IMPORTED)) {
+          const owner = workspace.find(({ name }) => specifier === name || specifier.startsWith(`${name}/`));
+          const target = specifier.startsWith(".")
+            ? normalize(join(dirname(file), specifier))
+            : owner && `${owner.path}/src/${specifier.slice(owner.name.length + 1) || "index.ts"}`;
+          const adapters = target === undefined ? undefined : config.adapters.find((folder) => isInside(target, folder));
+          const outside = owner !== undefined && !ownAndAllowed.includes(owner.path);
+
+          if (adapters === undefined && !outside) {
+            continue;
+          }
+
+          findings.push({
+            gate: GATE,
+            file,
+            line: index + 1,
+            message: `The contract imports "${specifier}", ${adapters === undefined ? "another package" : `an implementation (${adapters})`}. A contract is handed the implementation it tests, which is what lets one suite run against the simulator and the real adapter alike; one that imports an implementation can only ever test that one. Import the port, the entities and the test runner, and let each implementation's test pass itself in through createHarness.`,
+          });
+        }
+      });
+    }
+  }
+
+  return findings;
 }

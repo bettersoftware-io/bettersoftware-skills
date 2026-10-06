@@ -14,13 +14,21 @@ import { join, relative, resolve } from "node:path";
 
 import type { Finding } from "./lib/config.mts";
 import { ConfigError, loadConfig } from "./lib/config.mts";
-import { checkPortContracts, portContractsSkipReason } from "./lib/contracts.mts";
+import { appHarnessSkipReason, checkAppHarness } from "./lib/app-harness.mts";
+import {
+  checkContractsImportNoImplementation,
+  checkPortContracts,
+  portContractsSkipReason,
+} from "./lib/contracts.mts";
 import { checkDependencies } from "./lib/depcruise.mts";
 import { isMainModule } from "./lib/files.mts";
 import { checkInstructionPaths, instructionsSkipReason } from "./lib/instructions.mts";
 import { checkLanguage, languageSkipReason } from "./lib/language.mts";
+import { checkPackageScripts, packageScriptsSkipReason } from "./lib/package-scripts.mts";
 import { checkStructure, checkStructureOfFiles } from "./lib/structure.mts";
 import { checkTaskCache, taskCacheSkipReason } from "./lib/task-cache.mts";
+import { checkTestIds, testIdsSkipReason } from "./lib/test-ids.mts";
+import { checkTypesOnly, typesOnlySkipReason } from "./lib/types-only.mts";
 import { checkDumbUi, dumbUiSkipReason } from "./lib/ui-bans.mts";
 
 export interface GateOptions {
@@ -45,25 +53,63 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
       .map((file) => relative(project.root, resolve(project.root, file)))
       .filter((file) => !file.startsWith("..") && existsSync(join(project.root, file)));
 
+    // Each of these reads the one file and, at most, the declaration: cheap
+    // enough to run after every edit. A skip here is one the declaration
+    // decides; whether the files given held anything to judge is not reported.
     return {
-      gates: ["structure", "typescript-only", "dumb-ui"],
-      skipped: dropUndefined({ "typescript-only": languageSkipReason(project) }),
+      gates: [
+        "structure",
+        "typescript-only",
+        "dumb-ui",
+        "port-contracts",
+        "package-scripts",
+        "app-harness",
+        "test-ids",
+        "types-only",
+      ],
+      skipped: dropUndefined({
+        "typescript-only": languageSkipReason(project),
+        "app-harness": appHarnessSkipReason(project),
+        "test-ids": testIdsSkipReason(project),
+        "types-only": typesOnlySkipReason(project),
+      }),
       findings: [
         ...checkStructureOfFiles(project, relativeFiles),
         ...checkLanguage(project, relativeFiles),
         ...checkDumbUi(project, relativeFiles),
+        ...checkContractsImportNoImplementation(project, relativeFiles),
+        ...checkPackageScripts(project, relativeFiles),
+        ...checkAppHarness(project, relativeFiles),
+        ...checkTestIds(project, relativeFiles),
+        ...checkTypesOnly(project, relativeFiles),
       ],
     };
   }
 
   return {
-    gates: ["structure", "typescript-only", "dumb-ui", "port-contracts", "dependencies", "agent-docs", "task-cache"],
+    gates: [
+      "structure",
+      "typescript-only",
+      "dumb-ui",
+      "port-contracts",
+      "dependencies",
+      "agent-docs",
+      "task-cache",
+      "package-scripts",
+      "app-harness",
+      "test-ids",
+      "types-only",
+    ],
     skipped: dropUndefined({
       "typescript-only": languageSkipReason(project),
       "dumb-ui": dumbUiSkipReason(project),
       "port-contracts": portContractsSkipReason(project),
       "agent-docs": instructionsSkipReason(project),
       "task-cache": taskCacheSkipReason(project),
+      "package-scripts": packageScriptsSkipReason(project),
+      "app-harness": appHarnessSkipReason(project),
+      "test-ids": testIdsSkipReason(project),
+      "types-only": typesOnlySkipReason(project),
     }),
     findings: [
       ...checkStructure(project),
@@ -73,6 +119,10 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
       ...checkDependencies(project),
       ...checkInstructionPaths(project),
       ...checkTaskCache(project),
+      ...checkPackageScripts(project),
+      ...checkAppHarness(project),
+      ...checkTestIds(project),
+      ...checkTypesOnly(project),
     ],
   };
 }

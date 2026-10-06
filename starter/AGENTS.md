@@ -57,6 +57,20 @@ the gates read; a package that is not listed there fails.
   own tests stay where they are; this is for what neither can see alone.
 - **It is drawn on screen**: a component in `client-react/src/ui`, reading from
   the view model. No RxJS, storage, `fetch`, environment or timers there.
+- **It is a new package**: list it in `architecture.config.mts` with its role,
+  and give it a `typecheck` and a `test` script. One that holds only types
+  also says `typesOnly: true`.
+
+Four rules about imports:
+
+- A presenter or a state machine takes its port as an argument. It never
+  imports from an `adapters` folder.
+- No Node built-in (`node:fs`, `node:path`) outside `packages/server`, except
+  in tests: everything else runs in the browser.
+- `react` and `react-dom` are imported only in `react-bindings` and
+  `client-react`; `ws` only in `server`.
+- What is written for tests (a `testing/` folder, a `*.page.tsx`, a test) is
+  imported only by tests.
 
 The price list is a worked example of every one of these. Copy its shape:
 
@@ -81,6 +95,13 @@ The price list is a worked example of every one of these. Copy its shape:
   A test never sleeps.
 - A UI test talks to a page object. Only the page object touches the testing
   library.
+- A test id is a constant in `packages/client-react/src/ui/testids.ts`, used
+  by the component and by the page object. Never a string literal.
+- A test that needs the whole application asks `createAppHarness`, in
+  `packages/client-core/src/testing/appHarness.ts`. Only that file calls
+  `createApp`.
+- A port's contract imports the port, the entities and the test runner. Never
+  a simulator or an adapter: each one's test passes itself in.
 - A test that opens a real port is named `*.port.test.ts`, so it can be left
   out, and said to be left out, where a port cannot be opened.
 - A fixture factory is named `create…`.

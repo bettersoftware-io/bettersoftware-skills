@@ -24,6 +24,18 @@ export interface PackageDeclaration {
   uiBridge?: string;
   /** client only: files allowed directly in `src`. */
   entry?: string[];
+  /** client only: the file in `ui` that holds every test id. */
+  testIds?: string;
+  /** Production code here uses no Node built-in. On by default for a domain. */
+  noNodeBuiltins?: boolean;
+  /** This package exports types and no runtime value. */
+  typesOnly?: boolean;
+  /** core only: the files that may import an adapter, to re-export it. */
+  mayImportAdapters?: string[];
+  /** core only: the function that builds the whole application. */
+  compose?: string;
+  /** core only: the one test helper that may call `compose`. */
+  appHarness?: string;
 }
 
 export interface ArchitectureConfig {
@@ -46,6 +58,10 @@ export interface ArchitectureConfig {
   instructionFiles?: string[];
   /** Cached task → the reason its result cannot depend on another package's source. */
   tasksThatReadNothingUpstream?: Record<string, string>;
+  /** Package path → the reason it has no `test` script. */
+  packagesWithoutTests?: Record<string, string>;
+  /** npm package → the only packages that may import it. A trailing `/` means "any package under this scope". */
+  vendorOnlyIn?: Record<string, string[]>;
 }
 
 export type ResolvedConfig = Required<ArchitectureConfig>;
@@ -63,6 +79,13 @@ export interface ClientPackage extends DeclaredPackage {
   ui: string;
   uiBridge: string;
   entry: string[];
+  testIds: string;
+}
+
+export interface CorePackage extends DeclaredPackage {
+  mayImportAdapters: string[];
+  compose: string;
+  appHarness: string;
 }
 
 export interface WorkspacePackage {
@@ -127,6 +150,8 @@ const DEFAULTS: Omit<ResolvedConfig, "packages"> = {
   javascriptAllowed: {},
   instructionFiles: ["AGENTS.md", "CLAUDE.md"],
   tasksThatReadNothingUpstream: {},
+  packagesWithoutTests: {},
+  vendorOnlyIn: {},
 };
 
 const CLIENT_DEFAULTS = {
@@ -134,6 +159,15 @@ const CLIENT_DEFAULTS = {
   ui: "src/ui",
   uiBridge: "viewModel",
   entry: ["main.tsx", "main.ts", "*.d.ts", "*.css"],
+  testIds: "testids.ts",
+};
+
+// The entry re-exports the adapters for the client's composition root. Nothing
+// else in a core names one: the application is handed its ports.
+const CORE_DEFAULTS = {
+  mayImportAdapters: ["src/index.ts"],
+  compose: "createApp",
+  appHarness: "src/testing/appHarness.ts",
 };
 
 export class ConfigError extends Error {}
@@ -169,13 +203,23 @@ export async function loadConfig(root: string, configFile?: string): Promise<Pro
       declaration.role === "client"
         ? { ...CLIENT_DEFAULTS, ...declaration }
         : declaration.role === "domain"
-          ? { ports: "src/ports", ...declaration }
-          : { ...declaration };
+          ? { ports: "src/ports", noNodeBuiltins: true, ...declaration }
+          : declaration.role === "core"
+            ? { ...CORE_DEFAULTS, ...declaration }
+            : { ...declaration };
   }
 
   return {
     root: absoluteRoot,
-    config: { ...DEFAULTS, ...declared, packages },
+    config: {
+      ...DEFAULTS,
+      ...declared,
+      packages,
+      packagesWithoutTests: withPlainPaths(declared.packagesWithoutTests ?? {}),
+      vendorOnlyIn: Object.fromEntries(
+        Object.entries(declared.vendorOnlyIn ?? {}).map(([vendor, paths]) => [vendor, paths.map(stripSlashes)]),
+      ),
+    },
     workspace: discoverWorkspace(absoluteRoot),
   };
 }
@@ -239,10 +283,15 @@ export function declaredPackages(config: ResolvedConfig): DeclaredPackage[] {
 }
 
 export function packagesWithRole(config: ResolvedConfig, role: "client"): ClientPackage[];
+export function packagesWithRole(config: ResolvedConfig, role: "core"): CorePackage[];
 export function packagesWithRole(config: ResolvedConfig, role: "domain"): DomainPackage[];
 export function packagesWithRole(config: ResolvedConfig, role: Role): DeclaredPackage[];
 export function packagesWithRole(config: ResolvedConfig, role: Role): DeclaredPackage[] {
   return declaredPackages(config).filter((declared) => declared.role === role);
+}
+
+function withPlainPaths<T>(byPath: Record<string, T>): Record<string, T> {
+  return Object.fromEntries(Object.entries(byPath).map(([path, value]) => [stripSlashes(path), value]));
 }
 
 function stripSlashes(path: string): string {

@@ -28,6 +28,15 @@ export function isGeneratedPath(path: string): boolean {
 const SOURCE_FILE = /\.(ts|tsx|mts|js|jsx|mjs|cjs)$/;
 const TEST_FILE = /(\.(test|spec)\.[cm]?[jt]sx?$|\/__tests__\/|\/__testUtils__\/)/;
 
+/**
+ * Everything written for tests: the tests, and what they are built from (a
+ * `testing/` folder, a page object, a `*.testHelpers.*` file). As source for a
+ * dependency-cruiser path, and as a pattern for the gates that read files.
+ */
+export const TEST_SCAFFOLDING_SOURCE =
+  "(\\.(test|spec|page|testHelpers)\\.[cm]?[jt]sx?$|/__tests__/|/__testUtils__/|/testing/)";
+const TEST_SCAFFOLDING = new RegExp(TEST_SCAFFOLDING_SOURCE);
+
 /** Every source file under `directory`, as paths from `root`. Missing folder → none. */
 export function listSourceFiles(root: string, directory: string): string[] {
   const found: string[] = [];
@@ -66,6 +75,22 @@ export function isMainModule(moduleUrl: string): boolean {
 
 export function isTestFile(path: string): boolean {
   return TEST_FILE.test(path);
+}
+
+/** True for a test and for anything only tests are built from. */
+export function isTestScaffolding(path: string): boolean {
+  return TEST_SCAFFOLDING.test(path);
+}
+
+/** The 1-based line of the character at `index` in `text`. */
+export function lineAt(text: string, index: number): number {
+  let line = 1;
+
+  for (let position = text.indexOf("\n"); position !== -1 && position < index; position = text.indexOf("\n", position + 1)) {
+    line += 1;
+  }
+
+  return line;
 }
 
 export function isInside(path: string, directory: string): boolean {

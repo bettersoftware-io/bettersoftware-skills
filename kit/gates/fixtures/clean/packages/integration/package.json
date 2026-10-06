@@ -2,6 +2,10 @@
   "name": "@fx/integration",
   "private": true,
   "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
   "devDependencies": {
     "@fx/client-core": "workspace:*",
     "@fx/domain": "workspace:*"

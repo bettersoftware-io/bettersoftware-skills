@@ -15,13 +15,16 @@ import type { ArchitectureConfig } from "./tools/arch/gates/lib/config.mts";
 // integration  every role above; nothing may import it, and it holds only tests
 const config: ArchitectureConfig = {
   packages: {
+    // `noNodeBuiltins` is on for every package that ends up in the browser.
+    // The domain has it by default.
     "packages/domain": { role: "domain", npm: ["rxjs"] },
-    "packages/shared": { role: "shared" },
-    "packages/client-core": { role: "core" },
-    "packages/react-bindings": { role: "bindings" },
+    "packages/shared": { role: "shared", noNodeBuiltins: true },
+    "packages/client-core": { role: "core", noNodeBuiltins: true },
+    "packages/react-bindings": { role: "bindings", noNodeBuiltins: true },
     "packages/client-react": {
       role: "client",
       entry: ["main.tsx", "index.css", "*.d.ts"],
+      noNodeBuiltins: true,
     },
     "packages/server": { role: "server" },
     "packages/integration": { role: "integration" },
@@ -33,6 +36,14 @@ const config: ArchitectureConfig = {
     "packages/domain/src/simulators",
     "packages/client-core/src/adapters",
   ],
+
+  // A library named here may be imported only from the packages listed, so it
+  // can be replaced by changing those alone.
+  vendorOnlyIn: {
+    react: ["packages/react-bindings", "packages/client-react"],
+    "react-dom": ["packages/react-bindings", "packages/client-react"],
+    ws: ["packages/server"],
+  },
 };
 
 export default config;
