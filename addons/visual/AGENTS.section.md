@@ -22,9 +22,17 @@ is the `Visual goldens` workflow.
 
 Add an entry to `scenarios.ts`: a name and the state, as data. State goes in
 through the app harness; never click to reach it, and never wait for time to
-pass. If the state cannot be expressed yet, extend `Scenario` and
-`host/main.tsx`. Then run `pnpm visual:update`, open the new image, and check
-it shows what the name says. Commit the image with the scenario.
+pass. If the state cannot be expressed yet, add a field to `Scenario` and
+deliver it in `seeding.ts`, beside `scenarios.ts`. Both files are the
+project's. Never edit `host/`: it is the add-on's, an update replaces it, and
+an edited file there makes every update refuse. Then run `pnpm visual:update`,
+open the new image, and check it shows what the name says. Commit the image
+with the scenario.
+
+In `seeding.ts`, state that must be there before the first render goes in
+`app` (data a port answers from memory, a machine that starts with a value,
+set through its own intent). State that arrives afterwards goes in `deliver`,
+and a wait there is `clock.tick(...)`.
 
 ### When a comparison fails
 

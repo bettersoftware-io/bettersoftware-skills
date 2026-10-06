@@ -772,7 +772,7 @@
   {
     "name": "tools config: a missing config is a crash, not a message",
     "file": "addons/e2e/files/tools/e2e/lib/config.mts",
-    "find": "  if (!existsSync(file)) {\n    throw new E2eError(`${PROJECT_CONFIG} not found in ${root} — run this from the project root`);\n  }\n",
+    "find": "  if (!existsSync(file)) {\n    throw new E2eError(`${PROJECT_CONFIG} not found in ${root} \u2014 run this from the project root`);\n  }\n",
     "replace": "",
     "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"could not be read when the file is not there\""
   },
@@ -835,29 +835,29 @@
   {
     "name": "tools modes: a tests package with no src is a crash",
     "file": "addons/e2e/files/tools/e2e/lib/config.mts",
-    "find": "  if (!existsSync(source)) {\n    throw new E2eError(`${config.tests}/src not found — ${PROJECT_CONFIG} says the specs are there`);\n  }\n",
+    "find": "  if (!existsSync(source)) {\n    throw new E2eError(`${config.tests}/src not found \u2014 ${PROJECT_CONFIG} says the specs are there`);\n  }\n",
     "replace": "",
     "test": "pnpm vitest run addons/e2e/tests/config.test.mts -t \"refuses a tests package with no src folder\""
   },
   {
     "name": "tools stack: the server's address replaces the whole value",
     "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
-    "find": "return [key, value.replaceAll(SERVER_URL, serverURL)];",
-    "replace": "return [key, serverURL];",
+    "find": "return [key, value.replaceAll(SERVER_URL, server.url).replaceAll(SERVER_HOST, server.host)];",
+    "replace": "return [key, server.url];",
     "test": "pnpm vitest run addons/e2e/tests/stack.test.mts -t \"carry the address the mode's server printed\""
   },
   {
     "name": "tools stack: a mode with no server may ask for one's address",
     "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
-    "find": "if (serverURL === undefined) {\n        throw",
-    "replace": "if (serverURL === \"\") {\n        throw",
+    "find": "if (server === undefined) {\n        throw",
+    "replace": "if (server === null) {\n        throw",
     "test": "pnpm vitest run addons/e2e/tests/stack.test.mts -t \"refuse to ask for the address of a server\""
   },
   {
     "name": "tools stack: a plain variable is dropped",
     "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
-    "find": "      if (!value.includes(SERVER_URL)) {\n        return [key, value];\n      }",
-    "replace": "      if (!value.includes(SERVER_URL)) {\n        return [key, \"\"];\n      }",
+    "find": "      if (!value.includes(SERVER_URL) && !value.includes(SERVER_HOST)) {\n        return [key, value];\n      }",
+    "replace": "      if (!value.includes(SERVER_URL) && !value.includes(SERVER_HOST)) {\n        return [key, \"\"];\n      }",
     "test": "pnpm vitest run addons/e2e/tests/stack.test.mts -t \"are passed as written when they name no server\""
   },
   {
@@ -933,15 +933,15 @@
   {
     "name": "tools run: the build is not given the mode's variables",
     "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
-    "find": "const buildEnv = { ...environment, ...resolveEnv(name, mode.env ?? {}, serverURL) };",
+    "find": "const buildEnv = { ...environment, ...resolveEnv(name, mode.env ?? {}, server) };",
     "replace": "const buildEnv = { ...environment };",
     "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"builds each mode with its own variables\""
   },
   {
     "name": "tools run: the build is given another address than the server printed",
     "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
-    "find": "    serverURL = server.address;\n",
-    "replace": "    serverURL = server.address.replace(/\\d+\\/ws$/, \"1/ws\");\n",
+    "find": "    server = { url: started.address, host: readHost(name, started.address) };\n",
+    "replace": "    server = { url: started.address.replace(/\\d+\\/ws$/, \"1/ws\"), host: readHost(name, started.address) };\n",
     "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"builds each mode with its own variables\""
   },
   {
@@ -1132,5 +1132,96 @@
     "find": "\"name\": \"e2e\"",
     "replace": "\"name\": \"end-to-end\"",
     "test": "pnpm vitest run scripts/addons-listed.test.mts -t \"e2e has the parts the contract names\""
+  },
+  {
+    "name": "tools stack: the host and port are written in where they are asked for",
+    "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
+    "find": ".replaceAll(SERVER_HOST, server.host)];",
+    "replace": "];",
+    "test": "pnpm vitest run addons/e2e/tests/stack.test.mts -t \"carry the server's host and port\""
+  },
+  {
+    "name": "tools stack: a variable that names only the host is taken for a plain one",
+    "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
+    "find": "      if (!value.includes(SERVER_URL) && !value.includes(SERVER_HOST)) {",
+    "replace": "      if (!value.includes(SERVER_URL)) {",
+    "test": "pnpm vitest run addons/e2e/tests/stack.test.mts -t \"refuse to ask for the address of a server the mode does not have: http\""
+  },
+  {
+    "name": "tools stack: the host is read out of an address",
+    "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
+    "find": "  const host = URL.canParse(address) ? new URL(address).host : \"\";",
+    "replace": "  const host = URL.canParse(address) ? new URL(address).hostname : \"\";",
+    "test": "pnpm vitest run addons/e2e/tests/stack.test.mts -t \"is read out of ws://localhost:4010/ws\""
+  },
+  {
+    "name": "tools stack: a host and a port with no protocol are read as they are",
+    "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
+    "find": "  const address = printed.includes(\"://\") ? printed : `e2e://${printed}`;",
+    "replace": "  const address = printed;",
+    "test": "pnpm vitest run addons/e2e/tests/stack.test.mts -t \"is read out of localhost:4010\""
+  },
+  {
+    "name": "tools stack: a port alone is not a host",
+    "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
+    "find": "host === \"\" || /^\\d+$/.test(host) || ",
+    "replace": "host === \"\" || ",
+    "test": "pnpm vitest run addons/e2e/tests/stack.test.mts -t \"is refused when the pattern captured \\\"4010\\\"\""
+  },
+  {
+    "name": "tools stack: a capture with a path and no protocol is refused",
+    "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
+    "find": " || (!printed.includes(\"://\") && host !== printed)) {",
+    "replace": ") {",
+    "test": "pnpm vitest run addons/e2e/tests/stack.test.mts -t \"is refused when the pattern captured \\\"localhost:4010/ws\\\"\""
+  },
+  {
+    "name": "tools run: the tests are told the server's host and port",
+    "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
+    "find": "{ serverURL: server.url, serverHost: server.host }",
+    "replace": "{ serverURL: server.url }",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"starts each mode's stack, runs the specs against them\""
+  },
+  {
+    "name": "tools run: the build's second variable is written around another host than the server's",
+    "file": "addons/e2e/files/tools/e2e/lib/stack.mts",
+    "find": "    server = { url: started.address, host: readHost(name, started.address) };\n",
+    "replace": "    server = { url: started.address, host: readHost(name, started.address).replace(/\\d+$/, \"1\") };\n",
+    "test": "pnpm vitest run addons/e2e/tests/run.port.test.mts -t \"builds each mode with its own variables\""
+  },
+  {
+    "name": "shipped config: hands the tests the host and port",
+    "file": "addons/e2e/files/packages/e2e/playwright.config.ts",
+    "find": "                serverHost: serverHost ?? \"\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"hands every test the server's host and port\""
+  },
+  {
+    "name": "shipped config: is typed by the project's own options again",
+    "file": "addons/e2e/files/packages/e2e/playwright.config.ts",
+    "find": "export default defineConfig<HandedToTests>({",
+    "replace": "export default defineConfig<import(\"./src/testing/test.ts\").ModeOptions>({",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"hands every test the server's host and port\""
+  },
+  {
+    "name": "shipped page object: compares the whole address again",
+    "file": "addons/e2e/files/packages/e2e/src/pages/ServerFeed.page.ts",
+    "find": "new URL(socket.url()).host !== serverHost",
+    "replace": "new URL(socket.url()).href !== serverHost",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"the page object counts a socket's frames by the host and port\""
+  },
+  {
+    "name": "shipped fixtures: hand the page object nothing",
+    "file": "addons/e2e/files/packages/e2e/src/testing/test.ts",
+    "find": "await use(watchServerFeed(page, serverHost));",
+    "replace": "await use(watchServerFeed(page, \"\"));",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"the fixtures take the server's host and port as an option\""
+  },
+  {
+    "name": "shipped config: the server's pattern captures the host alone",
+    "file": "addons/e2e/files/tools/e2e.config.mts",
+    "find": "ready: /listening on (ws:\\/\\/\\S+)/,",
+    "replace": "ready: /listening on ws:\\/\\/([^\\s\\/]+)/,",
+    "test": "pnpm vitest run addons/e2e/tests/addon.test.mts -t \"the shipped config still reads the whole address\""
   }
 ]

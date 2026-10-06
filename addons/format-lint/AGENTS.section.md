@@ -4,9 +4,21 @@
 import list that is out of order, and a lint finding, warnings included. It
 changes nothing. What it cannot decide is below.
 
-**When to run the fixer.** Run `pnpm biome:fix` after you finish editing and
-before you run the gate. Do not lay code out by hand, and do not sort imports
-by hand. Skip it when you changed no source, JSON or CSS file.
+**When to run the fixer.** Run `pnpm fix` after you finish editing and before
+you run the gate. Do not lay code out by hand, and do not sort imports by
+hand. Skip it when you changed no source, JSON or CSS file.
+
+`pnpm fix` runs Biome's fixer and `eslint --fix` in turn until neither
+changes a file. Run that one command, not the two by hand: each can make
+work for the other (Biome rewraps a line, and ESLint then wants a blank line
+beside it), so one pass of each is not always enough. `pnpm biome:fix` is
+Biome alone.
+
+- **It prints `FAIL fix — … still has findings no fixer repairs`.** The files
+  are settled; what is listed is yours to fix in the code.
+- **It prints `FAIL fix — not settled`.** The two fixers undo each other on
+  the files it names. Do not run it again. That is a conflict between
+  `biome.json` and the ESLint config: say so, with the file, and ask.
 
 **An import for its effect is sorted too.** `import "./index.css"` goes
 where the fixer puts it, after the code's imports. Do not write CSS that

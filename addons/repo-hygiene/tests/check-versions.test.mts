@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { checkVersions, formatResult } from "../files/tools/repo-hygiene/check-versions.mts";
+import { adviseOn, checkVersions, formatResult } from "../files/tools/repo-hygiene/check-versions.mts";
 import { CouldNotRun } from "../files/tools/repo-hygiene/lib/run.mts";
 import { createEntry, createFakeTools, createFolder } from "./support.mts";
 
@@ -126,6 +126,51 @@ describe("a failed check, printed", () => {
       "",
       "manypkg:",
       `  ${MISMATCH.replace("☔️ error ", "")}`,
+    ]);
+  });
+
+  it("gives names out of order the advice for order, and not the advice for a range", () => {
+    const tools = createFakeTools({ manypkg: { status: 1, stderr: UNSORTED }, "syncpack json": { stdout: LISTING } });
+    const printed = formatResult(checkVersions(createProject(), tools.run));
+
+    expect(printed.split("\n")).toEqual([
+      "FAIL versions",
+      "",
+      "manypkg:",
+      `  ${UNSORTED.replace("☔️ error ", "")}`,
+      "    Put the names in each dependency map of that package.json in order. No version changes. The order is by character code, so every `@scope/…` name comes before a plain one, and `@types/…` before `@zeta/…`.",
+    ]);
+    expect(printed).not.toContain("the same range");
+    expect(printed).not.toContain("version group");
+  });
+
+  it("puts findings of one kind together with their advice once, each kind in the order it was first seen", () => {
+    const second = UNSORTED.replace("app's", "@app/e2e's");
+    const tools = createFakeTools({ manypkg: { status: 1, stderr: `${UNSORTED}\n${MISMATCH}\n${second}\n` }, "syncpack json": { stdout: LISTING } });
+    const lines = formatResult(checkVersions(createProject(), tools.run)).split("\n").slice(3);
+
+    expect(lines.map((line) => line.slice(0, 22))).toEqual(["  app's dependencies a", "  @app/e2e's dependenc", "    Put the names in e", "  @app/server has a de", "    Give every package"]);
+  });
+
+  it.each([
+    ["@app/a has a dependency on @app/b@^1.0.0 without using the workspace: protocol but this project requires using the workspace: protocol, please change it to workspace:^ or etc.", /as `workspace:\*`/],
+    ["@app/a has a dependency on @app/b@^2.0.0 but the version of @app/b in the repo is 1.0.0 which is not within range of the depended on version, please update the dependency version", /as `workspace:\*`/],
+    ["@app/a has a dependency and a devDependency on rxjs, this is unnecessary, it should be removed from devDependencies", /take the other out/],
+    ["the root package.json contains dependencies, this is disallowed as dependencies vs devDependencies in a private package does not affect anything and creates confusion.", /Move them to `devDependencies`/],
+    ["@app/a has a peerDependency on react but it is not also specified in devDependencies, please add it there.", /under `devDependencies` too/],
+    ['The package at "packages/a" does not have a name', /a valid `name`/],
+    ['@app/a does not have a repository field when it should be "x"', /Set `repository`/],
+    ["@app/a did something manypkg thought of later", /no advice written for this finding/],
+  ])("has advice of its own for: %s", (finding, advice) => {
+    expect(adviseOn(finding)).toMatch(advice);
+  });
+
+  it("keeps the advice for a range, and for a difference that is meant, with syncpack's report", () => {
+    const tools = createFakeTools({ "syncpack lint": { status: 1, stdout: "✘ ^7.8.1 → ^7.8.2\n" }, "syncpack json": { status: 1, stdout: LISTING } });
+
+    expect(formatResult(checkVersions(createProject(), tools.run)).split("\n").slice(-2)).toEqual([
+      "Give every package the same range for the dependency, then run `pnpm install`.",
+      "A dependency that must differ on purpose gets a version group in tools/repo-hygiene/syncpack.json, with a label that says why.",
     ]);
   });
 });

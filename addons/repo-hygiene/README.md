@@ -78,6 +78,24 @@ syncpack:
   ✗ Issues found
 ```
 
+Each kind of finding carries the advice that fits it. Names that are out of
+order are told to be put in order, and that no version changes:
+
+```
+FAIL versions
+
+manypkg:
+  @zeta/e2e's dependencies are unsorted, this can cause large diffs when packages are added, resulting in dependencies being sorted
+    Put the names in each dependency map of that package.json in order. No version changes. The order is by character code, so every `@scope/…` name comes before a plain one, and `@types/…` before `@zeta/…`.
+```
+
+Until 2026-10-06 every failure ended with "Give every package the same
+range", which says nothing about order. That sentence now follows a range
+finding only. A kind of manypkg finding with no advice written for it says
+so. The order finding itself came from this repository: a `package.json`
+written for `@app` was out of order under a scope that sorts later, and the
+installer now sorts after it renames.
+
 `syncpack.json` ships with one version group. It ignores the workspace's own
 packages (`$LOCAL`): they depend on each other as `workspace:*` and have no
 `version` field, and syncpack reports both as errors by default (22 findings
@@ -125,7 +143,11 @@ Which files it reads: every `.md` file, except
   still checked. A folder called `tools` deeper down is read;
 - a folder that is a checkout of its own (it has a `.git`): a git worktree, a
   nested clone;
-- a file git ignores. Outside a git repository nothing is dropped for this.
+- a file git ignores. Outside a git repository nothing is dropped for this;
+- a hidden folder at the project root, other than `.github`, `.claude`,
+  `.codex` and `.agents` (since 2026-10-06). It belongs to a tool: a
+  plugin's working folder held notes whose links lead nowhere. A hidden
+  folder further down is read. The CSS lint reads the same files.
 
 What it reads in a file: `[text](target)` with or without a title, images,
 `[label]: target` definitions, and `href`/`src` in HTML. Not what is inside a
@@ -267,9 +289,13 @@ Not tested: Linux; Windows; a run on GitHub.
   `text-decoration`, `box-shadow` or a gradient outside `background` is not
   judged, and neither is the fallback in `var(--name, #fff)`.
 - A project that took the add-on before the base existed keeps its own
-  `stylelint.json`, which extends the standard set alone. The update shows
-  the changed line; until the project takes it, the new rules do not run
-  there. The `strict-lint` add-on's `knip.jsonc` names both stylelint files
+  `stylelint.json`, which extends the standard set alone. Until 2026-10-06
+  the new rules were then off there and `lint:css` passed: the demo ran
+  that way. Now `lint:css` reads the project's file and fails when its
+  `extends` does not name `./stylelint.base.json`, with what it extends
+  and what to put there; and the update shows the two files side by side
+  even when the project kept no earlier template. A project that wants a
+  rule off extends the base and switches the rule off below it. The `strict-lint` add-on's `knip.jsonc` names both stylelint files
   for the same reason, and is the project's file too.
 - The wrappers read what manypkg and syncpack print. A new major of either
   that changes its output (manypkg's `error` lines, `syncpack json`'s one

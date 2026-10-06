@@ -243,12 +243,54 @@ export async function loadConfig(root: string, configFile?: string): Promise<Pro
       packages,
       packagesWithoutTests: withPlainPaths(declared.packagesWithoutTests ?? {}),
       reactWithoutPolicies: withPlainPaths(declared.reactWithoutPolicies ?? {}),
-      vendorOnlyIn: Object.fromEntries(
-        Object.entries(declared.vendorOnlyIn ?? {}).map(([vendor, paths]) => [vendor, paths.map(stripSlashes)]),
-      ),
+      vendorOnlyIn: readVendorEntries(found, declared.vendorOnlyIn ?? {}),
     },
     workspace: discoverWorkspace(absoluteRoot),
   };
+}
+
+/**
+ * `vendorOnlyIn` with plain paths, refused when two entries cannot both mean
+ * what they say:
+ *
+ * - Two keys for one thing (`"@hono"` and `"@hono/"`, `"ws"` and `"ws/"`):
+ *   one import, two lists, and nothing says which was meant.
+ * - A key inside another (`"@hono/node-server"` under `"@hono/"`) that allows
+ *   a package the wider one does not. The wider entry refuses that import, so
+ *   the narrower entry's list promises something that never holds.
+ *
+ * A narrower entry that only takes packages away is fine: both rules apply,
+ * and each finding names its own entry. So are a package and a scope of the
+ * same word (`"hono"` and `"@hono/"`): no import is under both.
+ */
+export function readVendorEntries(found: string, declared: Record<string, string[]>): Record<string, string[]> {
+  const entries = Object.entries(declared).map(([vendor, paths]) => ({ vendor, covers: vendor.replace(/\/+$/, ""), paths: paths.map(stripSlashes) }));
+
+  for (const [index, entry] of entries.entries()) {
+    for (const other of entries.slice(index + 1)) {
+      if (entry.covers === other.covers) {
+        throw new ConfigError(
+          `${found}: vendorOnlyIn names "${entry.vendor}" and "${other.vendor}", which are the same thing: both cover every import of "${entry.covers}" and of anything under it. Keep one, with the list that is meant.`,
+        );
+      }
+
+      const [wider, narrower] = other.covers.startsWith(`${entry.covers}/`) ? [entry, other] : entry.covers.startsWith(`${other.covers}/`) ? [other, entry] : [];
+
+      if (wider === undefined || narrower === undefined) {
+        continue;
+      }
+
+      const dead = narrower.paths.filter((path) => !wider.paths.includes(path));
+
+      if (dead.length > 0) {
+        throw new ConfigError(
+          `${found}: vendorOnlyIn allows "${narrower.vendor}" in ${dead.join(", ")}, but "${wider.vendor}" covers that import too and does not allow it there, so it would still be refused. Add ${dead.join(", ")} to "${wider.vendor}", or take ${dead.length === 1 ? "it" : "them"} out of "${narrower.vendor}".`,
+        );
+      }
+    }
+  }
+
+  return Object.fromEntries(entries.map(({ vendor, paths }) => [vendor, paths]));
 }
 
 /** Every workspace package on disk, from `pnpm-workspace.yaml`. */

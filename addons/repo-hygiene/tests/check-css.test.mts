@@ -1,4 +1,4 @@
-import { chmodSync } from "node:fs";
+import { chmodSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -6,7 +6,7 @@ import { checkCss, formatResult } from "../files/tools/repo-hygiene/check-css.mt
 import { CouldNotRun } from "../files/tools/repo-hygiene/lib/run.mts";
 import { createFakeTools, createFolder, initGit } from "./support.mts";
 
-const CONFIG = { "tools/repo-hygiene/stylelint.json": "{}" };
+const CONFIG = { "tools/repo-hygiene/stylelint.json": '{ "extends": ["./stylelint.base.json"] }', "tools/repo-hygiene/stylelint.base.json": "{}" };
 
 describe("a project with stylesheets", () => {
   it("gives stylelint the rules file and every stylesheet, and says how many it linted", () => {
@@ -107,5 +107,73 @@ describe("running an installed tool", () => {
     chmodSync(join(root, "node_modules/.bin/stylelint"), 0o755);
 
     expect(checkCss(root).report).toBe(`ran in ${basename(root)} with --config, colour 1`);
+  });
+});
+
+describe("a rules file that does not carry the add-on's rules", () => {
+  const BASE = { "tools/repo-hygiene/stylelint.base.json": "{}" };
+  const check = (config: string): ReturnType<typeof checkCss> => checkCss(createFolder({ ...BASE, "tools/repo-hygiene/stylelint.json": config, "src/ui.css": "" }), createFakeTools().run);
+
+  it("fails though stylelint found nothing, and says what the file extends and what to put there", () => {
+    // What the add-on shipped before it had a base: every rule added since is off in such a file.
+    const result = check('{ "extends": ["stylelint-config-standard"] }');
+
+    expect(result.failed).toBe(true);
+    expect(formatResult(result).split("\n")).toEqual([
+      "FAIL css",
+      "",
+      'tools/repo-hygiene/stylelint.json does not extend ./stylelint.base.json, so none of the add-on\'s rules is on: it extends "stylelint-config-standard". Put "./stylelint.base.json" in its "extends" (the base brings the preset with it), and keep below it the rules this project changes. The file as the add-on ships it now is tools/templates/repo-hygiene.tools__repo-hygiene__stylelint.json.txt.',
+    ]);
+  });
+
+  it.each([
+    ["no extends", "{}", "it extends nothing"],
+    ["an empty list", '{ "extends": [] }', "it extends nothing"],
+    ["the preset alone, as one name", '{ "extends": "stylelint-config-standard" }', 'it extends "stylelint-config-standard"'],
+    ["another file, and a package called like the base", '{ "extends": ["./other.json", "stylelint.base.json"] }', 'it extends "./other.json", "stylelint.base.json"'],
+    ["a file called like the base in another folder", '{ "extends": ["../stylelint.base.json"] }', 'it extends "../stylelint.base.json"'],
+  ])("fails for %s", (_what, config, says) => {
+    expect(check(config).missingBase).toContain(says);
+  });
+
+  it.each([
+    ["the base in a list", '{ "extends": ["./stylelint.base.json"] }'],
+    ["the base as one name", '{ "extends": "./stylelint.base.json" }'],
+    ["the base after another, with rules of the project's own", '{ "extends": ["stylelint-config-x", "./stylelint.base.json"], "rules": { "color-named": null } }'],
+    ["the base by another path to the same file", '{ "extends": ["../repo-hygiene/stylelint.base.json"] }'],
+  ])(
+    "passes for %s",
+    (_what, config) => {
+      const result = check(config);
+
+      expect(result.missingBase).toBeUndefined();
+      expect(formatResult(result)).toBe("PASS css — 1 stylesheet(s) linted");
+    },
+  );
+
+  it("is said together with what stylelint found, not in place of it", () => {
+    const tools = createFakeTools({ stylelint: { status: 2, stderr: "src/ui.css\n  1:5  ✖  Unknown property\n" } });
+    const printed = formatResult(checkCss(createFolder({ ...BASE, "tools/repo-hygiene/stylelint.json": "{}", "src/ui.css": "" }), tools.run));
+
+    expect(printed).toContain("does not extend ./stylelint.base.json");
+    expect(printed).toContain("Unknown property");
+    expect(printed).toContain("Fix the stylesheet.");
+  });
+
+  it("could not run when the rules file is not JSON, or the base is gone: neither is a verdict", () => {
+    expect(() => check("{ bad")).toThrow(/tools\/repo-hygiene\/stylelint\.json is not JSON: /);
+    expect(() => checkCss(createFolder({ "tools/repo-hygiene/stylelint.json": "{}", "src/ui.css": "" }), createFakeTools().run)).toThrow(
+      new CouldNotRun("tools/repo-hygiene/stylelint.base.json is missing. It holds the add-on's rules; add the add-on again to get it back."),
+    );
+  });
+
+  it("is not asked of a project with no stylesheet: there is nothing the rules would judge", () => {
+    expect(formatResult(checkCss(createFolder({ "tools/repo-hygiene/stylelint.json": "{}" }), createFakeTools().run))).toBe("SKIP css — no .css file in the project");
+  });
+
+  it("holds for the file the add-on ships", () => {
+    const shipped = readFileSync(join(import.meta.dirname, "../files/tools/repo-hygiene/stylelint.json"), "utf8");
+
+    expect(check(shipped).missingBase).toBeUndefined();
   });
 });

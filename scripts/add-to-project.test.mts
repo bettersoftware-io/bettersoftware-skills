@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
 
-import { addToProject, describe as describeResult, describeYours, listAddons, parseUnit, writeUnlessProtected } from "./add-to-project.mts";
+import { addToProject, compareWithTemplates, describe as describeResult, describeComparison, describeYours, listAddons, parseUnit, writeUnlessProtected } from "./add-to-project.mts";
 import { InstallError, replaceProjectFile, writeProjectFile } from "./lib/install.mts";
 
 describe("adding the kit", () => {
@@ -257,15 +257,28 @@ describe("adding the kit", () => {
 });
 
 describe("what a kit update leaves to the project", () => {
-  it("says nothing the first time the kit is installed", () => {
+  it("says nothing the first time the kit is installed, of a file that is the template word for word or that it has just written", () => {
     const { repository, project } = createWorld();
-    withStarterInstructions(repository, "# Working here\n");
+    withStarterInstructions(repository, "# Working here\n\nThe project's own text.\n");
 
     const result = addToProject({ project, unit: "kit", repository });
 
+    expect(result.created).toContain(".claude/settings.json");
     expect(result.yours).toEqual([]);
     expect(result.newGates).toEqual([]);
     expect(describeYours(result)).toEqual([]);
+  });
+
+  it("shows where a file the project already had differs from the template, the first time the kit is installed", () => {
+    const { repository, project } = createWorld();
+    withStarterInstructions(repository, "# Working here\n\nRun the gates.\n");
+
+    const result = addToProject({ project, unit: "kit", repository });
+
+    expect(result.yours).toEqual([
+      { owned: "AGENTS.md", template: "tools/arch/templates/AGENTS.md.txt", state: "unknown", lines: ["- Run the gates.", "+ The project's own text."] },
+    ]);
+    expect(read(project, "AGENTS.md")).toBe("# Working here\n\nThe project's own text.\n");
   });
 
   it("says nothing about a file whose template did not change, whatever else the update brought", () => {
@@ -403,23 +416,173 @@ describe("what a kit update leaves to the project", () => {
       "",
       "Yours to change. These files are the project's, so the update did not touch them:",
       "  - architecture.config.mts: the kit has a new gate, types-only. It reads typesOnly: set what this project needs.",
-      "      tools/arch/README.md says what it fails on. Run pnpm gates to see what it says here.",
+      "      tools/arch/README.md says more. Run pnpm gates to see what it says here.",
       "  - architecture.config.mts: the kit has a new gate, agent-docs. It reads no option of this file.",
-      "      tools/arch/README.md says what it fails on. Run pnpm gates to see what it says here.",
+      "      tools/arch/README.md says more. Run pnpm gates to see what it says here.",
     ]);
     expect(addToProject({ project, unit: "kit", repository }).newGates).toEqual([]);
   });
 
-  it("does not call every gate new in a project whose kit had no list of them, or one that cannot be read", () => {
-    const { repository, project } = createWorldWithKit();
+  it("says what a new gate fails on, from the kit's own sentence for it", () => {
+    const { repository, project } = createWorld();
     write(repository, "kit/gates/gates.json", JSON.stringify({ structure: ["packages"] }));
+    addToProject({ project, unit: "kit", repository });
+    write(repository, "kit/gates/gates.json", JSON.stringify({ structure: ["packages"], "node-floor": [] }));
+    write(repository, "kit/gates/fails-on.json", JSON.stringify({ structure: "a package has no role", "node-floor": "the Node floor is in engines.node" }));
 
+    const result = addToProject({ project, unit: "kit", repository });
+
+    expect(result.newGates).toEqual([{ name: "node-floor", options: [], failsOn: "the Node floor is in engines.node" }]);
+    expect(describeYours(result).slice(2)).toEqual([
+      "  - architecture.config.mts: the kit has a new gate, node-floor. It reads no option of this file.",
+      "      It fails when: the Node floor is in engines.node",
+      "      tools/arch/README.md says more. Run pnpm gates to see what it says here.",
+    ]);
+  });
+
+  it("names every gate, and says why, in a project whose kit had no list of them: which are new cannot be told", () => {
+    const { repository, project } = createWorldWithKit();
+    write(repository, "kit/gates/gates.json", JSON.stringify({ structure: ["packages"], "node-floor": [] }));
+    write(repository, "kit/gates/fails-on.json", JSON.stringify({ structure: "a package has no role", "node-floor": "the Node floor is in engines.node" }));
+
+    const result = addToProject({ project, unit: "kit", repository });
+
+    expect(result.gatesUnknownBefore).toBe(true);
+    expect(result.newGates.map(({ name }) => name)).toEqual(["structure", "node-floor"]);
+    expect(describeYours(result).slice(2)).toEqual([
+      "  - This project's copy of the kit kept no list of its gates, so it cannot be told which are new to it. All 2 are named below, each with what it fails on: any of them may fail on code that was never held to it.",
+      "  - architecture.config.mts: the kit has the gate structure. It reads packages: set what this project needs.",
+      "      It fails when: a package has no role",
+      "      tools/arch/README.md says more. Run pnpm gates to see what it says here.",
+      "  - architecture.config.mts: the kit has the gate node-floor. It reads no option of this file.",
+      "      It fails when: the Node floor is in engines.node",
+      "      tools/arch/README.md says more. Run pnpm gates to see what it says here.",
+    ]);
+    // Said once: the project has the list now.
     expect(addToProject({ project, unit: "kit", repository }).newGates).toEqual([]);
+  });
 
+  it("names no gate when the kit's own list cannot be read", () => {
+    const { repository, project } = createWorldWithKit();
     write(repository, "kit/gates/gates.json", "not json");
-    write(repository, "kit/hooks/after-edit.mts", "// hook, version 2\n");
 
-    expect(addToProject({ project, unit: "kit", repository }).newGates).toEqual([]);
+    const result = addToProject({ project, unit: "kit", repository });
+
+    expect(result.newGates).toEqual([]);
+    expect(result.gatesUnknownBefore).toBeUndefined();
+  });
+});
+
+describe("a kit update in a project that kept no copy of a template", () => {
+  // A project from before the kit kept the starter's settings as templates:
+  // it has the kit, and its own versions of the files.
+  function createWorldBeforeStarterTemplates(): { repository: string; project: string } {
+    const world = createWorldWithKit();
+    const { repository, project } = world;
+
+    write(repository, "starter/package.json", '{\n  "name": "starter",\n  "packageManager": "pnpm@12.6.0+sha512.abc",\n  "scripts": {\n    "lint": "eslint --max-warnings 0 ."\n  }\n}\n');
+    write(repository, "starter/.nvmrc", "26\n");
+    write(repository, "starter/pnpm-workspace.yaml", 'packages:\n  - "packages/*"\n');
+    write(repository, "starter/pnpm-lock.yaml", "lockfileVersion: 9\n");
+    write(repository, "starter/README.md", "# The starter\n");
+    write(repository, "starter/tsconfig.tsbuildinfo", "{}");
+    write(repository, "starter/.github/workflows/ci.yml", "name: CI\n");
+    write(repository, "starter/packages/web/package.json", '{\n  "name": "@app/web",\n  "imports": {\n    "#/*": "./src/*"\n  }\n}\n');
+    write(repository, "starter/packages/web/tsconfig.json", "{}\n");
+    write(repository, "starter/packages/web/src/index.ts", "export {};\n");
+    write(repository, "starter/packages/server/package.json", '{ "name": "@app/server" }\n');
+    write(project, "pnpm-workspace.yaml", 'packages:\n  - "packages/*"\n');
+
+    return world;
+  }
+
+  it("keeps a template of each of the starter's settings files, in the project's scope, and of nothing else of the starter", () => {
+    const { repository, project } = createWorldBeforeStarterTemplates();
+
+    const result = addToProject({ project, unit: "kit", repository });
+
+    expect(result.files.written.filter((path) => path.startsWith("tools/arch/templates/")).sort()).toEqual([
+      "tools/arch/templates/.github__workflows__ci.yml.txt",
+      "tools/arch/templates/.nvmrc.txt",
+      "tools/arch/templates/package.json.txt",
+      "tools/arch/templates/packages__server__package.json.txt",
+      "tools/arch/templates/packages__web__package.json.txt",
+      "tools/arch/templates/packages__web__tsconfig.json.txt",
+      "tools/arch/templates/pnpm-workspace.yaml.txt",
+    ]);
+    expect(read(project, "tools/arch/templates/packages__web__package.json.txt")).toContain('"name": "@acme/web"');
+  });
+
+  it("shows where each of the project's files differs from the template, and says it cannot tell which side changed", () => {
+    const { repository, project } = createWorldBeforeStarterTemplates();
+
+    const result = addToProject({ project, unit: "kit", repository });
+    const told = Object.fromEntries(result.yours.map(({ owned, state }) => [owned, state]));
+
+    expect(told["package.json"]).toBe("unknown");
+    expect(told["packages/web/package.json"]).toBe("unknown");
+    expect(result.yours.find(({ owned }) => owned === "packages/web/package.json")?.lines).toEqual(['- {', '-   "name": "@acme/web",', '-   "imports": {', '-     "#/*": "./src/*"', "-   }", "- }", '+ { "name": "@acme/web", "scripts": {} }']);
+
+    const printed = describeYours(result);
+    const at = printed.findIndex((line) => line.startsWith("  - packages/web/package.json:"));
+
+    expect(printed.slice(at, at + 3)).toEqual([
+      "  - packages/web/package.json: differs from its template, and no earlier copy of the template was kept, so it cannot be told which side changed: compare with tools/arch/templates/packages__web__package.json.txt",
+      "      A line of the template that yours does not have is `-`; a line only yours has is `+`. Take what is new in the template; leave what is this project's own.",
+      "        - {",
+    ]);
+  });
+
+  it("says nothing of a file that is the template word for word", () => {
+    const { repository, project } = createWorldBeforeStarterTemplates();
+
+    expect(addToProject({ project, unit: "kit", repository }).yours.map(({ owned }) => owned)).not.toContain("pnpm-workspace.yaml");
+  });
+
+  it("names a file the project does not have, with the command that takes it, and does not write it", () => {
+    const { repository, project } = createWorldBeforeStarterTemplates();
+
+    const result = addToProject({ project, unit: "kit", repository });
+
+    expect(result.yours.filter(({ state }) => state === "never-seen").map(({ owned }) => owned)).toEqual([".github/workflows/ci.yml", ".nvmrc", "packages/web/tsconfig.json"]);
+    expect(existsSync(join(project, ".nvmrc"))).toBe(false);
+
+    const printed = describeYours(result);
+    const at = printed.findIndex((line) => line.startsWith("  - .nvmrc:"));
+
+    expect(printed.slice(at, at + 2)).toEqual([
+      "  - .nvmrc: this project has none, and no earlier copy of its template was kept, so it cannot be told whether the file was deleted here or never given. It was not written. If the project should have it:",
+      "      cp tools/arch/templates/.nvmrc.txt .nvmrc",
+    ]);
+  });
+
+  it("says nothing of a package of the starter's that the project does not have", () => {
+    const { repository, project } = createWorldBeforeStarterTemplates();
+
+    expect(addToProject({ project, unit: "kit", repository }).yours.filter(({ owned }) => owned.startsWith("packages/server/"))).toEqual([]);
+  });
+
+  it("says it once, and from then on says what changed in a template, as for any other", () => {
+    const { repository, project } = createWorldBeforeStarterTemplates();
+    addToProject({ project, unit: "kit", repository });
+
+    expect(addToProject({ project, unit: "kit", repository }).yours).toEqual([]);
+
+    write(repository, "starter/.nvmrc", "28\n");
+
+    expect(addToProject({ project, unit: "kit", repository }).yours).toEqual([{ owned: ".nvmrc", template: "tools/arch/templates/.nvmrc.txt", state: "absent", lines: ["- 26", "+ 28"] }]);
+  });
+
+  it("prints the first thirty lines of a long difference, and the command that shows the rest", () => {
+    const { repository, project } = createWorldBeforeStarterTemplates();
+    write(repository, "starter/turbo.json", `${Array.from({ length: 40 }, (_, line) => `"line ${line}"`).join("\n")}\n`);
+    write(project, "turbo.json", "{}\n");
+
+    const printed = describeYours(addToProject({ project, unit: "kit", repository }));
+    const at = printed.findIndex((line) => line.startsWith("  - turbo.json:"));
+
+    expect(printed.slice(at + 2, at + 33).at(-2)).toBe('        - "line 29"');
+    expect(printed[at + 32]).toBe("        … and 11 more line(s): diff tools/arch/templates/turbo.json.txt turbo.json");
   });
 });
 
@@ -1350,15 +1513,363 @@ describe("a starting file that a later version of an add-on is the first to ship
     expect(read(project, "POLICY.md")).toBe("# The project's own policy\n");
   });
 
-  it("is not written in a project whose copy of the add-on keeps no templates: a file missing there may have been deleted", () => {
+  it("is not written in a project whose record is from before starting files were listed and keeps no templates: a file missing there may have been deleted. It is named, once", () => {
     const { repository, project } = createWorldWithKit();
     addToProject({ project, unit: "demo", repository });
+    forgetStartingFiles(project);
     withPolicyFile(repository);
 
-    expect(addToProject({ project, unit: "demo", repository }).created).toEqual([]);
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(result.created).toEqual([]);
     expect(existsSync(join(project, "POLICY.md"))).toBe(false);
+    expect(result.yours).toEqual([{ owned: "POLICY.md", template: "tools/templates/demo.POLICY.md.txt", state: "never-seen", lines: [] }]);
+    // Named in one place: under "Yours to change", with the command that takes it.
+    expect(result.notes).toEqual([]);
+    expect(addToProject({ project, unit: "demo", repository }).yours).toEqual([]);
+  });
+
+  it("is written whether it is text or not, in a project whose record lists the starting files it was given", () => {
+    const { repository, project } = createWorldWithKit();
+    withStartingFiles(repository);
+    addToProject({ project, unit: "demo", repository });
+    write(repository, "addons/demo/files/packages/web/tests/goldens/b.png", "a second image");
+
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(result.created).toEqual(["packages/web/tests/goldens/b.png"]);
+    expect(readJson(project, "tools/installed.json").demo.starting).toEqual(["packages/web/tests/goldens/a.png", "packages/web/tests/goldens/b.png", "packages/web/tests/scenarios.ts"]);
+  });
+
+  it("is not brought back, and not named again, once the project was given it and deleted it", () => {
+    const { repository, project } = createWorldWithKit();
+    withStartingFiles(repository);
+    addToProject({ project, unit: "demo", repository });
+    rmSync(join(project, "packages/web/tests/goldens/a.png"));
+    rmSync(join(project, "packages/web/tests/scenarios.ts"));
+
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(result.created).toEqual([]);
+    expect(result.notes).toEqual([]);
+    expect(result.yours).toEqual([]);
+  });
+
+  it("names the images a project lacks when its record cannot say whether it was given them, writes none, and says it once", () => {
+    const { repository, project } = createWorldWithKit();
+    withStartingFiles(repository);
+    addToProject({ project, unit: "demo", repository });
+    forgetStartingFiles(project);
+    rmSync(join(project, "packages/web/tests/goldens/a.png"));
+
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(result.created).toEqual([]);
+    expect(result.notes).toEqual([
+      `1 file(s) the add-on ships are not in this project, and it cannot be told whether they were deleted here or never given: packages/web/tests/goldens/a.png. None was written. To see them all: add-to-project.mts ${project} --compare demo`,
+    ]);
+    expect(addToProject({ project, unit: "demo", repository }).notes).toEqual([]);
+  });
+
+  it("keeps the list of starting files through an update that changes other files", () => {
+    const { repository, project } = createWorldWithKit();
+    withStartingFiles(repository);
+    addToProject({ project, unit: "demo", repository });
+    write(repository, "addons/demo/files/tools/demo/check.mts", "// the add-on's check, version 2\n");
+    addToProject({ project, unit: "demo", repository });
+
+    expect(readJson(project, "tools/installed.json").demo.starting).toHaveLength(2);
   });
 });
+
+describe("an add-on update in a project that kept no copy of a template", () => {
+  it("shows where the project's starting file differs from the template, and says it cannot tell which side changed", () => {
+    const { repository, project } = createWorldWithKit();
+    withStartingFiles(repository);
+    addToProject({ project, unit: "demo", repository });
+    // As a project from before templates were kept: its own file, and no copy of what it was written from.
+    rmSync(join(project, "tools/templates"), { recursive: true });
+    forgetTemplates(project, "demo");
+    write(project, "packages/web/tests/scenarios.ts", "// scenarios, with the project's own\n");
+
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(result.yours).toEqual([
+      {
+        owned: "packages/web/tests/scenarios.ts",
+        template: "tools/templates/demo.packages__web__tests__scenarios.ts.txt",
+        state: "unknown",
+        lines: ["- // scenarios, as shipped", "+ // scenarios, with the project's own"],
+      },
+    ]);
+    expect(read(project, "packages/web/tests/scenarios.ts")).toBe("// scenarios, with the project's own\n");
+    expect(addToProject({ project, unit: "demo", repository }).yours).toEqual([]);
+  });
+
+  it("says nothing of a starting file that is the template word for word", () => {
+    const { repository, project } = createWorldWithKit();
+    withStartingFiles(repository);
+    addToProject({ project, unit: "demo", repository });
+    rmSync(join(project, "tools/templates"), { recursive: true });
+    forgetTemplates(project, "demo");
+
+    expect(addToProject({ project, unit: "demo", repository }).yours).toEqual([]);
+  });
+});
+
+describe("comparing a project's own files with their templates", () => {
+  function createComparedWorld(): { repository: string; project: string } {
+    const world = createWorldWithKit();
+    const { repository, project } = world;
+
+    withStarterInstructions(repository, "# Working here\n\nRun the gates.\n");
+    withStartingFiles(repository);
+    addToProject({ project, unit: "kit", repository });
+    addToProject({ project, unit: "demo", repository });
+
+    return world;
+  }
+
+  it("lists every file of every unit the project has, each as the same, different or not there, and writes nothing", () => {
+    const { repository, project } = createComparedWorld();
+    write(project, "packages/web/tests/scenarios.ts", "// scenarios, with the project's own\n");
+    rmSync(join(project, "packages/web/tests/goldens/a.png"));
+
+    const before = snapshot(project);
+    const compared = compareWithTemplates({ project, repository });
+
+    expect(compared.map(({ unit, owned, state }) => `${unit} ${owned} ${state}`)).toEqual([
+      "kit .claude/settings.json same",
+      "kit .codex/hooks.json same",
+      "kit AGENTS.md differs",
+      "kit architecture.config.mts same",
+      "demo packages/web/tests/goldens/a.png absent",
+      "demo packages/web/tests/scenarios.ts differs",
+    ]);
+    expect(compared.find(({ owned }) => owned === "AGENTS.md")?.lines).toEqual(["- Run the gates.", "+ The project's own text."]);
+    expect(snapshot(project)).toEqual(before);
+  });
+
+  it("compares with the template as the repository ships it now, in the project's scope, and says when the project's copy is older", () => {
+    const { repository, project } = createComparedWorld();
+    write(repository, "addons/demo/files/packages/web/tests/scenarios.ts", 'import "@app/web";\n// scenarios, version 2\n');
+
+    const scenarios = compareWithTemplates({ project, repository, unit: "demo" }).find(({ owned }) => owned.endsWith("scenarios.ts"));
+
+    expect(scenarios).toMatchObject({ state: "differs", lines: ['- import "@acme/web";', "- // scenarios, version 2", "+ // scenarios, as shipped"], templateIsOlder: true });
+  });
+
+  it("takes one unit when one is named, and refuses one the project does not have", () => {
+    const { repository, project } = createComparedWorld();
+
+    expect(new Set(compareWithTemplates({ project, repository, unit: "demo" }).map(({ unit }) => unit))).toEqual(new Set(["demo"]));
+    expect(() => compareWithTemplates({ project, repository, unit: "visual" })).toThrow('this project does not have "visual" — it has: kit, demo');
+  });
+
+  it("prints the differences, the files that are not there, and that nothing was written", () => {
+    const { repository, project } = createComparedWorld();
+    write(project, "packages/web/tests/scenarios.ts", "// scenarios, with the project's own\n");
+    rmSync(join(project, "packages/web/tests/goldens/a.png"));
+    write(project, ".codex/hooks.json", "{}\n");
+
+    expect(describeComparison(compareWithTemplates({ project, repository })).split("\n")).toEqual([
+      "kit: 4 file(s) this project owns have a template. 2 differ from it, 0 are not in the project.",
+      "  differs  .codex/hooks.json — template: tools/arch/hooks/codex.hooks.json",
+      '      - { "hooks": "node tools/arch/hooks/after-edit.mts" }',
+      "      + {}",
+      "  differs  AGENTS.md — template: tools/arch/templates/AGENTS.md.txt",
+      "      - Run the gates.",
+      "      + The project's own text.",
+      "demo: 2 file(s) this project owns have a template. 1 differ from it, 1 is not in the project.",
+      "  differs  packages/web/tests/scenarios.ts — template: tools/templates/demo.packages__web__tests__scenarios.ts.txt",
+      "      - // scenarios, as shipped",
+      "      + // scenarios, with the project's own",
+      "  absent   packages/web/tests/goldens/a.png",
+      "",
+      "In a difference, `-` is a line only the template has and `+` a line only this project's file has. A difference is not a fault: these files are the project's to change.",
+      "Nothing was written.",
+    ]);
+  });
+
+  it("says an image differs, with no lines", () => {
+    const { repository, project } = createComparedWorld();
+    write(project, "packages/web/tests/goldens/a.png", "the project's own image");
+
+    expect(describeComparison(compareWithTemplates({ project, repository, unit: "demo" }))).toContain("  differs  packages/web/tests/goldens/a.png (not text: no lines to show)");
+  });
+});
+
+/** Every file of a project with its content, to show that a command wrote nothing. */
+function snapshot(project: string, folder = ""): Record<string, string> {
+  return Object.fromEntries(
+    readdirSync(join(project, folder), { withFileTypes: true }).flatMap((entry) => {
+      const path = folder === "" ? entry.name : `${folder}/${entry.name}`;
+
+      return entry.isDirectory() ? Object.entries(snapshot(project, path)) : [[path, read(project, path)]];
+    }),
+  );
+}
+
+/** Makes the project's record what an older installer wrote: no list of the starting files it was given. */
+function forgetStartingFiles(project: string): void {
+  const record = readJson(project, "tools/installed.json");
+
+  for (const unit of Object.keys(record)) {
+    delete record[unit].starting;
+  }
+
+  write(project, "tools/installed.json", `${JSON.stringify(record, null, 2)}\n`);
+}
+
+/** Makes the project's record what an installer from before templates were kept wrote: no template among the unit's files, and no list of starting files. */
+function forgetTemplates(project: string, unit: string): void {
+  const record = readJson(project, "tools/installed.json");
+
+  record[unit].files = Object.fromEntries(Object.entries(record[unit].files).filter(([path]) => !path.startsWith("tools/templates/")));
+  delete record[unit].starting;
+  write(project, "tools/installed.json", `${JSON.stringify(record, null, 2)}\n`);
+}
+
+describe("a file of the add-on whose edits now go in a file of the project's own", () => {
+  const HOST = "packages/web/tests/host.ts";
+  const SEEDING = "packages/web/tests/seeding.ts";
+  const COPY = "tools/templates/demo.replaced.packages__web__tests__host.ts.txt";
+
+  it("refuses an edited one as it does any file, says where the edits go and what --force will do, and changes nothing", () => {
+    const { repository, project } = createWorldWithEditedHost();
+
+    let message = "";
+
+    try {
+      addToProject({ project, unit: "demo", repository });
+    } catch (error) {
+      message = (error as Error).message;
+    }
+
+    expect(message.split("\n")).toEqual([
+      "1 file(s) in the project differ from what was installed and would be overwritten:",
+      `  ${HOST}`,
+      `      What a project changes in this file now goes in ${SEEDING}, which is the project's own: no update replaces it. It holds the seeding.`,
+      `      Run this again with --force. It replaces this file, keeps your version as ${COPY},`,
+      `      and writes ${SEEDING} if the project has none. Then move your lines from the copy into ${SEEDING}, and delete the copy.`,
+      "Nothing was changed. Move your edits out of these files, or pass --force to replace them.",
+    ]);
+    expect(read(project, HOST)).toBe("// the host, with the project's own lines\n");
+    expect(existsSync(join(project, SEEDING))).toBe(false);
+    expect(existsSync(join(project, COPY))).toBe(false);
+  });
+
+  it("says nothing more than before under a file whose edits have no such place", () => {
+    const { repository, project } = createWorldWithEditedHost();
+    write(project, "tools/demo/check.mts", "// edited in the project\n");
+    write(repository, "addons/demo/files/tools/demo/check.mts", "// the add-on's check, version 2\n");
+
+    expect(() => addToProject({ project, unit: "demo", repository })).toThrow(/would be overwritten:\n {2}packages\/web\/tests\/host\.ts\n {6}What a project.*\n.*\n.*delete the copy\.\n {2}tools\/demo\/check\.mts\nNothing was changed/);
+  });
+
+  it("when forced, keeps the project's version beside the templates, writes the project's new file, and says to move the lines", () => {
+    const { repository, project } = createWorldWithEditedHost();
+
+    const result = addToProject({ project, unit: "demo", repository, force: true });
+
+    expect(read(project, HOST)).toBe("// the host, generic\n");
+    expect(read(project, COPY)).toBe("// the host, with the project's own lines\n");
+    expect(read(project, SEEDING)).toBe("// the seeding, as shipped\n");
+    expect(result.created).toEqual([SEEDING]);
+    expect(result.notes).toEqual([
+      `${HOST} was replaced, and it had changes of this project's. Your version is kept as ${COPY}. Move what you changed into ${SEEDING}, then delete the copy. It holds the seeding.`,
+    ]);
+    // The copy is the project's to delete: no record holds it, so no later update removes or replaces it.
+    expect(Object.keys(readJson(project, "tools/installed.json").demo.files)).not.toContain(COPY);
+  });
+
+  it("goes on saying so while the copy is there, writes nothing on a second run, and says nothing once the copy is deleted", () => {
+    const { repository, project } = createWorldWithEditedHost();
+    addToProject({ project, unit: "demo", repository, force: true });
+    write(project, SEEDING, "// the seeding, with the project's own lines\n");
+
+    const second = addToProject({ project, unit: "demo", repository });
+
+    expect(second.files.written).toEqual([]);
+    expect(second.created).toEqual([]);
+    expect(second.notes).toEqual([
+      `${HOST} was replaced by an earlier update. Your version is kept as ${COPY}. Move what you changed into ${SEEDING}, then delete the copy. It holds the seeding.`,
+    ]);
+    expect(read(project, SEEDING)).toBe("// the seeding, with the project's own lines\n");
+
+    rmSync(join(project, COPY));
+
+    expect(addToProject({ project, unit: "demo", repository }).notes).toEqual([]);
+  });
+
+  it.each([
+    ["a file that is not a starting file", { "packages/web/tests/host.ts": { to: "tools/demo/check.mts", note: "." } }, /tools\/demo\/check\.mts is not one of its starting files/],
+    ["from a file the add-on does not own", { "packages/web/tests/scenarios.ts": { to: "packages/web/tests/seeding.ts", note: "." } }, /scenarios\.ts is not a file the add-on owns/],
+  ])("refuses a manifest that sends the edits to %s, before anything is written", (_, movedToProject, message) => {
+    const { repository, project } = createWorldWithEditedHost();
+    const manifest = readJson(repository, "addons/demo/addon.json");
+    const recordBefore = read(project, "tools/installed.json");
+
+    write(repository, "addons/demo/addon.json", JSON.stringify({ ...manifest, movedToProject }));
+
+    expect(() => addToProject({ project, unit: "demo", repository, force: true })).toThrow(message);
+    expect(read(project, "packages/web/tests/host.ts")).toBe("// the host, with the project's own lines\n");
+    expect(read(project, "tools/installed.json")).toBe(recordBefore);
+  });
+
+  it("keeps no copy of a file the project never changed, forced or not", () => {
+    const { repository, project } = createWorldWithEditedHost();
+    write(project, HOST, "// the host, with a scenario's state in it\n");
+
+    const result = addToProject({ project, unit: "demo", repository, force: true });
+
+    expect(result.files.saved).toEqual([]);
+    expect(result.notes).toEqual([]);
+    expect(existsSync(join(project, COPY))).toBe(false);
+  });
+
+  it("keeps a copy only of the file whose edits moved, not of every file --force replaces", () => {
+    const { repository, project } = createWorldWithEditedHost();
+    write(project, "tools/demo/check.mts", "// edited in the project\n");
+    write(repository, "addons/demo/files/tools/demo/check.mts", "// the add-on's check, version 2\n");
+
+    const result = addToProject({ project, unit: "demo", repository, force: true });
+
+    expect(result.files.saved).toEqual([{ path: HOST, copy: COPY }]);
+    expect(readdirSync(join(project, "tools/templates")).filter((name) => name.includes(".replaced."))).toEqual([COPY.slice("tools/templates/".length)]);
+  });
+});
+
+/**
+ * A project that took the demo add-on when its host held the seeding, and
+ * edited the host; and the add-on as it is now, with the seeding in a starting
+ * file of its own.
+ */
+function createWorldWithEditedHost(): { repository: string; project: string } {
+  const world = createWorldWithKit();
+  const { repository, project } = world;
+  const manifest = readJson(repository, "addons/demo/addon.json");
+
+  write(repository, "addons/demo/addon.json", JSON.stringify({ ...manifest, startingFiles: ["packages/web/tests/scenarios.ts"] }));
+  write(repository, "addons/demo/files/packages/web/tests/scenarios.ts", "// scenarios, as shipped\n");
+  write(repository, "addons/demo/files/packages/web/tests/host.ts", "// the host, with a scenario's state in it\n");
+  addToProject({ project, unit: "demo", repository });
+  write(project, "packages/web/tests/host.ts", "// the host, with the project's own lines\n");
+
+  write(
+    repository,
+    "addons/demo/addon.json",
+    JSON.stringify({
+      ...manifest,
+      startingFiles: ["packages/web/tests/scenarios.ts", "packages/web/tests/seeding.ts"],
+      movedToProject: { "packages/web/tests/host.ts": { to: "packages/web/tests/seeding.ts", note: "It holds the seeding." } },
+    }),
+  );
+  write(repository, "addons/demo/files/packages/web/tests/host.ts", "// the host, generic\n");
+  write(repository, "addons/demo/files/packages/web/tests/seeding.ts", "// the seeding, as shipped\n");
+
+  return world;
+}
 
 /** Gives the demo add-on a text starting file it did not have before. */
 function withPolicyFile(repository: string): void {

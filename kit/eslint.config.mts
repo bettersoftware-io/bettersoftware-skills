@@ -238,6 +238,9 @@ function sourceOf(
  * @param config The project's layers. Read from `architecture.config.mts` in
  *   the current folder when not given.
  */
+/** Every folder at the project root whose name starts with a dot, with all that is in it. Read from the folder the lint is run in. */
+export const HIDDEN_ROOT_FOLDERS: string[] = [".*/**"];
+
 export function architectureLint(config: ArchitectureConfig | undefined = readDeclaredLayers()): TSESLint.FlatConfig.ConfigArray {
   const clientMarkup = sourceOf(config, ["client"], "tsx");
   const clientSource = sourceOf(config, ["client"], "{ts,tsx}");
@@ -256,6 +259,12 @@ export function architectureLint(config: ArchitectureConfig | undefined = readDe
         "**/reports/**",
         "**/.turbo/**",
         "**/__screenshots__/**",
+        // A hidden folder at the project root belongs to a tool (an editor,
+        // an agent, a cache), not to the project's code: `.remember/`, a
+        // plugin's working folder, holds a timestamp file that ends in `.ts`.
+        // The gates already judge only the declared packages. A hidden folder
+        // inside a package is still read, and so is a visible root folder.
+        ...HIDDEN_ROOT_FOLDERS,
       ],
     },
     {

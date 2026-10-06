@@ -26,6 +26,24 @@ export interface InstallOutcome {
   kept: string[];
   /** Files in a host's own folder that the host did not let be written. Not recorded, so the next run tries again. */
   refused: string[];
+  /** Files replaced under `--force` whose content now has a place in the project's own files, each with where the project's version was kept. */
+  saved: { path: string; copy: string }[];
+}
+
+/**
+ * A file of the unit that projects used to edit, and the file of the project's
+ * own where those edits go now. See `movedToProject` in an add-on's manifest.
+ */
+export interface Handover {
+  /** The project's own file that took over what was edited. */
+  to: string;
+  /** One sentence for the person: what belongs in `to`. */
+  note: string;
+}
+
+/** Where the project's version of a file is kept when `--force` replaces it. Flat and `.txt`, like a template: no tool reads it as source. */
+export function savedCopyOf(unit: string, path: string): string {
+  return `tools/templates/${unit}.replaced.${path.replaceAll("/", "__")}.txt`;
 }
 
 interface InstalledRecord {
@@ -33,6 +51,12 @@ interface InstalledRecord {
     files: Record<string, string>;
     /** The option of the add-on's choice the project has, when the add-on offers one. */
     choice?: string;
+    /**
+     * The starting files the project has been given, or told of: every one
+     * the unit shipped at its last update. A starting file that is not here
+     * is new to the project; one that is here and gone was deleted by it.
+     */
+    starting?: string[];
   };
 }
 
@@ -88,10 +112,70 @@ export function rewriteScope(files: FileSet, from: string, to: string): FileSet 
   for (const [path, content] of files) {
     const name = path.slice(path.lastIndexOf("/") + 1);
 
-    rewritten.set(path, TEXT_FILE.test(name) ? Buffer.from(content.toString("utf8").replaceAll(`${from}/`, `${to}/`)) : content);
+    rewritten.set(path, TEXT_FILE.test(name) ? Buffer.from(renameScope(name, content.toString("utf8"), from, to)) : content);
   }
 
   return rewritten;
+}
+
+/**
+ * One text file with the scope replaced. A package.json also gets its
+ * dependencies back in name order: the files here are written in order for
+ * the starter's scope, and another scope sorts elsewhere (`@zeta/shared`
+ * comes after `@playwright/test`, `@app/shared` before it).
+ */
+export function renameScope(fileName: string, text: string, from: string, to: string): string {
+  const renamed = text.replaceAll(`${from}/`, `${to}/`);
+
+  return fileName === "package.json" && renamed !== text ? sortDependencies(renamed) : renamed;
+}
+
+/** The maps of a package.json that hold dependencies. The tools that compare versions want each in name order. */
+const DEPENDENCY_MAPS = ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
+
+/** Name order as package managers write it: by character code, so every `@scope/…` comes before a plain name. */
+export function byName([a]: [string, unknown], [b]: [string, unknown]): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * The text of a package.json with each dependency map in name order. A file
+ * already in order, or one that is not a JSON object, comes back as it was,
+ * byte for byte: only a file that needs it is written again.
+ */
+export function sortDependencies(text: string): string {
+  let manifest: unknown;
+
+  try {
+    manifest = JSON.parse(text);
+  } catch {
+    return text;
+  }
+
+  if (typeof manifest !== "object" || manifest === null || Array.isArray(manifest)) {
+    return text;
+  }
+
+  const sorted = manifest as Record<string, unknown>;
+  let moved = false;
+
+  for (const map of DEPENDENCY_MAPS) {
+    const entries = sorted[map];
+
+    if (typeof entries !== "object" || entries === null || Array.isArray(entries)) {
+      continue;
+    }
+
+    const names = Object.keys(entries);
+    const inOrder = Object.entries(entries).sort(byName);
+
+    if (inOrder.some(([name], index) => name !== names[index])) {
+      sorted[map] = Object.fromEntries(inOrder);
+      moved = true;
+    }
+  }
+
+  return moved ? `${JSON.stringify(sorted, null, 2)}\n` : text;
 }
 
 /**
@@ -99,33 +183,43 @@ export function rewriteScope(files: FileSet, from: string, to: string): FileSet 
  * whatever that unit installed before. `choice` is the option of the add-on's
  * choice the project has from now on, recorded beside the files.
  */
-export function installFiles(project: string, unit: string, files: FileSet, force = false, choice?: string): InstallOutcome {
+export function installFiles(
+  project: string,
+  unit: string,
+  files: FileSet,
+  force = false,
+  choice?: string,
+  handovers: Record<string, Handover> = {},
+): InstallOutcome {
   const record = readRecord(project);
   const before = record[unit]?.files ?? {};
   const conflicts: string[] = [];
-  const outcome: InstallOutcome = { written: [], unchanged: [], removed: [], kept: [], refused: [] };
+  /** Files the project changed that `--force` is about to replace. */
+  const edited: string[] = [];
+  const outcome: InstallOutcome = { written: [], unchanged: [], removed: [], kept: [], refused: [], saved: [] };
 
   // Both lists of paths are checked before anything is touched. The record is
   // a file in the project, so it is input like any other: a path in it that
   // leaves the project must never reach `rmSync`.
-  for (const path of [...files.keys(), ...Object.keys(before), RECORD]) {
+  for (const path of [...files.keys(), ...Object.keys(before), RECORD, ...Object.keys(handovers).map((path) => savedCopyOf(unit, path))]) {
     assertInside(project, path);
   }
 
   for (const [path, content] of files) {
-    const target = join(project, path);
-
-    if (!existsSync(target)) {
+    if (!projectHas(project, path)) {
       outcome.written.push(path);
       continue;
     }
 
-    const current = hash(readFileSync(target));
+    const current = hash(readProjectFile(project, path));
 
     if (current === hash(content)) {
       outcome.unchanged.push(path);
-    } else if (current === before[path] || force) {
+    } else if (current === before[path]) {
       outcome.written.push(path);
+    } else if (force) {
+      outcome.written.push(path);
+      edited.push(path);
     } else {
       conflicts.push(path);
     }
@@ -135,21 +229,30 @@ export function installFiles(project: string, unit: string, files: FileSet, forc
     throw new InstallError(
       [
         `${conflicts.length} file(s) in the project differ from what was installed and would be overwritten:`,
-        ...conflicts.map((path) => `  ${path}`),
+        ...conflicts.flatMap((path) => [`  ${path}`, ...describeHandover(unit, path, handovers[path])]),
         "Nothing was changed. Move your edits out of these files, or pass --force to replace them.",
       ].join("\n"),
     );
   }
 
+  // Before anything is replaced: the project's version of a file whose edits
+  // have a new home is kept, so `--force` costs no work and needs no git.
+  for (const path of edited.filter((candidate) => handovers[candidate] !== undefined)) {
+    const copy = savedCopyOf(unit, path);
+
+    writeProjectFile(project, copy, readProjectFile(project, path));
+    outcome.saved.push({ path, copy });
+  }
+
   for (const path of Object.keys(before)) {
     const target = join(project, path);
 
-    if (files.has(path) || !existsSync(target)) {
+    if (files.has(path) || !projectHas(project, path)) {
       continue;
     }
 
-    if (hash(readFileSync(target)) === before[path] || force) {
-      rmSync(target);
+    if (hash(readProjectFile(project, path)) === before[path] || force) {
+      removeProjectFile(project, path);
       outcome.removed.push(path);
     } else {
       outcome.kept.push(path);
@@ -180,10 +283,25 @@ export function installFiles(project: string, unit: string, files: FileSet, forc
     ),
     // Written with every install, so an update that names no option must pass the one the project has.
     ...(choice === undefined ? {} : { choice }),
+    // Kept through the install: it is read after it, to tell a new starting file from a deleted one.
+    ...(record[unit]?.starting === undefined ? {} : { starting: record[unit].starting }),
   };
   writeRecord(project, record);
 
   return outcome;
+}
+
+/** What a refusal says under a file whose edits have a place in the project's own files. Nothing for any other file. */
+function describeHandover(unit: string, path: string, handover: Handover | undefined): string[] {
+  if (handover === undefined) {
+    return [];
+  }
+
+  return [
+    `      What a project changes in this file now goes in ${handover.to}, which is the project's own: no update replaces it. ${handover.note}`,
+    `      Run this again with --force. It replaces this file, keeps your version as ${savedCopyOf(unit, path)},`,
+    `      and writes ${handover.to} if the project has none. Then move your lines from the copy into ${handover.to}, and delete the copy.`,
+  ];
 }
 
 /**
@@ -217,6 +335,56 @@ export function assertInside(project: string, path: string): void {
       throw outside;
     }
   }
+}
+
+/**
+ * The only ways this installer looks at a file of the project. Each asks
+ * `assertInside` first, as a write does, so a read and a write can never
+ * follow different rules: a path that leaves the project, or reaches a file
+ * through a link, is refused before anything is opened. A project's
+ * `SECURITY.md` that is a link to a key file is not read, and so can never
+ * be compared and printed.
+ *
+ * `scripts/project-paths.test.mts` fails when one of these scripts opens a
+ * project path any other way.
+ */
+export function projectHas(project: string, path: string): boolean {
+  assertInside(project, path);
+
+  return lstatSync(join(project, path), { throwIfNoEntry: false }) !== undefined;
+}
+
+export function readProjectFile(project: string, path: string): Buffer {
+  assertInside(project, path);
+
+  return readFileSync(join(project, path));
+}
+
+export function readProjectText(project: string, path: string): string {
+  return readProjectFile(project, path).toString("utf8");
+}
+
+/** The text of a file of the project, or undefined when it has none. */
+export function readProjectTextIfThere(project: string, path: string): string | undefined {
+  return projectHas(project, path) ? readProjectText(project, path) : undefined;
+}
+
+/** The folders directly in a folder of the project, by name. A link to a folder is not one. */
+export function listProjectFolders(project: string, path: string): string[] {
+  if (!projectHas(project, path)) {
+    return [];
+  }
+
+  return readdirSync(join(project, path), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+}
+
+/** The only way this installer removes a file of the project: checked, then removed. */
+export function removeProjectFile(project: string, path: string): void {
+  assertInside(project, path);
+  rmSync(join(project, path));
 }
 
 /** The only way this installer writes a file: checked, then written. */
@@ -267,10 +435,35 @@ export function installedChoice(project: string, unit: string): string | undefin
   return readRecord(project)[unit]?.choice;
 }
 
-function readRecord(project: string): InstalledRecord {
-  const file = join(project, RECORD);
+/** The starting files the project was given or told of at the unit's last update. Undefined: the record is from before that was kept. */
+export function installedStarting(project: string, unit: string): string[] | undefined {
+  return readRecord(project)[unit]?.starting;
+}
 
-  return existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as InstalledRecord) : {};
+/** Records the starting files the unit ships now. Called after an install, which made the unit's entry. */
+export function recordStarting(project: string, unit: string, starting: string[]): void {
+  const record = readRecord(project);
+  const entry = record[unit];
+
+  if (entry !== undefined && JSON.stringify(entry.starting) !== JSON.stringify(starting)) {
+    record[unit] = { ...entry, starting };
+    writeRecord(project, record);
+  }
+}
+
+function readRecord(project: string): InstalledRecord {
+  const text = readProjectTextIfThere(project, RECORD);
+
+  if (text === undefined) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text) as InstalledRecord;
+  } catch {
+    // Not with the parser's own message: it quotes the text it could not read.
+    throw new InstallError(`${RECORD} is not JSON, so what this project has installed cannot be told — nothing was changed`);
+  }
 }
 
 function writeRecord(project: string, record: InstalledRecord): void {

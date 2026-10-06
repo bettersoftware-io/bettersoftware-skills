@@ -1,0 +1,16 @@
+{
+  "structure": "a workspace package has no declared role, a required role is missing, the domain has no ports folder, a package has a runtime dependency outside its closed list, or a client, an integration package or an e2e package holds a file its role does not allow",
+  "typescript-only": "the project holds a .js, .jsx, .mjs or .cjs source file that is not listed under javascriptAllowed",
+  "dumb-ui": "a UI file imports the stream library, touches storage, reads configuration, opens a connection or sets a timer",
+  "port-contracts": "a port has no contract test, the contract never calls one of the port's methods, the contract imports an implementation, or an adapter folder does not run the contract of a port it implements",
+  "dependencies": "an import points outward, a package that asked for none uses a Node built-in, the core imports a UI framework or an adapter, production code imports test scaffolding, a library named in vendorOnlyIn is imported outside its packages, or there is a cycle. It needs dependency-cruiser installed",
+  "agent-docs": "AGENTS.md or CLAUDE.md names a file or folder that does not exist",
+  "task-cache": "a cached task in turbo.json has a key that leaves out the packages a package imports, a package's tsconfig extends a file outside the package that is not a global dependency, or a package with tests that need a port caches its test task",
+  "package-scripts": "a workspace package has no typecheck script, or no test script and no listed reason; an e2e package has a test script; or a script runs eslint without --max-warnings 0",
+  "node-floor": "a package.json has engines.node, or the root's has no devEngines.runtime that names node with a version and \"onFail\": \"error\"",
+  "package-manager": "the root package.json has no packageManager, or one that is not an exact version followed by +sha512. and the hash of that release",
+  "app-harness": "a test calls the function that builds the whole application, anywhere but the one harness file",
+  "test-ids": "a test id is written as a string literal, in a component, a selector or a query, outside the client's test-ids file",
+  "types-only": "a package declared typesOnly exports a runtime value",
+  "playwright-pin": "a package.json asks for Playwright by a range, two packages ask for two versions, or a workflow's container image is another version"
+}

@@ -1,0 +1,79 @@
+[
+  {
+    "name": "moved: the refusal says where the edits go",
+    "file": "scripts/lib/install.mts",
+    "find": "...conflicts.flatMap((path) => [`  ${path}`, ...describeHandover(unit, path, handovers[path])]),",
+    "replace": "...conflicts.flatMap((path) => [`  ${path}`]),",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"refuses an edited one as it does any file\""
+  },
+  {
+    "name": "moved: a file with no such place gets no extra lines",
+    "file": "scripts/lib/install.mts",
+    "find": "  if (handover === undefined) {\n    return [];\n  }\n\n  return [\n    `      What",
+    "replace": "  if (handover === undefined) {\n    handover = { to: \"?\", note: \"?\" };\n  }\n\n  return [\n    `      What",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"says nothing more than before under a file\""
+  },
+  {
+    "name": "moved: the project's version is kept under --force",
+    "file": "scripts/lib/install.mts",
+    "find": "    writeProjectFile(project, copy, readFileSync(join(project, path)));\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"when forced, keeps the project's version\""
+  },
+  {
+    "name": "moved: the copy is taken before the file is replaced",
+    "file": "scripts/lib/install.mts",
+    "find": "    writeProjectFile(project, copy, readFileSync(join(project, path)));\n",
+    "replace": "    writeProjectFile(project, copy, files.get(path) as Buffer);\n",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"when forced, keeps the project's version\""
+  },
+  {
+    "name": "moved: only an edited file is kept",
+    "file": "scripts/lib/install.mts",
+    "find": "    } else if (current === before[path]) {\n      outcome.written.push(path);\n    } else if (force) {",
+    "replace": "    } else if (false) {\n      outcome.written.push(path);\n    } else if (force) {",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"keeps no copy of a file the project never changed\""
+  },
+  {
+    "name": "moved: only the file whose edits moved is kept",
+    "file": "scripts/lib/install.mts",
+    "find": "for (const path of edited.filter((candidate) => handovers[candidate] !== undefined)) {",
+    "replace": "for (const path of edited) {",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"keeps a copy only of the file whose edits moved\""
+  },
+  {
+    "name": "moved: the summary says to move the lines",
+    "file": "scripts/add-to-project.mts",
+    "find": "    ...kept,\n    ...choiceNotes,",
+    "replace": "    ...choiceNotes,",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"when forced, keeps the project's version\""
+  },
+  {
+    "name": "moved: a later update says so only while the copy is there",
+    "file": "scripts/add-to-project.mts",
+    "find": "    if (!existsSync(join(destination, copy))) {\n      return [];\n    }\n\n    const when",
+    "replace": "    const when",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"goes on saying so while the copy is there\""
+  },
+  {
+    "name": "moved: this run's copy is told from an earlier one's",
+    "file": "scripts/add-to-project.mts",
+    "find": "outcome.saved.some((saved) => saved.path === path) ?",
+    "replace": "true ?",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"goes on saying so while the copy is there\""
+  },
+  {
+    "name": "moved: a manifest that sends edits to a file that is no starting file is refused",
+    "file": "scripts/add-to-project.mts",
+    "find": "if (!starting.has(to) || !files.has(path)) {",
+    "replace": "if (!files.has(path)) {",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"refuses a manifest that sends the edits to a file that is not\""
+  },
+  {
+    "name": "moved: a manifest that names a file the add-on does not own is refused",
+    "file": "scripts/add-to-project.mts",
+    "find": "if (!starting.has(to) || !files.has(path)) {",
+    "replace": "if (!starting.has(to)) {",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"refuses a manifest that sends the edits to from a file\""
+  }
+]

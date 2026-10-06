@@ -18,17 +18,23 @@ export interface ServerFeedPage {
 
 /**
  * Listens to the sockets the page opens, from before the page loads. Frames
- * count only when they come from `serverUrl`, so what this reports was sent
- * by that server and by nothing else.
+ * count only when they come from `serverHost` (the server's host and port),
+ * so what this reports was sent by that server and by nothing else. The path
+ * a socket is opened on is the client's to choose and is not compared: a
+ * server may answer more than one protocol on its port, and the host and
+ * port are what say whose frames these are.
  */
-export function watchServerFeed(page: Page, serverUrl: string): ServerFeedPage {
+export function watchServerFeed(
+  page: Page,
+  serverHost: string,
+): ServerFeedPage {
   const connections: string[] = [];
   const latest = new Map<string, string>();
 
   page.on("websocket", (socket) => {
     connections.push(socket.url());
 
-    if (serverUrl === "" || !sameAddress(socket.url(), serverUrl)) {
+    if (serverHost === "" || new URL(socket.url()).host !== serverHost) {
       return;
     }
 
@@ -65,8 +71,4 @@ function readMessage(payload: string | Buffer): ServerMessage | undefined {
   } catch {
     return undefined;
   }
-}
-
-function sameAddress(a: string, b: string): boolean {
-  return new URL(a).href === new URL(b).href;
 }

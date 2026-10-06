@@ -84,6 +84,10 @@ so does a mode with no spec.
 - Write a command as the program and its arguments, never `pnpm …`: the
   wrapper can die on the stop signal and leave the server running.
 - Write no port. A program prints its address and the `ready` pattern reads it.
+- A server that answers a second protocol on its port still prints one
+  address. Write each of the client's variables around `SERVER_HOST`, its
+  host and port (`http://${SERVER_HOST}/api`), and give a new page object
+  the `serverHost` option to tell that server's responses from any other.
 - To prove a mode uses the server, compare the screen with what came over the
   wire (`serverFeed`). The simulator makes prices that look the same.
 

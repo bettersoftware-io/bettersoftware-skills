@@ -8,6 +8,11 @@ import { type E2eConfig, OUT_DIR, SERVER_URL } from "./e2e/lib/config.mts";
 // manager's wrapper can die on the stop signal while the server it started
 // lives on. Every address is printed by the program that owns it and read
 // from its `ready` line, so no port is written down here.
+//
+// A mode's `env` may name the server two ways. `SERVER_URL` is the address
+// as the server printed it. `SERVER_HOST` (import it beside `SERVER_URL`) is
+// its host and port alone, for a server that answers a second protocol on
+// the same port: `VITE_API_URL: \`http://${SERVER_HOST}\``.
 const config: E2eConfig = {
   // The package that holds the specs. The specs of a mode are in src/<mode>/.
   tests: "packages/e2e",

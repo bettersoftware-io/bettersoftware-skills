@@ -12,8 +12,7 @@
 // update replaces. So the hash record already says when a template changed,
 // and the copy about to be replaced is the old text to compare with.
 
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { projectHas, readProjectText } from "./install.mts";
 
 /** A file the project owns, and the installed copy of the template it was written from. */
 export interface Template {
@@ -28,9 +27,19 @@ export interface OwnedChange extends Template {
    * `untouched`: the project's file is still the old template, word for word,
    * so the new one can simply be taken. `edited`: it has changes of its own,
    * so the change is made by hand. `absent`: the project has no such file.
+   *
+   * The last two are for a template the project had no copy of before this
+   * update, so there is no older text to compare with. `unknown`: the
+   * project's file differs from the template, and nothing says which side
+   * changed. `never-seen`: the project has no such file, and nothing says
+   * whether it deleted one or was never given one.
    */
-  state: "untouched" | "edited" | "absent";
-  /** The lines of the template that changed: `- ` for one that went, `+ ` for one that came. */
+  state: "untouched" | "edited" | "absent" | "unknown" | "never-seen";
+  /**
+   * The lines that differ: `- ` for one that went, `+ ` for one that came.
+   * Between the old template and the new one; for `unknown`, between the
+   * template (`-`) and the project's file (`+`); none for `never-seen`.
+   */
   lines: string[];
 }
 
@@ -39,8 +48,8 @@ export function readTemplates(project: string, templates: Template[]): Map<strin
   const texts = new Map<string, string>();
 
   for (const { template } of templates) {
-    if (existsSync(join(project, template))) {
-      texts.set(template, readFileSync(join(project, template), "utf8"));
+    if (projectHas(project, template)) {
+      texts.set(template, readProjectText(project, template));
     }
   }
 
@@ -49,8 +58,13 @@ export function readTemplates(project: string, templates: Template[]): Map<strin
 
 /**
  * What the update that has just run leaves to the project. A template counts
- * only when the update rewrote it: one that is new to the project has no
- * earlier version to differ from, and one that did not change needs nothing.
+ * only when the update wrote it: one that did not change needs nothing.
+ *
+ * A template that is new to the project has no earlier version to differ
+ * from. That is every template, for a project from before templates were
+ * kept, and such a project was once told nothing at all. So the project's
+ * file is compared with the template itself: equal needs nothing, and a
+ * difference is shown as one, without a guess about which side moved.
  */
 export function findOwnedChanges(project: string, templates: Template[], before: Map<string, string>, written: string[]): OwnedChange[] {
   const changes: OwnedChange[] = [];
@@ -58,17 +72,41 @@ export function findOwnedChanges(project: string, templates: Template[], before:
   for (const { owned, template } of templates) {
     const old = before.get(template);
 
-    if (old === undefined || !written.includes(template)) {
+    if (!written.includes(template)) {
       continue;
     }
 
-    const file = join(project, owned);
-    const state = !existsSync(file) ? "absent" : readFileSync(file, "utf8") === old ? "untouched" : "edited";
+    if (old === undefined) {
+      const now = readProjectText(project, template);
+      const yours = projectHas(project, owned) ? readProjectText(project, owned) : undefined;
 
-    changes.push({ owned, template, state, lines: changedLines(old, readFileSync(join(project, template), "utf8")) });
+      if (yours === undefined) {
+        changes.push({ owned, template, state: "never-seen", lines: [] });
+      } else if (withoutAddonSections(yours) !== now) {
+        changes.push({ owned, template, state: "unknown", lines: differenceOf(now, withoutAddonSections(yours)) });
+      }
+
+      continue;
+    }
+
+    const state = !projectHas(project, owned) ? "absent" : readProjectText(project, owned) === old ? "untouched" : "edited";
+
+    changes.push({ owned, template, state, lines: changedLines(old, readProjectText(project, template)).map(showSafely) });
   }
 
   return changes;
+}
+
+/**
+ * A text without the sections the installer itself appends to `AGENTS.md`,
+ * one for each add-on. They are in no template, and are not a difference the
+ * project made.
+ */
+export function withoutAddonSections(text: string): string {
+  const without = text.replace(/\n*<!-- add-on: ([\w-]+) -->[\s\S]*?<!-- \/add-on: \1 -->\n?/g, "\n");
+
+  // The sections stand at the end, each after a blank line: what is left ends as a file does.
+  return without === text ? text : without.replace(/\n+$/, "\n");
 }
 
 /** The lines that differ between two texts, in order, by their longest common run of lines. */
@@ -104,8 +142,64 @@ export function changedLines(before: string, after: string): string[] {
   return lines;
 }
 
+/** A file larger than this is not compared line by line, and not printed. */
+export const LARGEST_SHOWN_BYTES = 512 * 1024;
+
+/** A line longer than this is cut where it is printed. */
+const LONGEST_SHOWN_LINE = 300;
+
+/**
+ * The lines that differ between a template and a file of the project, for
+ * printing: text only. A file that is not text (it holds a zero byte) or is
+ * very large is not shown at all, and every character that would move the
+ * cursor, clear the screen or set a title is written out as what it is
+ * (`\\x1b`), so a file cannot write to the terminal it is listed on.
+ */
+export function differenceOf(template: string, yours: Buffer | string): string[] {
+  const text = typeof yours === "string" ? yours : yours.toString("utf8");
+
+  if (Buffer.byteLength(text) > LARGEST_SHOWN_BYTES || text.includes("\0")) {
+    return ["  (not shown: the project's file is not text, or is larger than 512 KB)"];
+  }
+
+  return changedLines(template, text).map(showSafely);
+}
+
+/** One line as it may be printed: no control character, and not longer than a screen can use. */
+export function showSafely(line: string): string {
+  // Every C0 and C1 control but the tab, and the delete character.
+  const plain = line.replace(/[\u0000-\u0008\u000a-\u001f\u007f-\u009f]/g, (control) => `\\x${control.charCodeAt(0).toString(16).padStart(2, "0")}`);
+
+  return plain.length <= LONGEST_SHOWN_LINE ? plain : `${plain.slice(0, LONGEST_SHOWN_LINE)}… (${plain.length - LONGEST_SHOWN_LINE} more characters)`;
+}
+
+/** How many lines of a difference are printed. A file that shares little with its template would fill the screen. */
+export const SHOWN_LINES = 30;
+
+/** The lines of a difference as they are printed: the first of them, and how to see the rest. */
+export function showLines(lines: string[], template: string, owned: string): string[] {
+  return lines.length <= SHOWN_LINES
+    ? lines.map((line) => `      ${line}`)
+    : [...lines.slice(0, SHOWN_LINES).map((line) => `      ${line}`), `      … and ${lines.length - SHOWN_LINES} more line(s): diff ${template} ${owned}`];
+}
+
 /** What to print for one file, as lines. */
 export function describeOwnedChange({ owned, template, state, lines }: OwnedChange): string[] {
+  if (state === "never-seen") {
+    return [
+      `${owned}: this project has none, and no earlier copy of its template was kept, so it cannot be told whether the file was deleted here or never given. It was not written. If the project should have it:`,
+      `    cp ${template} ${owned}`,
+    ];
+  }
+
+  if (state === "unknown") {
+    return [
+      `${owned}: differs from its template, and no earlier copy of the template was kept, so it cannot be told which side changed: compare with ${template}`,
+      "    A line of the template that yours does not have is `-`; a line only yours has is `+`. Take what is new in the template; leave what is this project's own.",
+      ...showLines(lines, template, owned),
+    ];
+  }
+
   const what = {
     untouched: [`${owned}: yours is still the old template, word for word. Take the new one:`, `    cp ${template} ${owned}`],
     edited: [
@@ -115,5 +209,5 @@ export function describeOwnedChange({ owned, template, state, lines }: OwnedChan
     absent: [`${owned}: this project has none. If it should, the template is ${template}`],
   }[state];
 
-  return [...what, "    What changed in the template:", ...lines.map((line) => `      ${line}`)];
+  return [...what, "    What changed in the template:", ...showLines(lines, template, owned)];
 }

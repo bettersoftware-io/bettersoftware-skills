@@ -7,7 +7,8 @@
       "scripts": {
         "biome:format": "biome format --write .",
         "biome:fix": "biome check --write .",
-        "biome:check": "biome ci --error-on-warnings ."
+        "biome:check": "biome ci --error-on-warnings .",
+        "fix": "node tools/format-lint/fix.mts"
       },
       "devDependencies": {
         "@biomejs/biome": "2.5.14"
@@ -23,6 +24,6 @@
   "startingFiles": [
     "biome.json"
   ],
-  "firstRun": "pnpm biome:fix",
+  "firstRun": "pnpm fix",
   "verify": "pnpm biome:check"
 }

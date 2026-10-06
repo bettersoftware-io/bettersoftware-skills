@@ -14,7 +14,8 @@ cd <project> && pnpm install && pnpm visual
 | Part | Where | What it does |
 |---|---|---|
 | Scenario list | `packages/client-react/tests/visual/scenarios.ts` | A name and the seeded state, as typed data. Four to start: `empty`, `rows-up-and-down`, `row-selected`, `row-stale` |
-| Visual host | `tests/visual/host/` | A second Vite root. It renders `App` from `src/ui` over the app harness from `client-core`, with the app's own `index.css`. It imports both through the client's `#/` alias, so the client's `package.json` must declare `"imports": { "#/*": "./src/*" }`, as the starter's does. Prices are delivered by hand; time is a clock the page owns |
+| Seeding | `tests/visual/seeding.ts` | How a scenario's data becomes app state: `seedScenario(scenario, clock)` builds the app harness and returns the application and the deliveries. The project's file, like the scenario list |
+| Visual host | `tests/visual/host/` | A second Vite root. It renders `App` from `src/ui` on the application the seeding returns, with the app's own `index.css`. It imports both through the client's `#/` alias, so the client's `package.json` must declare `"imports": { "#/*": "./src/*" }`, as the starter's does. It knows no field of a scenario; time is a clock the page owns |
 | Spec | `tests/visual/visual.pw.ts` | One Playwright test per scenario, plus one that fails on a golden no scenario owns |
 | Goldens | `tests/visual/goldens/<platform>/` | One PNG per scenario, per system (`darwin-arm64`, `linux-x64`) |
 | Tolerance | `tests/visual/tolerance.ts` | Both knobs, in one place, with what was measured |
@@ -68,9 +69,50 @@ It is a script of its own, and not part of `visual:check`, because an add-on
 may not change a script a project already has. It says `SKIP` when no config
 starts a server, and exits 2 when a command is not a string it can read.
 
+## Who owns what
+
+A feature adds scenarios, and a scenario may need state the starter's four do
+not have. Until 2026-10-06 that meant editing `host/main.tsx`, which is the
+add-on's file: the demo project added sixty lines there, and every update of
+the add-on after that refused, needed `--force`, and the lines were put back
+by hand.
+
+| File | Whose | Holds |
+|---|---|---|
+| `scenarios.ts` | the project's | `Scenario` and the list |
+| `seeding.ts` | the project's | `seedScenario(scenario, clock)`: the harness, the application as it starts, and what is delivered once the UI is on screen |
+| `host/` | the add-on's | The clock, the render, when `deliver` is called, the ready signal |
+
+The host calls `seedScenario` once, after its clock is installed, renders the
+UI on `app`, and calls `deliver` from the frame's effect, when the UI below
+has subscribed. So how state is delivered and when the picture is taken stay
+in the add-on, and what the state is stays in the project.
+
+**A project that edited the host** is told where the lines go. A plain update
+refuses, as for any edited file, and says under the file's name that its
+edits now go in `seeding.ts` and what `--force` will do. With `--force` the
+host is replaced, the project's version is kept as
+`tools/templates/visual.replaced.packages__client-react__tests__visual__host__main.tsx.txt`,
+and `seeding.ts` is written as shipped. The person moves their lines from the
+copy into `seeding.ts`, deletes the copy, and runs `pnpm visual`. While the
+copy is there, every update says so. The manifest field is `movedToProject`
+([the contract](../README.md)).
+
+The host names the project's scope in one import, and a formatter wraps
+that line under a longer scope. The update compares the add-on's files byte
+for byte, so a wrapped line read as an edit and the next update refused a
+file nobody had touched. The line carries a `biome-ignore format` comment,
+and `scripts/scope-stable-files.test.mts` holds that every file an add-on
+owns comes out of the formatter as it went in, under three scopes.
+
+Tried on a copy of the demo (2026-10-06): the three wrappers it had added to
+the host moved to `seeding.ts` unchanged, `pnpm visual` passed 8 of 8 against
+its committed `darwin-arm64` goldens with both knobs at 0, and a second update
+wrote nothing.
+
 ## How the frame is pinned
 
-- **State comes from the harness.** The host delivers prices through
+- **State comes from the harness.** The seeding delivers prices through
   `createAppHarness().deliverPrice`, and seeds a selection through the
   selection machine's own intent. Nothing is clicked.
 - **Time does not run.** The host replaces `setTimeout`, `setInterval` and
@@ -159,7 +201,15 @@ On GitHub, in [bettersoftware-io/skills-demo](https://github.com/bettersoftware-
 | `Update visual goldens`, five runs on one commit | five artifacts, byte-identical |
 | `Visual goldens` with that set committed | passes |
 
-The add-on's own scripts have 65 tests in `tests/`
+`tests/addon.test.mts` (8 tests, six mutants in `tests/mutants.json`, all
+killed) holds who owns what: the seeding is a starting file, the host names
+no field of a scenario and builds no harness, and the host takes the
+application and the deliveries from the seeding after its clock is installed.
+The installer's side (`movedToProject`) has eight tests in
+`scripts/add-to-project.test.mts` and eleven mutants in
+`scripts/mutants/moved-to-project.json`, all killed.
+
+The add-on's other scripts have 65 tests in `tests/`
 (`pnpm vitest run addons/visual` from this repository's root). Each of the
 first 39 was shown able to fail, by one mutant each. The seven tests of the
 pin check moved to the kit with it (`kit/gates/playwright-pin.test.mts`).

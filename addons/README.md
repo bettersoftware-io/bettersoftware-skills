@@ -37,6 +37,7 @@ addons/<name>/
   },
   "gates": { "fast": ["pnpm perf:check"], "full": [] },
   "startingFiles": ["packages/client-react/tests/visual/scenarios.ts", "packages/client-react/tests/visual/goldens/"],
+  "movedToProject": { "packages/client-react/tests/visual/host/main.tsx": { "to": "packages/client-react/tests/visual/seeding.ts", "note": "One sentence." } },
   "hostSettings": { ".claude/settings.json": { "permissions": { "ask": ["Bash(git push *--force*)"] } } },
   "choice": { "default": "dependabot", "options": { "dependabot": "One line.", "renovate": "One line." } },
   "requiresGates": ["playwright-pin"],
@@ -49,7 +50,14 @@ addons/<name>/
   a reason not to. It decides what is selected to begin with when a person is
   offered the list, and what `create-project.mts --with recommended` adds.
 - A `packageJson` key is a path from the project root. `packages/*` means every
-  workspace package.
+  workspace package. A dependency is added in name order.
+- A `package.json` among the add-on's files is written for the scope `@app`,
+  with its dependencies in name order. In a project with another scope the
+  installer puts them in order again after it renames the scope:
+  `@zeta/shared` sorts after `@playwright/test`, and `@app/shared` before
+  it. The creation script does the same for the starter's own packages.
+  `scripts/dependency-order.test.mts` holds it for every add-on under three
+  scopes.
 - `gates` joins commands to the project's own gates, so the agent's stop hook
   and the existing CI job run them. `fast` is for a check that takes seconds
   and needs nothing installed beyond `pnpm install`; it is appended to
@@ -65,11 +73,26 @@ addons/<name>/
   under "Yours to change" and shows the lines that changed. For that it keeps
   a copy of each text starting file in `tools/templates/`; an image gets no
   copy and no notice.
-  A starting file that a later version of the add-on is the first to ship is
-  written by the update, when the project has no file there. The update tells
-  it from a file the project deleted by its template being new to the
-  project. A project whose copy of the add-on keeps no template yet is not
-  given the file: there a missing file may have been deleted.
+  A starting file the project does not have is never passed over in silence.
+  It is written when it is known to be new to the project, and named when
+  that cannot be told:
+  - `tools/installed.json` lists the starting files the project was given at
+    the add-on's last update (`starting`), images included. A file the
+    add-on ships that is not in that list is new: it is written. One that is
+    in the list and gone was deleted by the project: it is left out, and
+    nothing is said.
+  - A record from before that list was kept cannot say. A text file is then
+    new if its template is new to a project that keeps templates, and is
+    written. Otherwise it is named under "Yours to change" with the `cp`
+    that takes it; an image is named in one line under "Still to do by
+    hand". It is not written, because a file the project deleted would come
+    back: a golden of a scenario it removed fails the run as an orphan, a
+    sample spec runs against a screen that is gone. It is said once.
+  A starting file that differs from a template the project had no copy of is
+  shown against the template, as "cannot be told which side changed"
+  ([the kit's README](../kit/README.md) has the whole rule), and
+  `add-to-project.mts <project> --compare <add-on>` lists every starting
+  file that differs or is missing, at any time.
 - `choice` is for an add-on that has two ways to do one job, of which a
   project has exactly one: one update bot or another. See "A choice" below.
 - `verify` is the one command that proves the add-on works in a project that
@@ -102,6 +125,16 @@ addons/<name>/
   the old file is in the project every update says so, and writes the new
   starting file if the project does not have it. A setting is never left
   silently unread.
+- `movedToProject` names a file of the add-on that projects had to edit, with
+  the starting file where those edits go now (`to`) and a sentence that says
+  what belongs there (`note`). The add-on still owns the file. A project that
+  edited it is refused, as for any edited file, and the refusal says under
+  the file's name where the edits go and what `--force` will do. Under
+  `--force` the project's version is kept as
+  `tools/templates/<add-on>.replaced.<path>.txt` before the file is
+  replaced, and the summary says to move the lines over and delete the copy;
+  every later update says so again while the copy is there. A manifest whose
+  `to` is not a starting file is refused before anything is written.
 - `retiredHookCommands` names a command line an older version registered for
   a hook, with the command line `hostSettings` registers now. Without it an
   update would add the new line beside the old one, and the hook would run
@@ -142,6 +175,34 @@ addons/<name>/
   `packages: { … }` map the script can add to is left alone, and the script
   says which line to add by hand. The package itself is a starting file (its
   `package.json`, its source), so the project owns it from the first day.
+
+## Paths the installer reads
+
+A path the installer writes or removes has always gone through
+`assertInside`: relative, no `..`, and no link anywhere on the way. Since
+2026-10-06 a path it reads does too, through helpers beside it in
+`scripts/lib/install.mts` (`projectHas`, `readProjectFile`,
+`listProjectFolders`). The installer compares a project's own files with
+templates and prints the difference, so what it reads can reach a screen.
+
+- A file of the project that is a link, or is reached through one, is never
+  opened. An update that would compare it stops before anything is written;
+  `--compare` lists it as `refused`.
+- A unit's name is checked to be lower-case letters, digits and dashes
+  before it is joined into a path, and an option must be one the add-on
+  offers, whether it comes from the command line or from the project's
+  record.
+- A template's copy has a flat name (`tools/templates/<unit>.<path with __
+  for />.txt`). The name is only ever made from a path, never read back
+  into one, so no name can point outside. Two starting files that would
+  share a name are refused.
+- What is printed from a project's file is text only: a file with a zero
+  byte or larger than 512 KB is not shown, a difference is cut at thirty
+  lines, a line at 300 characters, and every control character is written
+  out (`\x1b`).
+
+`scripts/project-paths.test.mts` reads these scripts' own source and fails
+when one opens a project path any other way.
 
 ## A choice
 

@@ -9,10 +9,14 @@ import {
   watchServerFeed,
 } from "../pages/ServerFeed.page.ts";
 
-/** What the Playwright config sets for each mode. */
-export interface ModeOptions {
-  /** The address of the mode's server. Empty in a mode that has none. */
-  serverUrl: string;
+/** What the Playwright config sets for each mode, as far as these fixtures read it. */
+interface ModeOptions {
+  /**
+   * The host and port of the mode's server, as in `localhost:4000`. Whatever
+   * the server answers on that port (a socket, an HTTP API) is at this host.
+   * Empty in a mode that has none.
+   */
+  serverHost: string;
 }
 
 interface PageObjects {
@@ -27,7 +31,7 @@ interface PageObjects {
  * spec reaches the browser: a new page object is added here.
  */
 export const test = base.extend<PageObjects & ModeOptions>({
-  serverUrl: ["", { option: true }],
+  serverHost: ["", { option: true }],
 
   priceList: async (
     { page }: WithPage,
@@ -37,10 +41,10 @@ export const test = base.extend<PageObjects & ModeOptions>({
   },
 
   serverFeed: async (
-    { page, serverUrl }: WithPage & ModeOptions,
+    { page, serverHost }: WithPage & ModeOptions,
     use: Use<ServerFeedPage>,
   ): Promise<void> => {
-    await use(watchServerFeed(page, serverUrl));
+    await use(watchServerFeed(page, serverHost));
   },
 
   crashes: [

@@ -409,6 +409,25 @@ vendorOnlyIn: {
 A name that ends in `/` covers a whole scope. An import that names only types
 is not counted.
 
+Each entry is a rule named by its own key: `ws-only-in-its-packages`,
+`@hono/node-server-only-in-its-packages`, and `@hono/*-only-in-its-packages`
+for the scope `"@hono/"`. So no two entries share a name, and an entry keeps
+its name whatever the others are. A finding takes its message from that
+name. Until 2026-10-06 `hono` and `@hono/` were both
+`hono-only-in-its-packages`, and a finding for one could say the other's
+list.
+
+Two entries that cannot both mean what they say stop the gates (exit 2) with
+the two keys and what to do:
+
+- Two keys for one thing: `"@hono"` and `"@hono/"`, or `"ws"` and `"ws/"`.
+- A key inside another (`"@hono/node-server"` under `"@hono/"`) that allows a
+  package the wider one does not. The wider entry would still refuse that
+  import.
+
+A narrower entry that only takes packages away is fine. So are a package and
+a scope of the same word (`hono` and `@hono/`), each with its own list.
+
 ### A package of types exports no value
 
 A package declared `typesOnly: true` is safe to import from anywhere because
@@ -417,6 +436,34 @@ it adds nothing at runtime. The `types-only` gate fails on each
 `export default` of a value, each `export { … }` with a member that is not
 marked `type`, and each `export * from`. Tests are left out. With no such
 package the gate reports `SKIP`.
+
+### A hidden folder at the root is not linted
+
+The lint does not read a folder at the project root whose name starts with a
+dot: `.remember/`, `.vscode/`, `.cache/`. Such a folder belongs to a tool (an
+editor, an agent, a cache), not to the project's code. In the demo project a
+Claude Code plugin's working folder held a timestamp file ending in `.ts`,
+and the typed lint failed on it, on one machine.
+
+It is one ignore pattern (`.*/**`) in `architectureLint()`'s first block, and
+the same one in the `strict-lint` add-on's typed config. Nothing else
+changed about what is read:
+
+- A hidden folder inside a package is linted. So is a visible folder at the
+  root (`scratch/x.ts` fails as before), and a hidden file at the root.
+- Git is asked nothing, and no list says where code may be. A file in a
+  package that a `.gitignore` names is linted, and fails the gates, like any
+  other.
+- The gates are untouched. They judge the declared packages, and the
+  `typescript-only` gate walks the whole project: a stray `.js` file in
+  `.remember/` still fails it. A `.ts` file there, the case that was
+  reported, fails nothing.
+
+A first answer asked git which files it ignores and left those out, and a
+second gave the lint a list of the places code may be. Both were taken out
+again: each gave the one being checked a way to move a file out of a check,
+and each fix for that added more to get wrong. See `docs/STATUS.md` for what
+this leaves open.
 
 ### A gate that judged nothing has not passed
 
@@ -585,9 +632,9 @@ command that adds it; it does not report a clean run.
 
 ### What an update leaves to the project
 
-`add-to-project.mts <project> kit` replaces the kit's own files. Four files
-were written from a template the kit ships and then belong to the project, so
-an update never overwrites them:
+`add-to-project.mts <project> kit` replaces the kit's own files. Other files
+were written from a template and then belong to the project, so an update
+never overwrites them. The kit keeps a copy of each template in the project:
 
 | The project's file | The kit's copy of its template |
 |---|---|
@@ -595,6 +642,18 @@ an update never overwrites them:
 | `.codex/hooks.json` | `tools/arch/hooks/codex.hooks.json` |
 | `AGENTS.md` | `tools/arch/templates/AGENTS.md.txt` |
 | `architecture.config.mts` | `tools/arch/templates/architecture.config.mts.txt` |
+| The starter's settings: `package.json`, `pnpm-workspace.yaml`, `.gitignore`, `.nvmrc`, `turbo.json`, the `tsconfig` files, `eslint.config.mts`, `CLAUDE.md`, `.github/workflows/ci.yml` | `tools/arch/templates/<path, with __ for />.txt` |
+| The settings at the root of each of the starter's packages (`packages/domain/package.json`, its `tsconfig.json`, a `vitest.config.ts`, …), never a package's source | the same |
+
+The starter's files are found, not listed, so a new one is a template from
+the day it is added. The lockfile and the README are not templates. A
+package of the starter's that a project does not have is passed over.
+
+Those last two rows are from 2026-10-06. Before them the Node floor, the
+hash on the package manager, `--max-warnings 0`, the install policy of the
+workspace and each package's `#/` alias reached an older project only as a
+gate that failed, or by comparing with the starter by hand: they are lines
+of files the kit kept no copy of.
 
 When an update changes one of those templates it says so, under "Yours to
 change": the file, the lines of the template that changed, and what to do.
@@ -602,21 +661,40 @@ change": the file, the lines of the template that changed, and what to do.
 - A file that is still the old template, word for word, gets the command that
   takes the new one (`cp …`). The update does not run it.
 - A file with changes of its own gets "make this change by hand".
+- **A template the project had no copy of** has no older text to compare
+  with. The project's file is then compared with the template itself. Equal:
+  nothing is said. Different: the difference is printed, as "cannot be told
+  which side changed: compare with `<template>`", with `-` for a line only
+  the template has and `+` for a line only the project has. No file: it is
+  named, with the `cp` that takes it, and not written, since a missing file
+  may have been deleted on purpose. This is what a project from before
+  templates were kept is told, for every file, on its first update.
+- A difference longer than thirty lines is cut, with the `diff` command that
+  shows the rest. The sections an add-on appended to `AGENTS.md` are left out
+  of a comparison.
 - A gate that is new to the project is named with the options of
-  `architecture.config.mts` it reads. The list is `gates/gates.json`.
+  `architecture.config.mts` it reads and with what it fails on. The two lists
+  are `gates/gates.json` and `gates/fails-on.json`. A project whose kit kept
+  no list of gates is told so, and all of them are named: which are new
+  cannot be told, and any may fail on code that was never held to it.
 
 The copies are ordinary kit files, so the record of what was installed
 already says when one changed, and the copy about to be replaced is the old
 text. Nothing else is stored.
 
+**At any time:** `add-to-project.mts <project> --compare` lists every file
+the project owns that differs from its template as this repository ships it
+now, for the kit and every add-on the project has (`--compare <unit>` for
+one). It writes nothing. A difference there is not a fault; it is where the
+project stands.
+
 Limits:
 
-- It is said once, by the update that brings the change. A change that was
-  not made then is not repeated by the next update; `diff` the copy against
-  the project's file to see where the two stand.
-- The first update of a project whose kit predates this has no earlier copy
-  of `AGENTS.md` or of the example config to compare with, and no list of
-  gates. It says nothing about those; the two hook files are covered at once.
+- A change is said once, by the update that brings it. `--compare` is how to
+  see it again.
+- A file that differs from a template it never had a copy of is shown whole
+  against the template. A project that did not start from the starter gets
+  long differences for its `package.json` and its workflow, once.
 - A new option of a gate the project already has shows up only as a changed
   line of the example config.
 
@@ -625,8 +703,14 @@ Limits:
 No rule here is a formatting rule, so there is nothing for
 `eslint-config-prettier` to switch off and the kit does not use it. Two rules
 add blank lines and one rewrites an arrow's body; a formatter keeps both.
-Run the formatter after `eslint --fix`: the fixer writes `{return x}` on one
-line and leaves the layout to it.
+
+Neither order of the two fixers settles in one pass. `eslint --fix` writes
+`{return x}` on one line and leaves the layout to the formatter; the
+formatter wraps a long declaration, and two that now span lines side by side
+need the blank line `padding-line-between-statements` asks for. Measured
+with Biome on one file that has both: three runs either way round, and the
+same text at the end. The `format-lint` add-on's `pnpm fix` runs the two in
+turn until neither changes a file.
 
 ## Hooks
 

@@ -131,7 +131,7 @@ out. No behaviour changed.
 **In the visual add-on** (`addons/visual/files/packages/client-react/tests/visual/`)
 
 - `goldens.ts`: `PLATFORM` is no longer exported (used in that file only).
-- `host/main.tsx`: imports `STALE_AFTER_MS` from
+- `host/main.tsx` (since 2026-10-06 the line is in `seeding.ts`): imports `STALE_AFTER_MS` from
   `@app/client-core/presenters/pricesPresenter.ts` instead of from
   `@app/client-core`. The host was the only importer of that index line, so a
   project without the visual add-on had a dead line, and a project with it
@@ -225,6 +225,13 @@ the tests here and by the local runs above.
   folder) fails with "no tsconfig.json includes this file" until it is added.
   At the project root typescript-eslint's default allows eight files to be
   read with `tsconfig.tooling.json`; a ninth `.mts` file there was not tried.
+- **A hidden folder at the project root is not judged** (`.remember/`,
+  `.vscode/`, `.cache/`): it belongs to a tool, not to the project's code.
+  A plugin's folder held a timestamp file ending in `.ts`, which failed
+  with "no tsconfig.json includes this file" on one machine. A hidden folder
+  inside a package is judged, and so is a visible folder at the root. Git is
+  asked nothing: a file in a package that a `.gitignore` names is judged
+  like any other. The kit's own lint has the same pattern.
 - **The check is run from the project root.** The config takes
   `process.cwd()` as the place `tsconfig.tooling.json` is. An editor's ESLint
   uses the project's `eslint.config.mts`, not this one, so the typed rules do

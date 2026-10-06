@@ -1,0 +1,128 @@
+[
+  {
+    "name": "paths: a read is checked like a write (the file is opened)",
+    "file": "scripts/lib/install.mts",
+    "find": "export function readProjectFile(project: string, path: string): Buffer {\n  assertInside(project, path);\n",
+    "replace": "export function readProjectFile(project: string, path: string): Buffer {\n",
+    "test": "pnpm vitest run scripts/project-paths.test.mts -t \"is refused when it is a link, or is reached through one\""
+  },
+  {
+    "name": "paths: asking whether a file is there is checked too",
+    "file": "scripts/lib/install.mts",
+    "find": "export function projectHas(project: string, path: string): boolean {\n  assertInside(project, path);\n",
+    "replace": "export function projectHas(project: string, path: string): boolean {\n",
+    "test": "pnpm vitest run scripts/project-paths.test.mts -t \"is refused when it is a link, or is reached through one\""
+  },
+  {
+    "name": "paths: a link to a folder is not a folder of the project",
+    "file": "scripts/lib/install.mts",
+    "find": "    .filter((entry) => entry.isDirectory())\n    .map((entry) => entry.name)\n    .sort();",
+    "replace": "    .map((entry) => entry.name)\n    .sort();",
+    "test": "pnpm vitest run scripts/project-paths.test.mts -t \"lists the folders of a folder, and never a link to one\""
+  },
+  {
+    "name": "paths: the kit's update checks each file it will compare (the old code printed the secret)",
+    "file": "scripts/add-to-project.mts",
+    "find": "    for (const { owned } of templates) {\n      assertInside(destination, owned);\n    }\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/project-paths.test.mts -t \"stops a kit update before anything is written\""
+  },
+  {
+    "name": "paths: --compare does not open a link",
+    "file": "scripts/add-to-project.mts",
+    "find": "      if (isRefused(destination, owned) || (template !== undefined && isRefused(destination, template))) {",
+    "replace": "      if (false) {",
+    "test": "pnpm vitest run scripts/project-paths.test.mts -t \"is listed as refused by --compare\""
+  },
+  {
+    "name": "paths: nor a template copy that is one",
+    "file": "scripts/add-to-project.mts",
+    "find": "      if (isRefused(destination, owned) || (template !== undefined && isRefused(destination, template))) {",
+    "replace": "      if (isRefused(destination, owned)) {",
+    "test": "pnpm vitest run scripts/project-paths.test.mts -t \"when it is the project's copy of a template that is the link\""
+  },
+  {
+    "name": "paths: a record that is not JSON is not quoted",
+    "file": "scripts/lib/install.mts",
+    "find": "    throw new InstallError(`${RECORD} is not JSON, so what this project has installed cannot be told \u2014 nothing was changed`);",
+    "replace": "    throw new InstallError(`${RECORD} is not JSON: ${text}`);",
+    "test": "pnpm vitest run scripts/project-paths.test.mts -t \"does not quote a record that is not JSON\""
+  },
+  {
+    "name": "paths: a unit's name is checked before it is a path (the old code installed from outside)",
+    "file": "scripts/add-to-project.mts",
+    "find": "  if (!isUnitName(unit) || !existsSync(join(addon, \"addon.json\"))) {\n    throw new InstallError(`there is no add-on called \"${unit}\" \u2014 available",
+    "replace": "  if (!existsSync(join(addon, \"addon.json\"))) {\n    throw new InstallError(`there is no add-on called \"${unit}\" \u2014 available",
+    "test": "pnpm vitest run scripts/project-paths.test.mts -t \"installs nothing from outside the repository\""
+  },
+  {
+    "name": "paths: a name with a dot or a slash is no unit",
+    "file": "scripts/add-to-project.mts",
+    "find": "  return /^[a-z0-9][a-z0-9-]*$/.test(name);",
+    "replace": "  return /^[a-z0-9.][a-z0-9-./]*$/.test(name);",
+    "test": "pnpm vitest run scripts/project-paths.test.mts -t \"is no unit when it is\""
+  },
+  {
+    "name": "paths: an option in the record is a folder only if it is an option (the old code read outside the add-on)",
+    "file": "scripts/add-to-project.mts",
+    "find": "recorded !== undefined && Object.hasOwn(manifest.choice?.options ?? {}, recorded) ? recorded",
+    "replace": "recorded !== undefined ? recorded",
+    "test": "pnpm vitest run scripts/project-paths.test.mts -t \"does not follow an option that is a path, in the project's record\""
+  },
+  {
+    "name": "paths: two starting files with one template name are refused (the old code kept one text for both)",
+    "file": "scripts/add-to-project.mts",
+    "find": "      if (other !== undefined) {\n        throw new InstallError(`the add-on \"${unit}\" cannot be installed: its starting files",
+    "replace": "      if (false) {\n        throw new InstallError(`the add-on \"${unit}\" cannot be installed: its starting files",
+    "test": "pnpm vitest run scripts/project-paths.test.mts -t \"is refused when two starting files would share it\""
+  },
+  {
+    "name": "paths: control characters are written out (the old code printed them)",
+    "file": "scripts/lib/templates.mts",
+    "find": "  const plain = line.replace(/[\\u0000-\\u0008\\u000a-\\u001f\\u007f-\\u009f]/g,",
+    "replace": "  const plain = line.replace(/[\\u0000]/g,",
+    "test": "pnpm vitest run scripts/project-paths.test.mts -t \"has every control character written out\""
+  },
+  {
+    "name": "paths: in the update's own output too",
+    "file": "scripts/lib/templates.mts",
+    "find": "lines: differenceOf(now, withoutAddonSections(yours)) });",
+    "replace": "lines: changedLines(now, withoutAddonSections(yours)) });",
+    "test": "pnpm vitest run scripts/project-paths.test.mts -t \"is so in the update's own output\""
+  },
+  {
+    "name": "paths: a long line is cut",
+    "file": "scripts/lib/templates.mts",
+    "find": "  return plain.length <= LONGEST_SHOWN_LINE ? plain :",
+    "replace": "  return true ? plain :",
+    "test": "pnpm vitest run scripts/project-paths.test.mts -t \"is cut when one line is very long\""
+  },
+  {
+    "name": "paths: a file with a zero byte is not shown",
+    "file": "scripts/lib/templates.mts",
+    "find": " || text.includes(\"\\0\")) {",
+    "replace": ") {",
+    "test": "pnpm vitest run scripts/project-paths.test.mts -t \"is not shown at all when the file holds a zero byte\""
+  },
+  {
+    "name": "paths: a very large file is not shown",
+    "file": "scripts/lib/templates.mts",
+    "find": "  if (Buffer.byteLength(text) > LARGEST_SHOWN_BYTES || ",
+    "replace": "  if (",
+    "test": "pnpm vitest run scripts/project-paths.test.mts -t \"is not shown at all when the file is larger than 512 KB\""
+  },
+  {
+    "name": "paths: a project path opened without the helper is seen by the source test",
+    "file": "scripts/add-to-project.mts",
+    "find": "  const manifest = JSON.parse(readProjectText(project, \"package.json\")) as PackageJson;",
+    "replace": "  const manifest = JSON.parse(readFileSync(join(project, \"package.json\"), \"utf8\")) as PackageJson;",
+    "test": "pnpm vitest run scripts/project-paths.test.mts -t \"opens no project path in add-to-project.mts but through the helpers\""
+  },
+  {
+    "name": "paths: a helper that opens before it checks is seen by the source test",
+    "file": "scripts/lib/install.mts",
+    "find": "export function removeProjectFile(project: string, path: string): void {\n  assertInside(project, path);\n  rmSync(join(project, path));",
+    "replace": "export function removeProjectFile(project: string, path: string): void {\n  rmSync(join(project, path));\n  assertInside(project, path);",
+    "test": "pnpm vitest run scripts/project-paths.test.mts -t \"has each of those helpers ask assertInside before it touches the disk\""
+  }
+]

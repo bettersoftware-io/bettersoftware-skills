@@ -9,7 +9,9 @@ import { architectureLint } from "../../../kit/eslint.config.mts";
 import type { ArchitectureConfig } from "../../../kit/gates/lib/config.mts";
 import { runGates } from "../../../kit/gates/run.mts";
 import { declarePackages } from "../../../scripts/lib/architecture.mts";
+import type { E2eConfig } from "../files/tools/e2e/lib/config.mts";
 import { RESULTS } from "../files/tools/e2e/lib/counts.mts";
+import { readHost } from "../files/tools/e2e/lib/stack.mts";
 import { ADDON, REPOSITORY } from "./support.mts";
 
 const PACKAGE = "packages/e2e";
@@ -160,9 +162,42 @@ describe("the Playwright config", () => {
     expect(WORKFLOW).toContain(`path: ${PACKAGE}/reports\n`);
   });
 
+  it("hands every test the server's host and port, and its address as printed, under names of its own", () => {
+    // Not the project's `ModeOptions`: a project whose fixtures read one of the two must still typecheck.
+    expect(config).not.toContain("./src/testing/test.ts");
+    expect(config).toContain("defineConfig<HandedToTests>(");
+    expect(config).toMatch(/serverHost: serverHost \?\? "",\n\s+serverUrl: serverURL \?\? "",/);
+  });
+
   it("has a test that says how to start the run, for when it is run by hand", () => {
     expect(config).toContain('testMatch: "notStarted.setup.ts"');
     expect(readFileSync(join(ADDON, "files", PACKAGE, "notStarted.setup.ts"), "utf8")).toContain("run `pnpm e2e`");
+  });
+});
+
+describe("how the shipped fixtures and page object know the server", () => {
+  const read = (path: string): string => readFileSync(join(ADDON, "files", PACKAGE, path), "utf8");
+
+  it("the fixtures take the server's host and port as an option, and hand it to the page object", () => {
+    expect(read("src/testing/test.ts")).toContain('serverHost: ["", { option: true }],');
+    expect(read("src/testing/test.ts")).toContain("await use(watchServerFeed(page, serverHost));");
+    expect(read("src/testing/test.ts")).not.toContain("serverUrl");
+  });
+
+  it("the page object counts a socket's frames by the host and port it was opened to, and never by the whole address", () => {
+    const page = read("src/pages/ServerFeed.page.ts");
+
+    expect(page).toContain('if (serverHost === "" || new URL(socket.url()).host !== serverHost) {');
+    expect(page).not.toContain(".href");
+  });
+
+  it("the shipped config still reads the whole address from the server's line, and writes no port", async () => {
+    const { default: config } = (await import(join(ADDON, "files/tools/e2e.config.mts"))) as { default: E2eConfig };
+    const ready = config.modes.fullstack?.server?.ready.exec("price server listening on ws://localhost:51234/ws");
+
+    expect(ready?.[1]).toBe("ws://localhost:51234/ws");
+    expect(readHost("fullstack", ready?.[1] ?? "")).toBe("localhost:51234");
+    expect(JSON.stringify(config.modes)).not.toMatch(/:\d{2,5}\b/);
   });
 });
 

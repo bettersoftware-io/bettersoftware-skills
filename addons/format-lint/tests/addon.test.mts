@@ -155,6 +155,21 @@ describe("what Biome is kept away from", () => {
     expect(run.status).toBe(0);
   });
 
+  // A hidden folder at the root belongs to a tool (an editor, an agent, a cache), not to the project's code.
+  it.each([".remember/tmp", ".cache", ".vscode"])("does not judge %s/ at the root: a hidden root folder, whatever its name", (folder) => {
+    const run = runScript(createProject({ "src/answer.ts": CLEAN, [`${folder}/broken.ts`]: UNFORMATTED }), CHECK);
+
+    expect(run.output).toContain("Checked 3 files");
+    expect(run.status).toBe(0);
+  });
+
+  it.each(["scratch/broken.ts", "packages/app/src/.inner/broken.ts", "packages/app/.storybook/broken.ts"])("still judges %s: a visible root folder, and a hidden folder inside a package", (file) => {
+    const run = runScript(createProject({ [file]: UNFORMATTED }), CHECK);
+
+    expect(run.output).toContain(`${file} format`);
+    expect(run.status).toBe(1);
+  });
+
   it("still judges a package's own folder called tools", () => {
     const run = runScript(createProject({ "packages/app/tools/broken.ts": UNFORMATTED }), CHECK);
 
@@ -223,6 +238,7 @@ describe("the starter and the other add-ons", () => {
 
 describe("the scripts named by the tests", () => {
   it("are all the scripts the add-on adds", () => {
-    expect(Object.keys(readScripts()).sort()).toEqual([CHECK, FIX, FORMAT].sort());
+    // `fix` runs both fixers to a fixed point, and has tests of its own (fix.test.mts).
+    expect(Object.keys(readScripts()).sort()).toEqual([CHECK, FIX, FORMAT, "fix"].sort());
   });
 });

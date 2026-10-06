@@ -180,5 +180,54 @@
     "find": "      \"pnpm visual:check\",\n      \"pnpm visual:check:server\"\n",
     "replace": "      \"pnpm visual:check\"\n",
     "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"runs the check in gate:fast\""
+  },
+  {
+    "name": "ownership: the seeding is a starting file",
+    "file": "addons/visual/addon.json",
+    "find": "    \"packages/client-react/tests/visual/seeding.ts\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/visual/tests/addon.test.mts -t \"gives the project the scenarios and the seeding\""
+  },
+  {
+    "name": "ownership: a project that edited the host is sent to the seeding",
+    "file": "addons/visual/addon.json",
+    "find": "\"to\": \"packages/client-react/tests/visual/seeding.ts\"",
+    "replace": "\"to\": \"packages/client-react/tests/visual/scenarios.ts\"",
+    "test": "pnpm vitest run addons/visual/tests/addon.test.mts -t \"sends a project that edited the host to the seeding\""
+  },
+  {
+    "name": "ownership: the host reads no field of a scenario",
+    "file": "addons/visual/files/packages/client-react/tests/visual/host/main.tsx",
+    "find": "const seeded = seedScenario(scenario, {",
+    "replace": "void scenario.prices;\nconst seeded = seedScenario(scenario, {",
+    "test": "pnpm vitest run addons/visual/tests/addon.test.mts -t \"main.tsx names no field of a scenario\""
+  },
+  {
+    "name": "ownership: the host renders on the application the seeding gives",
+    "file": "addons/visual/files/packages/client-react/tests/visual/host/main.tsx",
+    "find": "createViewModel(seeded.app)",
+    "replace": "createViewModel(seedScenario(scenario, { tick: (): void => {} }).app)",
+    "test": "pnpm vitest run addons/visual/tests/addon.test.mts -t \"has the host take the application and the deliveries\""
+  },
+  {
+    "name": "ownership: the seeding is called after the clock is installed",
+    "file": "addons/visual/files/packages/client-react/tests/visual/host/main.tsx",
+    "find": "const clock = FakeTimers.install({",
+    "replace": "const clock = FakeTimers.withGlobal(window).install({",
+    "test": "pnpm vitest run addons/visual/tests/addon.test.mts -t \"has the host take the application and the deliveries\""
+  },
+  {
+    "name": "ownership: the seeding exports what the host imports",
+    "file": "addons/visual/files/packages/client-react/tests/visual/seeding.ts",
+    "find": "export function seedScenario(scenario: Scenario, clock: HostClock): Seeded {",
+    "replace": "export function seedScenario(scenario: Scenario, clock: HostClock): Seeded | undefined {",
+    "test": "pnpm vitest run addons/visual/tests/addon.test.mts -t \"has the seeding export what the host imports\""
+  },
+  {
+    "name": "scope: the host's import is not wrapped under a longer scope",
+    "file": "addons/visual/files/packages/client-react/tests/visual/host/main.tsx",
+    "find": "// biome-ignore format: this file is the add-on's, and an update compares it byte for byte. The scope in this line is the project's, and a longer one would have the formatter wrap it.\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/scope-stable-files.test.mts -t \"under the scope @skills-demo\""
   }
 ]

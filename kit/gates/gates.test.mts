@@ -5,8 +5,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import type { Finding } from "./lib/config.mts";
-import { ConfigError } from "./lib/config.mts";
+import type { Finding, ResolvedConfig } from "./lib/config.mts";
+import { ConfigError, readVendorEntries } from "./lib/config.mts";
+import { buildRules, type Rule, vendorRuleName } from "./lib/depcruise.mts";
 import { resolveSubpathImport } from "./lib/files.mts";
 import { checkNodeFloor } from "./lib/node-floor.mts";
 import { checkPackageManager } from "./lib/package-manager.mts";
@@ -59,6 +60,17 @@ describe("the kit's list of its gates", () => {
 
   it("names every gate that runs, in the order they run, and no other", async () => {
     expect(Object.keys(list)).toEqual((await runGates({ root: clean })).gates);
+  });
+
+  it("says of every gate, and of no other, what it fails on, in one sentence a person is shown when the gate is new to their project", () => {
+    const failsOn = JSON.parse(readFileSync(join(here, "fails-on.json"), "utf8")) as Record<string, string>;
+
+    expect(Object.keys(failsOn)).toEqual(Object.keys(list));
+
+    for (const [gate, sentence] of Object.entries(failsOn)) {
+      expect(sentence.length, gate).toBeGreaterThan(30);
+      expect(sentence, gate).not.toMatch(/\.$/);
+    }
   });
 
   it("names only options the architecture config has", () => {
@@ -398,6 +410,18 @@ describe("a project that breaks the rules", () => {
     expect(confined[0]?.message).toContain("packages/checks");
   });
 
+  it("gives each of two entries that share a word a rule of its own, so each finding says its own entry's list", () => {
+    const of_ = (rule: string): string[] =>
+      of("dependencies", "packages/client-core/src/machines/clock.ts")
+        .map((finding) => finding.message)
+        .filter((message) => message.startsWith(`${rule}: `));
+
+    expect(of_("hono-only-in-its-packages")).toEqual([expect.stringContaining('imports hono. "hono" may be imported only from: packages/checks. Keeping')]);
+    expect(of_("@hono/*-only-in-its-packages")).toEqual([
+      expect.stringContaining('imports @hono/node-server. "@hono/" may be imported only from: packages/checks, packages/react-bindings. Keeping'),
+    ]);
+  });
+
   it("names every runtime export of a types-only package, with its line", () => {
     expect(of("types-only").map(({ file, line }) => `${file}:${line}`)).toEqual(
       [3, 4, 5, 6, 11, 14, 15].map((line) => `packages/contract-types/src/index.ts:${line}`),
@@ -718,6 +742,89 @@ describe("the package manager the root package.json names", () => {
 
     expect(checkPackageManager({ root }, ["packages/domain/package.json"])).toEqual([]);
     expect(checkPackageManager({ root }, ["package.json"])).toHaveLength(1);
+  });
+});
+
+describe("the rule for an entry of vendorOnlyIn", () => {
+  const config = (vendorOnlyIn: Record<string, string[]>): ResolvedConfig =>
+    ({ packages: { "packages/server": { role: "server" } }, adapters: [], frameworks: [], vendorOnlyIn }) as unknown as ResolvedConfig;
+  const vendorRules = (vendorOnlyIn: Record<string, string[]>): Rule[] => buildRules(config(vendorOnlyIn), []).filter((rule) => rule.name.endsWith("-only-in-its-packages"));
+
+  it("is named by the entry's own key, with a scope written as a scope", () => {
+    expect(["ws", "react-dom", "@hono/", "@hono/node-server", "hono"].map(vendorRuleName)).toEqual([
+      "ws-only-in-its-packages",
+      "react-dom-only-in-its-packages",
+      "@hono/*-only-in-its-packages",
+      "@hono/node-server-only-in-its-packages",
+      "hono-only-in-its-packages",
+    ]);
+  });
+
+  it("has a name no other entry can have, whatever the set", () => {
+    // Every pair here had one name under the old naming, which dropped the `@` and turned each `/` into a dash.
+    const keys = ["hono", "@hono/", "@hono/node-server", "hono-node-server", "hono/node-server", "@a/b-c", "@a-b/c", "a-b-c", "a/b/c", "@a/"];
+    const names = vendorRules(Object.fromEntries(keys.map((key) => [key, ["packages/server"]]))).map((rule) => rule.name);
+
+    expect(names).toHaveLength(keys.length);
+    expect(new Set(names).size).toBe(keys.length);
+  });
+
+  it("keeps its name when other entries come and go, in any order", () => {
+    const alone = vendorRules({ "@hono/": ["packages/server"] }).map((rule) => rule.name);
+    const amongOthers = vendorRules({ hono: ["packages/server"], ws: [], "@hono/": ["packages/server"] }).map((rule) => rule.name);
+
+    expect(amongOthers).toContain(alone[0]);
+  });
+
+  it("carries its own list for the demo's pair, when the two lists differ", () => {
+    const rules = vendorRules({ hono: ["packages/server"], "@hono/": ["packages/server", "packages/integration"] });
+
+    expect(rules.map(({ name, comment, to }) => [name, comment.split(". ")[0], to.path])).toEqual([
+      ["hono-only-in-its-packages", '"hono" may be imported only from: packages/server', "(^|node_modules/)hono(/|$)"],
+      ["@hono/*-only-in-its-packages", '"@hono/" may be imported only from: packages/server, packages/integration', "(^|node_modules/)@hono(/|$)"],
+    ]);
+  });
+});
+
+describe("two entries of vendorOnlyIn that cannot both mean what they say", () => {
+  it("accepts a package and a scope of the same word, with different lists: no import is under both", () => {
+    expect(readVendorEntries("architecture.config.mts", { hono: ["packages/server/"], "@hono/": ["packages/server", "packages/integration"] })).toEqual({
+      hono: ["packages/server"],
+      "@hono/": ["packages/server", "packages/integration"],
+    });
+  });
+
+  it.each([
+    [{ "@hono": ["packages/server"], "@hono/": ["packages/integration"] }, 'architecture.config.mts: vendorOnlyIn names "@hono" and "@hono/", which are the same thing: both cover every import of "@hono" and of anything under it. Keep one, with the list that is meant.'],
+    [{ "ws/": [], ws: ["packages/server"] }, 'architecture.config.mts: vendorOnlyIn names "ws/" and "ws", which are the same thing: both cover every import of "ws" and of anything under it. Keep one, with the list that is meant.'],
+  ])("refuses two keys for one thing, even with one list: %j", (entries, message) => {
+    expect(() => readVendorEntries("architecture.config.mts", entries)).toThrow(new ConfigError(message));
+  });
+
+  it("refuses a narrower entry that allows what the wider one refuses, in either order, and says both ways out", () => {
+    const message =
+      'architecture.config.mts: vendorOnlyIn allows "@hono/node-server" in packages/integration, but "@hono/" covers that import too and does not allow it there, so it would still be refused. Add packages/integration to "@hono/", or take it out of "@hono/node-server".';
+
+    expect(() => readVendorEntries("architecture.config.mts", { "@hono/": ["packages/server"], "@hono/node-server": ["packages/server", "packages/integration"] })).toThrow(new ConfigError(message));
+    expect(() => readVendorEntries("architecture.config.mts", { "@hono/node-server": ["packages/server", "packages/integration"], "@hono/": ["packages/server"] })).toThrow(new ConfigError(message));
+  });
+
+  it("accepts a narrower entry that only takes packages away: both rules hold, each with its own name", () => {
+    expect(() => readVendorEntries("architecture.config.mts", { "@hono/": ["packages/server", "packages/integration"], "@hono/node-server": ["packages/server"] })).not.toThrow();
+    expect(() => readVendorEntries("architecture.config.mts", { hono: ["packages/server"], "hono/jsx": [] })).not.toThrow();
+  });
+
+  it("does not read a name that only begins like another as inside it", () => {
+    expect(() => readVendorEntries("architecture.config.mts", { ws: ["packages/server"], "ws-extra": ["packages/integration"], "@hono/": [], "@hono-tools/x": ["packages/server"] })).not.toThrow();
+  });
+
+  it("stops the gates with that message: a project so declared is not judged", async () => {
+    const root = mkdtempSync(join(tmpdir(), "vendor-entries-"));
+
+    writeFileSync(join(root, "architecture.config.mts"), 'export default { packages: {}, vendorOnlyIn: { "@hono": [], "@hono/": [] } };\n');
+
+    await expect(runGates({ root })).rejects.toThrow(/vendorOnlyIn names "@hono" and "@hono\/", which are the same thing/);
+    await expect(runGates({ root })).rejects.toBeInstanceOf(ConfigError);
   });
 });
 

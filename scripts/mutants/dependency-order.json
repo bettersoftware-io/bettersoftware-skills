@@ -1,0 +1,65 @@
+[
+  {
+    "name": "order: a renamed package.json is sorted again",
+    "file": "scripts/lib/install.mts",
+    "find": "return fileName === \"package.json\" && renamed !== text ? sortDependencies(renamed) : renamed;",
+    "replace": "return renamed;",
+    "test": "pnpm vitest run scripts/dependency-order.test.mts -t \"puts the dependencies of a package.json back in name order\""
+  },
+  {
+    "name": "order: the starter's own package.json files, when a project is created",
+    "file": "scripts/create-project.mts",
+    "find": "const renamed = renameScope(basename(file), original, STARTER_SCOPE, scope);",
+    "replace": "const renamed = original.replaceAll(`${STARTER_SCOPE}/`, `${scope}/`);",
+    "test": "pnpm vitest run scripts/dependency-order.test.mts -t \"under the scope @skills-demo\""
+  },
+  {
+    "name": "order: a package.json an add-on brings",
+    "file": "scripts/lib/install.mts",
+    "find": "Buffer.from(renameScope(name, content.toString(\"utf8\"), from, to))",
+    "replace": "Buffer.from(content.toString(\"utf8\").replaceAll(`${from}/`, `${to}/`))",
+    "test": "pnpm vitest run scripts/dependency-order.test.mts -t \"under the scope @zeta\""
+  },
+  {
+    "name": "order: every kind of dependency map",
+    "file": "scripts/lib/install.mts",
+    "find": "const DEPENDENCY_MAPS = [\"dependencies\", \"devDependencies\", \"optionalDependencies\", \"peerDependencies\"];",
+    "replace": "const DEPENDENCY_MAPS = [\"dependencies\", \"devDependencies\", \"optionalDependencies\"];",
+    "test": "pnpm vitest run scripts/dependency-order.test.mts -t \"sorts every kind of dependency map\""
+  },
+  {
+    "name": "order: by character code",
+    "file": "scripts/lib/install.mts",
+    "find": "  return a < b ? -1 : a > b ? 1 : 0;",
+    "replace": "  return a.localeCompare(b);",
+    "test": "pnpm vitest run scripts/dependency-order.test.mts -t \"orders by character code\""
+  },
+  {
+    "name": "order: a file in order is not written again",
+    "file": "scripts/lib/install.mts",
+    "find": "  return moved ? `${JSON.stringify(sorted, null, 2)}\\n` : text;",
+    "replace": "  return `${JSON.stringify(sorted, null, 2)}\\n`;",
+    "test": "pnpm vitest run scripts/dependency-order.test.mts -t \"leaves a file that is already in order\""
+  },
+  {
+    "name": "order: only a package.json",
+    "file": "scripts/lib/install.mts",
+    "find": "return fileName === \"package.json\" && renamed !== text ? sortDependencies(renamed) : renamed;",
+    "replace": "return renamed !== text ? sortDependencies(renamed) : renamed;",
+    "test": "pnpm vitest run scripts/dependency-order.test.mts -t \"leaves a file that is not a package.json\""
+  },
+  {
+    "name": "order: CI creates a project with every add-on under a scope that sorts last",
+    "file": ".github/workflows/ci.yml",
+    "find": "scope: [\"@ci-organisation-with-a-long-name\", \"@zeta\"]",
+    "replace": "scope: [\"@ci-organisation-with-a-long-name\", \"@acme\"]",
+    "test": "pnpm vitest run scripts/addons-listed.test.mts -t \"is in the job that creates one project with all of them\""
+  },
+  {
+    "name": "order: that job names every add-on",
+    "file": ".github/workflows/ci.yml",
+    "find": "      ADDONS: coverage,visual,performance,",
+    "replace": "      ADDONS: coverage,performance,",
+    "test": "pnpm vitest run scripts/addons-listed.test.mts -t \"is in the job that creates one project with all of them\""
+  }
+]

@@ -87,7 +87,9 @@ file is replaced by the newer version; a file edited in the project is never
 overwritten unless `--force` is given, and files the project is meant to own
 (its scenarios, its goldens, its exclusions) are written once and then left
 alone. When the template of such a file changes, the update says which file,
-what changed and what to do. A host's settings file is merged into, never
+what changed and what to do. A project from before a template was kept is
+shown where its file differs from it. `add-to-project.mts <project>
+--compare` lists every such difference at any time, and writes nothing. A host's settings file is merged into, never
 written over. An add-on may offer a choice between two sets of such files
 (`ci-security:renovate`); the project has one, and moving to the other removes
 the first only if the project never changed it.

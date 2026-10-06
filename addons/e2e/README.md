@@ -88,6 +88,38 @@ runs it on every pull request.
 Then `playwright test` runs in `packages/e2e` with the addresses in
 `E2E_MODES`, and the Playwright config makes one project of each mode.
 
+### One server, more than one protocol
+
+A server prints one address. One that answers a second protocol on the same
+port (a WebSocket feed and a REST API, as in the demo project) needs two
+variables in the client's build, and the page objects need to know whose
+frames and whose responses they are looking at. So a mode's server gives its
+host and port as well as the address it printed:
+
+| Where | The address as printed | The host and port |
+|---|---|---|
+| A mode's `env` in `tools/e2e.config.mts` | `SERVER_URL` | `SERVER_HOST` |
+| A fixture option in `src/testing/test.ts` | `serverUrl` | `serverHost` |
+
+```ts
+env: {
+  VITE_SERVER_URL: SERVER_URL,               // ws://localhost:51234/ws, as printed
+  VITE_API_URL: `http://${SERVER_HOST}/api`, // written around localhost:51234
+},
+```
+
+The `ready` pattern's group may capture a whole address or a host and a port
+alone; the runner reads the host and port out of either, and stops (exit 2)
+on a capture that is neither. The shipped `ServerFeed.page.ts` counts a
+socket's frames when the socket was opened to the server's host and port. It
+compared whole addresses before, which a second protocol broke: the demo had
+to take the address apart by hand and rewrite the page object.
+
+The Playwright config hands every test both values, typed by an interface of
+its own. It is the add-on's file, and a project whose fixtures read one of
+the two still typechecks. So a project from before this (its fixtures
+declare `serverUrl`) needs no change.
+
 - **A production build, not the dev server.** It is what ships, and a page
   loads as a few files. The source project moved its Playwright suites from
   the dev server to a build and measured 310 s against 197 s for 97 tests.
@@ -187,6 +219,9 @@ selection is not cleared, the client silently runs on its simulator in
 full-stack mode, the composition root ignores the configured server, the
 adapter changes a price on its way in, the server sends nothing.
 
+Run again on 2026-10-06 in a project created under `@zeta`, after the page
+object moved to comparing the host and port: 14 of 14 killed.
+
 Two more mutants are left to other tests on purpose
 ([`tests/app-mutants-left-to-other-tests.json`](tests/app-mutants-left-to-other-tests.json)):
 a row that never goes stale, and a movement marked the wrong way. The
@@ -199,14 +234,16 @@ with a run.
 results. Without that the check would refuse the command as one that may have
 run nothing.
 
-**The rules and the tools can fail.** The add-on's scripts have 73 tests in
+**The rules and the tools can fail.** The add-on's scripts have 91 tests in
 `tests/` (`pnpm vitest run addons/e2e` from this repository's root). The
 runner is tested against real processes: fake programs that listen on real
 ports and start children of their own. [`tests/mutants.json`](tests/mutants.json)
 holds 162 mutants, of the tools, the manifest, the workflow and the shipped
 package, and of what the kit, the installer and this repository's lists of
 add-ons gained with it: 162 of 162 killed. Two survived a first run and
-showed two tests that could not fail; both tests were rewritten.
+showed two tests that could not fail; both tests were rewritten. The host
+and port (2026-10-06) added 13 mutants and rewrote 5 whose text had moved:
+those 18 were run, 18 of 18 killed, and the file now holds 175.
 
 ## Limits
 

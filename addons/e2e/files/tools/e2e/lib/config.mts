@@ -11,8 +11,17 @@ import { pathToFileURL } from "node:url";
 /** In a build or serve command: the folder this mode's build is written to and served from. */
 export const OUT_DIR = "{outDir}";
 
-/** In a mode's `env`: the address the mode's server printed when it was ready. */
+/** In a mode's `env`: the address the mode's server printed when it was ready, as it printed it. */
 export const SERVER_URL = "{serverUrl}";
+
+/**
+ * In a mode's `env`: the host and port of the mode's server, as in
+ * `localhost:4000`, taken from the address it printed. A server that answers
+ * more than one protocol on its port (a WebSocket and an HTTP API) prints one
+ * address; each of the client's variables is written around this:
+ * `ws://${SERVER_HOST}/ws`, `http://${SERVER_HOST}`.
+ */
+export const SERVER_HOST = "{serverHost}";
 
 /** A program that is started, says when it is ready, and runs until it is stopped. */
 export interface ServerCommand {
@@ -21,7 +30,11 @@ export interface ServerCommand {
   /** The program and its arguments. Never a package manager: see `findWrapper`. */
   command: string[];
   env?: Record<string, string>;
-  /** Matches the line it prints once it listens. The first group is its address. */
+  /**
+   * Matches the line it prints once it listens. The first group is its
+   * address (`ws://localhost:4000/ws`), or its host and port alone
+   * (`localhost:4000`).
+   */
   ready: RegExp;
 }
 
@@ -39,7 +52,10 @@ export interface ClientCommands {
 export interface Mode {
   /** What the client talks to in this mode. Left out: nothing, the client runs alone. */
   server?: ServerCommand;
-  /** Variables the client's build is given. `SERVER_URL` stands for the server's address. */
+  /**
+   * Variables the client's build is given. `SERVER_URL` stands for the
+   * server's address as it printed it, `SERVER_HOST` for its host and port.
+   */
   env?: Record<string, string>;
 }
 

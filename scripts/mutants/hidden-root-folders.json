@@ -1,0 +1,37 @@
+[
+  {
+    "name": "hidden: the kit's lint reads no hidden root folder",
+    "file": "kit/eslint.config.mts",
+    "find": "export const HIDDEN_ROOT_FOLDERS: string[] = [\".*/**\"];",
+    "replace": "export const HIDDEN_ROOT_FOLDERS: string[] = [];",
+    "test": "pnpm vitest run kit/hidden-root-folders.test.mts -t \"is nothing in a hidden folder at the project root\""
+  },
+  {
+    "name": "hidden: a hidden folder inside a package is read",
+    "file": "kit/eslint.config.mts",
+    "find": "export const HIDDEN_ROOT_FOLDERS: string[] = [\".*/**\"];",
+    "replace": "export const HIDDEN_ROOT_FOLDERS: string[] = [\"**/.*/**\"];",
+    "test": "pnpm vitest run kit/hidden-root-folders.test.mts -t \"is still a visible folder at the root, a file at the root, and a hidden folder inside a package\""
+  },
+  {
+    "name": "hidden: a hidden file at the root is read",
+    "file": "kit/eslint.config.mts",
+    "find": "export const HIDDEN_ROOT_FOLDERS: string[] = [\".*/**\"];",
+    "replace": "export const HIDDEN_ROOT_FOLDERS: string[] = [\".*\", \".*/**\"];",
+    "test": "pnpm vitest run kit/hidden-root-folders.test.mts -t \"is still a visible folder at the root, a file at the root, and a hidden folder inside a package\""
+  },
+  {
+    "name": "hidden: the pattern is in the lint's first block",
+    "file": "kit/eslint.config.mts",
+    "find": "        ...HIDDEN_ROOT_FOLDERS,\n",
+    "replace": "",
+    "test": "pnpm vitest run kit/hidden-root-folders.test.mts -t \"is nothing in a hidden folder at the project root\""
+  },
+  {
+    "name": "hidden: git is asked nothing (a file in a package that a .gitignore names is linted)",
+    "file": "kit/eslint.config.mts",
+    "find": "export const HIDDEN_ROOT_FOLDERS: string[] = [\".*/**\"];",
+    "replace": "export const HIDDEN_ROOT_FOLDERS: string[] = [\".*/**\", \"**/hidden.js\"];",
+    "test": "pnpm vitest run kit/hidden-root-folders.test.mts -t \"fails the lint and the gates, that the root .gitignore names\""
+  }
+]
