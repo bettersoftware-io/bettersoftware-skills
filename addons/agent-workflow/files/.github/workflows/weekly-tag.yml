@@ -1,0 +1,64 @@
+name: Weekly tag
+
+# CHANGELOG.md is written by ISO week (2026-W40 is Monday 28 September to
+# Sunday 4 October, by merge time in UTC). This job closes each week:
+#
+#   1. it tags the last commit that reached the default branch before Monday
+#      00:00 UTC as `<year>-W<week>`, so `git diff 2026-W39 2026-W40` is
+#      exactly what the changelog's W40 section describes;
+#   2. it opens an issue that asks for the week's entry, when any pull
+#      request was merged in the week.
+#
+# Writing the entry needs judgement, so it is not done here. Only the two
+# steps a script gets right are.
+#
+# The tag is the mark that a week is closed: a run that finds it does
+# nothing. A run by hand, which closes the newest finished week, is therefore
+# always safe.
+
+on:
+  schedule:
+    - cron: "5 0 * * 1"
+  workflow_dispatch:
+
+# Two runs at once would both find no tag and both try to create it. The
+# second waits for the first, then finds the tag and does nothing.
+concurrency:
+  group: weekly-tag
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  close-week:
+    name: tag the finished week · ask for its changelog entry
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # creates the tag, through the API
+      issues: write # opens the issue
+      pull-requests: read # counts the week's merged pull requests
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # A run by hand may be started from any branch. The week is always
+          # the default branch's.
+          ref: ${{ github.event.repository.default_branch }}
+          # The whole first-parent history is needed to find the week's last
+          # commit. The files' contents are not.
+          fetch-depth: 0
+          filter: blob:none
+          # The tag goes through the API, not `git push`, so the token never
+          # has to sit in .git/config.
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      # Plain Node, no dependency installed: no package's code runs where the
+      # token that can write is.
+      - name: Tag the finished week and ask for its changelog entry
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/agent-workflow/close-week.mts

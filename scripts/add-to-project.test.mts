@@ -628,6 +628,134 @@ describe("adding an add-on", () => {
     expect(addToProject({ project, unit: "demo", repository }).firstRun).toBe("pnpm demo:fix");
   });
 
+  it("merges its entries into a host's settings file, keeps what the project had, and says what it added", () => {
+    const { repository, project } = createWorldWithKit();
+    withHostSettings(repository);
+    write(project, ".claude/settings.json", `${JSON.stringify(createProjectSettings())}\n`);
+
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(readJson(project, ".claude/settings.json")).toEqual({
+      model: "opus",
+      permissions: { allow: ["Bash(make *)", "Bash(gh pr create *)"], deny: ["Bash(rm -rf *)"] },
+      hooks: {
+        Stop: [{ hooks: [{ type: "command", command: "node tools/arch/hooks/before-stop.mts" }] }],
+        PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "node tools/demo/hook.mts" }] }],
+      },
+    });
+    expect(result.settingsChanges).toEqual([
+      ".claude/settings.json: permissions.allow: Bash(gh pr create *)",
+      ".claude/settings.json: hooks.PreToolUse: node tools/demo/hook.mts",
+    ]);
+    expect(result.notes).toEqual([]);
+  });
+
+  it("leaves a host's settings file byte for byte as it was when it already has every entry", () => {
+    const { repository, project } = createWorldWithKit();
+    withHostSettings(repository);
+    write(project, ".claude/settings.json", `${JSON.stringify(createProjectSettings())}\n`);
+    addToProject({ project, unit: "demo", repository });
+
+    // The project lays its file out its own way; a run with nothing to add must not rewrite it.
+    const edited = JSON.stringify(readJson(project, ".claude/settings.json"), null, 8);
+    write(project, ".claude/settings.json", edited);
+
+    const again = addToProject({ project, unit: "demo", repository });
+
+    expect(read(project, ".claude/settings.json")).toBe(edited);
+    expect(again.settingsChanges).toEqual([]);
+  });
+
+  it("creates a host's settings file that is not there, with its entries alone", () => {
+    const { repository, project } = createWorldWithKit();
+    withHostSettings(repository);
+    rmSync(join(project, ".claude/settings.json"));
+
+    addToProject({ project, unit: "demo", repository });
+
+    expect(readJson(project, ".claude/settings.json")).toEqual(readJson(repository, "addons/demo/addon.json").hostSettings[".claude/settings.json"]);
+  });
+
+  it("leaves a settings file it cannot read as it is, changes nothing else in it, and says what to add by hand", () => {
+    const { repository, project } = createWorldWithKit();
+    withHostSettings(repository);
+    write(project, ".claude/settings.json", "{ // the project's comment\n}\n");
+
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(read(project, ".claude/settings.json")).toBe("{ // the project's comment\n}\n");
+    expect(result.settingsChanges).toEqual([]);
+    expect(result.notes.join("\n")).toMatch(/\.claude\/settings\.json is not valid JSON.*nothing was merged.*Bash\(gh pr create \*\)/s);
+  });
+
+  it("goes on, and says what is missing, when the host does not let its settings file be written", () => {
+    const { repository, project } = createWorldWithKit();
+    withHostSettings(repository);
+    chmodSync(join(project, ".claude/settings.json"), 0o444);
+    chmodSync(join(project, ".claude"), 0o555);
+    onTestFinished(() => {
+      chmodSync(join(project, ".claude"), 0o755);
+    });
+
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(existsSync(join(project, "tools/demo/check.mts"))).toBe(true);
+    expect(result.settingsChanges).toEqual([]);
+    expect(result.notes.join("\n")).toMatch(/\.claude\/settings\.json could not be written.*run this script again.*Bash\(gh pr create \*\)/s);
+  });
+
+  it("never merges into a settings file that is a link out of the project", () => {
+    const { repository, project } = createWorldWithKit();
+    withHostSettings(repository);
+    const outside = mkdtempSync(join(tmpdir(), "outside-"));
+
+    onTestFinished(() => {
+      rmSync(outside, { recursive: true, force: true });
+    });
+    writeFileSync(join(outside, "settings.json"), "{}\n");
+    rmSync(join(project, ".claude"), { recursive: true });
+    symlinkSync(outside, join(project, ".claude"));
+
+    expect(() => addToProject({ project, unit: "demo", repository })).toThrow(InstallError);
+    expect(readFileSync(join(outside, "settings.json"), "utf8")).toBe("{}\n");
+    expect(existsSync(join(project, "tools/demo/check.mts"))).toBe(false);
+  });
+
+  it("installs the rest, and records nothing for a file the host keeps it from writing in its own folder", () => {
+    const { repository, project } = createWorldWithKit();
+    write(repository, "addons/demo/files/.agents/skills/demo/SKILL.md", "# a skill\n");
+
+    // Codex's sandbox keeps `.agents` read-only, so an agent cannot install skills for itself.
+    mkdirSync(join(project, ".agents"));
+    chmodSync(join(project, ".agents"), 0o555);
+    onTestFinished(() => {
+      chmodSync(join(project, ".agents"), 0o755);
+    });
+
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(result.files.refused).toEqual([".agents/skills/demo/SKILL.md"]);
+    expect(result.files.written.sort()).toEqual(["packages/web/tests/demo.ts", "tools/demo/check.mts"]);
+    expect(Object.keys(readJson(project, "tools/installed.json").demo.files)).not.toContain(".agents/skills/demo/SKILL.md");
+    expect(result.notes.join("\n")).toMatch(/\.agents\/skills\/demo\/SKILL\.md could not be written.*run this script again/s);
+
+    chmodSync(join(project, ".agents"), 0o755);
+
+    expect(addToProject({ project, unit: "demo", repository }).files.written).toEqual([".agents/skills/demo/SKILL.md"]);
+  });
+
+  it("still stops when a file outside a host's folder cannot be written", () => {
+    const { repository, project } = createWorldWithKit();
+
+    mkdirSync(join(project, "tools/demo"), { recursive: true });
+    chmodSync(join(project, "tools/demo"), 0o555);
+    onTestFinished(() => {
+      chmodSync(join(project, "tools/demo"), 0o755);
+    });
+
+    expect(() => addToProject({ project, unit: "demo", repository })).toThrow(/EACCES|EPERM/);
+  });
+
   it("says which add-ons are recommended, from each one's own manifest", () => {
     const { repository } = createWorld();
     const manifest = readJson(repository, "addons/demo/addon.json");
@@ -679,6 +807,28 @@ function withStartingFiles(repository: string): void {
   write(repository, "addons/demo/addon.json", JSON.stringify(manifest));
   write(repository, "addons/demo/files/packages/web/tests/scenarios.ts", "// scenarios, as shipped\n");
   write(repository, "addons/demo/files/packages/web/tests/goldens/a.png", "an image, as shipped");
+}
+
+/** Gives the demo add-on a permission rule and a hook to merge into Claude Code's settings. */
+function withHostSettings(repository: string): void {
+  const manifest = readJson(repository, "addons/demo/addon.json");
+
+  manifest.hostSettings = {
+    ".claude/settings.json": {
+      permissions: { allow: ["Bash(gh pr create *)"] },
+      hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "node tools/demo/hook.mts" }] }] },
+    },
+  };
+  write(repository, "addons/demo/addon.json", JSON.stringify(manifest));
+}
+
+/** A settings file a project has made its own: a rule, a refusal, a hook and a key no add-on knows. */
+function createProjectSettings(): unknown {
+  return {
+    model: "opus",
+    permissions: { allow: ["Bash(make *)"], deny: ["Bash(rm -rf *)"] },
+    hooks: { Stop: [{ hooks: [{ type: "command", command: "node tools/arch/hooks/before-stop.mts" }] }] },
+  };
 }
 
 function createWorldWithKit(): { repository: string; project: string } {

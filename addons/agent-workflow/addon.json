@@ -1,0 +1,75 @@
+{
+  "name": "agent-workflow",
+  "summary": "How an agent ships work: a hook that keeps each push and pull request step in a call of its own and approves the routine ones by their exact shape, a worktree script, a weekly tag and a changelog.",
+  "recommended": false,
+  "packageJson": {
+    ".": {
+      "scripts": {
+        "worktree": "node tools/agent-workflow/new-worktree.mts",
+        "changelog": "node tools/agent-workflow/changelog.mts",
+        "agent-workflow:check": "node tools/agent-workflow/check.mts"
+      }
+    }
+  },
+  "gates": {
+    "fast": [],
+    "full": []
+  },
+  "startingFiles": [
+    "CHANGELOG.md",
+    "tools/agent-workflow.config.mts"
+  ],
+  "hostSettings": {
+    ".claude/settings.json": {
+      "permissions": {
+        "ask": [
+          "Bash(git push *--force*)",
+          "Bash(git push -f*)",
+          "Bash(git push * -f*)",
+          "Bash(git push * +*)",
+          "Bash(git push *:*)",
+          "Bash(git push *--delete*)",
+          "Bash(git push -d*)",
+          "Bash(git push * -d*)",
+          "Bash(git push *--mirror*)",
+          "Bash(git push *--all*)",
+          "Bash(git push *--tags*)",
+          "Bash(git push *--prune*)",
+          "Bash(gh pr merge *--admin*)"
+        ]
+      },
+      "hooks": {
+        "PreToolUse": [
+          {
+            "matcher": "Bash",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "node \"$CLAUDE_PROJECT_DIR/tools/agent-workflow/hooks/split-outward-commands.mts\" --host=claude-code",
+                "timeout": 5
+              }
+            ]
+          }
+        ]
+      }
+    },
+    ".codex/hooks.json": {
+      "hooks": {
+        "PreToolUse": [
+          {
+            "matcher": "Bash",
+            "hooks": [
+              {
+                "type": "command",
+                "command": "node tools/agent-workflow/hooks/split-outward-commands.mts",
+                "statusMessage": "Checking how the command is joined",
+                "timeout": 5
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "verify": "pnpm agent-workflow:check"
+}

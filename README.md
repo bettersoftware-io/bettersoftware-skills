@@ -73,6 +73,7 @@ node scripts/add-to-project.mts <project> coverage
 | [`ci-security`](addons/ci-security/README.md) | Workflow lint and workflow security lint, Dependency Review on pull requests, `pnpm audit`, an OpenSSF Scorecard report and a Dependabot config |
 | [`repo-hygiene`](addons/repo-hygiene/README.md) | One version of each dependency across the workspace, every markdown link and heading anchor resolving, and CSS lint |
 | [`strict-lint`](addons/strict-lint/README.md) | The ESLint rules that need types (a promise nothing waits for, a `switch` that misses a case), and knip for unused files, exports and dependencies |
+| [`agent-workflow`](addons/agent-workflow/README.md) | A hook that keeps each push and pull request step in a tool call of its own and approves the routine ones by their exact shape, a worktree script, a weekly tag, and a changelog whose completeness is checked |
 | `kit` | The same command brings a project's copy of the gates up to date, or sets them up in a project that did not start here |
 
 `coverage`, `format-lint`, `ci-security` and `strict-lint` are marked recommended: a new
@@ -85,7 +86,8 @@ file is replaced by the newer version; a file edited in the project is never
 overwritten unless `--force` is given, and files the project is meant to own
 (its scenarios, its goldens, its exclusions) are written once and then left
 alone. When the template of such a file changes, the update says which file,
-what changed and what to do. [The contract an add-on follows](addons/README.md).
+what changed and what to do. A host's settings file is merged into, never
+written over. [The contract an add-on follows](addons/README.md).
 
 ## What is in this repository
 
@@ -96,7 +98,7 @@ what changed and what to do. [The contract an add-on follows](addons/README.md).
 - [`kit/`](kit/README.md): the deterministic checks (architecture gates, lint
   rules), the agent hooks that run them, and the review questions. Copied into
   a project as `tools/arch`.
-- [`addons/`](addons/README.md): the three add-ons above.
+- [`addons/`](addons/README.md): the add-ons above.
 - [`skills/`](skills): the three skills above.
 - [`docs/STATUS.md`](docs/STATUS.md): what is not done yet.
 

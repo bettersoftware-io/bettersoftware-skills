@@ -36,6 +36,7 @@ addons/<name>/
   },
   "gates": { "fast": ["pnpm perf:check"], "full": [] },
   "startingFiles": ["packages/client-react/tests/visual/scenarios.ts", "packages/client-react/tests/visual/goldens/"],
+  "hostSettings": { ".claude/settings.json": { "permissions": { "ask": ["Bash(git push *--force*)"] } } },
   "verify": "pnpm coverage"
 }
 ```
@@ -62,16 +63,34 @@ addons/<name>/
   copy and no notice.
 - `verify` is the one command that proves the add-on works in a project that
   has just received it.
+- `hostSettings` holds entries to merge into a host's settings file
+  (`.claude/settings.json`, `.codex/hooks.json`): a hook to register, a
+  permission rule. The key is the file's path. Those files belong to the
+  project, so the entries are merged in and the file is never written over:
+  a key the project has keeps its value, a list gains the entries it lacks,
+  a hook whose command is already registered is not added again, and
+  nothing is removed. A second run changes nothing, and does not rewrite the
+  file. A file that is not JSON, or that the host keeps read-only, is left
+  alone, and the script says what is left to do. The merge cannot tell an
+  entry the project removed from one that was never there: a later run adds
+  it back.
 - `firstRun` is a command to run once after installing, before `verify`. It
   is for an add-on whose verdict depends on something the installer changes:
   `format-lint` asks for its fixer, because a package scope of another length
   moves where an import line wraps.
 
+A file under `.claude/`, `.codex/` or `.agents/` is in a host's own folder.
+Codex's sandbox keeps the last two read-only, so that an agent cannot give
+itself hooks or skills. When such a file cannot be written the rest of the
+add-on still goes in, the file is not recorded, and the script says to run
+it again outside the sandbox.
+
 ## Rules
 
 1. **An add-on only adds.** New files, new scripts, new dev dependencies. It
-   never edits a file the project already has, except `AGENTS.md` (its section)
-   and `package.json` files (through `addon.json`). If something seems to need
+   never edits a file the project already has, except `AGENTS.md` (its section),
+   `package.json` files and a host's settings file (both through
+   `addon.json`, and both by adding entries only). If something seems to need
    an edit, find the way that does not: a command-line flag, a new config file
    that extends the old one, a workflow file of its own.
 2. **The project still passes `pnpm gate:full` with the add-on in it.** That

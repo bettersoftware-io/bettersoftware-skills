@@ -24,6 +24,8 @@ export interface InstallOutcome {
   removed: string[];
   /** Files no longer shipped that were edited in the project, so were left alone. */
   kept: string[];
+  /** Files in a host's own folder that the host did not let be written. Not recorded, so the next run tries again. */
+  refused: string[];
 }
 
 interface InstalledRecord {
@@ -31,6 +33,18 @@ interface InstalledRecord {
 }
 
 const RECORD = "tools/installed.json";
+
+/**
+ * Folders a host may keep read-only for whatever runs inside it. Codex's
+ * sandbox does so for `.codex` and `.agents`, so that an agent cannot install
+ * hooks or skills for itself.
+ */
+const HOST_FOLDER = /^\.(agents|claude|codex)\//;
+
+/** True when a write failed because the place is read-only for this process. */
+export function isRefusal(error: unknown): boolean {
+  return ["EPERM", "EACCES", "EROFS"].includes((error as NodeJS.ErrnoException).code ?? "");
+}
 
 const TEXT_FILE = /\.(ts|tsx|mts|json|md|yaml|yml|html|css)$|^\.gitignore$/;
 
@@ -84,7 +98,7 @@ export function installFiles(project: string, unit: string, files: FileSet, forc
   const record = readRecord(project);
   const before = record[unit]?.files ?? {};
   const conflicts: string[] = [];
-  const outcome: InstallOutcome = { written: [], unchanged: [], removed: [], kept: [] };
+  const outcome: InstallOutcome = { written: [], unchanged: [], removed: [], kept: [], refused: [] };
 
   // Both lists of paths are checked before anything is touched. The record is
   // a file in the project, so it is input like any other: a path in it that
@@ -138,10 +152,28 @@ export function installFiles(project: string, unit: string, files: FileSet, forc
   }
 
   for (const path of outcome.written) {
-    writeProjectFile(project, path, files.get(path) as Buffer);
+    try {
+      writeProjectFile(project, path, files.get(path) as Buffer);
+    } catch (error) {
+      // That is the host's rule to make. The rest goes in, and the caller says what is left.
+      if (!HOST_FOLDER.test(path) || !isRefusal(error)) {
+        throw error;
+      }
+
+      outcome.refused.push(path);
+    }
   }
 
-  record[unit] = { files: Object.fromEntries([...files].map(([path, content]) => [path, hash(content)]).sort()) };
+  outcome.written = outcome.written.filter((path) => !outcome.refused.includes(path));
+
+  record[unit] = {
+    files: Object.fromEntries(
+      [...files]
+        .filter(([path]) => !outcome.refused.includes(path))
+        .map(([path, content]) => [path, hash(content)])
+        .sort(),
+    ),
+  };
   writeRecord(project, record);
 
   return outcome;
