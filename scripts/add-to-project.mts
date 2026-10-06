@@ -2,7 +2,12 @@
 // Adds the kit or an add-on to a project, or updates the copy it already has.
 //
 //   node scripts/add-to-project.mts <project> <kit|add-on name> [--force] [--scope @acme]
+//   node scripts/add-to-project.mts <project> <add-on name>:<option>
 //   node scripts/add-to-project.mts --list
+//
+// An add-on may offer a choice between sets of starting files (one bot or
+// another). `<add-on>:<option>` takes that option, on a first install or to
+// switch later; the name alone keeps what the project has.
 //
 // Run it again after this repository changes and the project gets the newer
 // files. A file that was edited in the project is never overwritten unless
@@ -18,7 +23,7 @@
 // did not, because that file is not JSON or holds a value of another kind
 // there. The summary lists them under "Not merged".
 
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,6 +34,7 @@ import {
   assertInside,
   type InstallOutcome,
   InstallError,
+  installedChoice,
   installedUnits,
   installFiles,
   isRefusal,
@@ -82,7 +88,7 @@ export const SKIPPED_IN_KIT = /(\.test\.mts$|\/gates\/fixtures(\/|$)|\/architect
 
 export interface AddOptions {
   project: string;
-  /** `kit`, or the name of a folder in `addons/`. */
+  /** `kit`, the name of a folder in `addons/`, or that name with an option of its choice: `ci-security:renovate`. */
   unit: string;
   force?: boolean;
   /** The project's package scope. Read from its packages when not given. */
@@ -112,6 +118,12 @@ export interface AddResult {
   /** A command the add-on asks to be run once, after installing and before anything is checked. */
   firstRun?: string;
   verify?: string;
+  /** The option of the add-on's choice the project now has. */
+  choice?: string;
+  /** What the add-on says about that option, in one line. It is where a step for a person is named. */
+  choiceSays?: string;
+  /** Files of the option the project had before, removed because the project never changed them. */
+  choiceRemoved?: string[];
 }
 
 interface PackagePatch {
@@ -154,6 +166,17 @@ interface AddonManifest {
   retiredFiles?: Record<string, { replacedBy: string; note: string }>;
   /** True for an add-on a new project should take unless it has a reason not to. */
   recommended?: boolean;
+  /**
+   * Sets of starting files of which a project has exactly one: one update bot
+   * or another. An option's files are in `choice/<option>/files/`, and each is
+   * a starting file. `options` maps a name to one line that says what it is.
+   */
+  choice?: Choice;
+}
+
+export interface Choice {
+  default: string;
+  options: Record<string, string>;
 }
 
 type PackageJson = Record<string, unknown> & PackagePatch;
@@ -206,6 +229,18 @@ export function addToProject({ project, unit, force = false, scope, repository =
     };
   }
 
+  return addAddon(destination, project, unit, force, scope, repository);
+}
+
+/** `ci-security:renovate` → the add-on and the option asked for. */
+export function parseUnit(unit: string): { name: string; option?: string } {
+  const at = unit.indexOf(":");
+
+  return at === -1 ? { name: unit } : { name: unit.slice(0, at), option: unit.slice(at + 1) };
+}
+
+function addAddon(destination: string, project: string, asked: string, force: boolean, scope: string | undefined, repository: string): AddResult {
+  const { name: unit, option } = parseUnit(asked);
   const addon = join(repository, "addons", unit);
 
   if (!existsSync(join(addon, "addon.json"))) {
@@ -230,18 +265,65 @@ export function addToProject({ project, unit, force = false, scope, repository =
   const files = existsSync(source) ? rewriteScope(readFileSet(source, ""), STARTER_SCOPE, projectScope) : new Map<string, Buffer>();
   const starting = takeStartingFiles(files, manifest.startingFiles ?? []);
   const firstTime = !installedUnits(destination).includes(unit);
-  const templates = keepTemplates(files, starting, unit);
-  const templatesBefore = readTemplates(destination, templates);
+  const readOption = (name: string): Map<string, Buffer> => rewriteScope(readFileSet(join(addon, "choice", name, "files"), ""), STARTER_SCOPE, projectScope);
 
-  for (const path of [...starting.keys(), ...Object.keys(manifest.retiredFiles ?? {})]) {
+  // A project that has the add-on and no recorded option took it before the
+  // choice existed, and so has what is now the default.
+  const chosen = chooseOption(manifest, option, installedChoice(destination, unit));
+  const previous = firstTime ? undefined : (installedChoice(destination, unit) ?? manifest.choice?.default);
+  const optionFiles = chosen === undefined ? new Map<string, Buffer>() : readOption(chosen);
+  const left = previous === undefined || previous === chosen ? [] : [...keepTemplates(new Map(), readOption(previous), unit)];
+
+  for (const [path, content] of optionFiles) {
+    starting.set(path, content);
+  }
+
+  const templates = keepTemplates(files, starting, unit);
+  // Read before the update replaces or removes them: the old text is what the project's file is compared with.
+  const templatesBefore = readTemplates(destination, [...templates, ...left]);
+
+  for (const path of [...starting.keys(), ...left.map(({ owned }) => owned), ...Object.keys(manifest.retiredFiles ?? {})]) {
     assertInside(destination, path);
   }
 
-  const outcome = installFiles(destination, unit, files, force);
+  const outcome = installFiles(destination, unit, files, force, chosen);
   const created: string[] = [];
+  const choiceRemoved: string[] = [];
+  const choiceNotes: string[] = [];
 
-  for (const [path, content] of firstTime ? starting : []) {
-    if (!existsSync(join(destination, path))) {
+  // The files of the option the project is leaving. One it never changed goes;
+  // one it changed is its own work, so it stays and the project is told.
+  for (const { owned, template } of left) {
+    if (!existsSync(join(destination, owned))) {
+      continue;
+    }
+
+    const installed = templatesBefore.get(template);
+
+    if (installed === readFileSync(join(destination, owned), "utf8")) {
+      rmSync(join(destination, owned));
+      choiceRemoved.push(owned);
+    } else {
+      const why = installed === undefined ? "No copy of it as it was installed is kept here, so whether it was changed cannot be told" : "It was changed in this project";
+
+      choiceNotes.push(
+        `${owned} is from the option "${previous}", which "${chosen}" replaces. ${why}, so it was left where it is. Move what you changed to the new option's file, then delete it: while both are there, both options are in force`,
+      );
+    }
+  }
+
+  // Starting files are written the first time. Later, only one the project
+  // was never given: the files of an option it moves to, and a file this
+  // version of the add-on is the first to ship. The second is told by its
+  // template being new here, in a project that already keeps templates; one
+  // the project deleted has its template, and is not brought back.
+  const keepsTemplates = templatesBefore.size > 0;
+  const neverGiven = (path: string): boolean =>
+    (previous !== chosen && optionFiles.has(path)) ||
+    (keepsTemplates && templates.some(({ owned, template }) => owned === path && !templatesBefore.has(template)));
+
+  for (const [path, content] of starting) {
+    if ((firstTime || neverGiven(path)) && !existsSync(join(destination, path))) {
       writeProjectFile(destination, path, content);
       created.push(path);
     }
@@ -275,6 +357,7 @@ export function addToProject({ project, unit, force = false, scope, repository =
     : "none";
 
   const notes = [
+    ...choiceNotes,
     ...settingsPlan.unmerged,
     ...retired,
     ...outcome.refused.map(
@@ -306,7 +389,30 @@ export function addToProject({ project, unit, force = false, scope, repository =
     newGates: [],
     firstRun: manifest.firstRun,
     verify: manifest.verify,
+    choice: chosen,
+    choiceSays: chosen === undefined ? undefined : manifest.choice?.options[chosen],
+    choiceRemoved,
   };
+}
+
+/** The option the project gets: the one asked for, else the one it has, else the add-on's default. */
+function chooseOption({ name, choice }: AddonManifest, asked: string | undefined, installed: string | undefined): string | undefined {
+  if (choice === undefined) {
+    if (asked !== undefined) {
+      throw new InstallError(`the add-on "${name}" has no options, so "${name}:${asked}" means nothing — add it as "${name}"`);
+    }
+
+    return undefined;
+  }
+
+  const options = Object.keys(choice.options);
+
+  if (asked !== undefined && !options.includes(asked)) {
+    throw new InstallError(`the add-on "${name}" has no option "${asked}" — it has: ${options.join(", ")} (${choice.default} when none is named)`);
+  }
+
+  // An option the add-on no longer offers cannot be kept.
+  return asked ?? (installed !== undefined && options.includes(installed) ? installed : choice.default);
 }
 
 interface SettingsPlan {
@@ -515,7 +621,7 @@ function keepTemplates(files: Map<string, Buffer>, starting: Map<string, Buffer>
   return templates;
 }
 
-const TEXT_STARTING_FILE = /\.(ts|tsx|mts|json|jsonc|md|yaml|yml|html|css)$|(^|\/)\.gitignore$/;
+const TEXT_STARTING_FILE = /\.(ts|tsx|mts|json|jsonc|json5|md|yaml|yml|html|css)$|(^|\/)\.gitignore$/;
 
 /** Moves the files the project will own out of `files`, and returns them. */
 function takeStartingFiles(files: Map<string, Buffer>, patterns: string[]): Map<string, Buffer> {
@@ -536,6 +642,8 @@ export interface ListedAddon {
   summary: string;
   /** Taken unless there is a reason not to. Said by the add-on's own manifest. */
   recommended: boolean;
+  /** The options to choose between, when the add-on has a choice: `<name>:<option>`. */
+  choice?: Choice;
 }
 
 export function listAddons(repository: string = REPOSITORY): ListedAddon[] {
@@ -550,7 +658,12 @@ export function listAddons(repository: string = REPOSITORY): ListedAddon[] {
     .map((entry) => {
       const manifest = JSON.parse(readFileSync(join(root, entry.name, "addon.json"), "utf8")) as AddonManifest;
 
-      return { name: entry.name, summary: manifest.summary, recommended: manifest.recommended === true };
+      return {
+        name: entry.name,
+        summary: manifest.summary,
+        recommended: manifest.recommended === true,
+        ...(manifest.choice === undefined ? {} : { choice: manifest.choice }),
+      };
     });
 }
 
@@ -723,13 +836,15 @@ function writeAgentsSection(project: string, unit: string, section: string): Add
   return "updated";
 }
 
-function describe(result: AddResult, project: string): string {
+export function describe(result: AddResult, project: string): string {
   const { files } = result;
   const lines = [
     `${result.unit}: ${files.written.length} file(s) written, ${files.unchanged.length} already up to date, ${files.removed.length} removed`,
+    ...(result.choice === undefined ? [] : [`  option   ${result.choice}: ${result.choiceSays ?? ""}`]),
     ...files.written.map((path) => `  wrote    ${path}`),
     ...files.removed.map((path) => `  removed  ${path}`),
     ...files.kept.map((path) => `  kept     ${path} (no longer shipped, but edited in the project)`),
+    ...(result.choiceRemoved ?? []).map((path) => `  removed  ${path} (an option this project no longer has; it was never changed here)`),
     ...result.created.map((path) => `  created  ${path}`),
     ...result.packageChanges.map((change) => `  changed  ${change}`),
     ...result.settingsChanges.map((change) => `  merged   ${change}`),
@@ -802,11 +917,16 @@ function parseArguments(argv: string[]): AddOptions {
 
 function usage(): string {
   return [
-    "usage: add-to-project.mts <project> <unit> [--force] [--scope @acme]",
+    "usage: add-to-project.mts <project> <unit>[:<option>] [--force] [--scope @acme]",
     "",
     "units:",
     `  ${KIT.padEnd(12)} the architecture gates, lint rules and hooks (tools/arch)`,
-    ...listAddons().map(({ name, summary, recommended }) => `  ${name.padEnd(12)} ${recommended ? "(recommended) " : ""}${summary}`),
+    ...listAddons().flatMap(({ name, summary, recommended, choice }) => [
+      `  ${name.padEnd(12)} ${recommended ? "(recommended) " : ""}${summary}`,
+      ...Object.entries(choice?.options ?? {}).map(
+        ([option, says]) => `  ${"".padEnd(12)}   ${name}:${option}${option === choice?.default ? " (when none is named)" : ""}: ${says}`,
+      ),
+    ]),
   ].join("\n");
 }
 

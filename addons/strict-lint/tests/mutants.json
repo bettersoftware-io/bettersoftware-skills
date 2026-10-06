@@ -268,8 +268,8 @@
   {
     "name": "dead: reads the stylelint rules the repo-hygiene add-on keeps under tools/",
     "file": "addons/strict-lint/files/tools/strict-lint/knip.jsonc",
-    "find": "      \"stylelint\": { \"config\": [\"tools/repo-hygiene/stylelint.json\"] },\n",
-    "replace": "",
+    "find": "\"tools/repo-hygiene/stylelint.json\", \"tools/repo-hygiene/stylelint.base.json\"",
+    "replace": "\"tools/repo-hygiene/stylelint.json\"",
     "test": "pnpm vitest run addons/strict-lint/tests/dead.test.mts -t \"reads the stylelint rules the repo-hygiene add-on keeps under tools/\""
   },
   {

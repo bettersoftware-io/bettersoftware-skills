@@ -1,0 +1,121 @@
+[
+  {
+    "name": "package-manager: a version with no hash",
+    "file": "kit/gates/lib/package-manager.mts",
+    "find": "if (!SHA512_SUFFIX.test(parts.rest ?? \"\")) {",
+    "replace": "if (false) {",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"names a package manager pinned by version alone\""
+  },
+  {
+    "name": "package-manager: any package manager",
+    "file": "kit/gates/lib/package-manager.mts",
+    "find": "(?<name>[a-z][a-z0-9-]*)@",
+    "replace": "(?<name>pnpm)@",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"accepts one exact version with the sha512 hash\""
+  },
+  {
+    "name": "package-manager: an empty field",
+    "file": "kit/gates/lib/package-manager.mts",
+    "find": "if (typeof packageManager !== \"string\" || packageManager === \"\") {",
+    "replace": "if (typeof packageManager !== \"string\") {",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"names a root with no packageManager field\""
+  },
+  {
+    "name": "package-manager: half a version",
+    "file": "kit/gates/lib/package-manager.mts",
+    "find": "(?<version>\\d+\\.\\d+\\.\\d+)",
+    "replace": "(?<version>\\d+(?:\\.\\d+)*)",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"a range, a tag or half a version\""
+  },
+  {
+    "name": "package-manager: a hash in capitals",
+    "file": "kit/gates/lib/package-manager.mts",
+    "find": "[0-9a-f]{128}$/",
+    "replace": "[0-9a-fA-F]{128}$/",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"names a hash that is too short\""
+  },
+  {
+    "name": "package-manager: only the root manifest",
+    "file": "kit/gates/lib/package-manager.mts",
+    "find": "(onlyFiles && !onlyFiles.includes(ROOT_MANIFEST)) || ",
+    "replace": "",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"is asked of the root manifest only\""
+  },
+  {
+    "name": "package-manager: it runs with the other gates",
+    "file": "kit/gates/run.mts",
+    "find": "      ...checkPackageManager(project),\n",
+    "replace": "",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"names a package manager pinned by version alone\""
+  },
+  {
+    "name": "package-manager: it is skipped with no root manifest",
+    "file": "kit/gates/run.mts",
+    "find": "\n      \"package-manager\": packageManagerSkipReason(project),\n",
+    "replace": "\n",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"is reported as skipped, never as passed\""
+  },
+  {
+    "name": "package-manager: it runs on the one file an editor hook gives",
+    "file": "kit/gates/run.mts",
+    "find": "        ...checkPackageManager(project, relativeFiles),\n",
+    "replace": "",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"judges the root manifest and a package's given alone\""
+  },
+  {
+    "name": "pin: the hash in hex",
+    "file": "kit/ci/pin-package-manager.mts",
+    "find": "Buffer.from(base64, \"base64\").toString(\"hex\")",
+    "replace": "Buffer.from(base64, \"base64\").toString(\"base64\")",
+    "test": "pnpm vitest run kit/ci/pin-package-manager.test.mts -t \"prints the version package.json names\""
+  },
+  {
+    "name": "pin: says it wrote",
+    "file": "kit/ci/pin-package-manager.mts",
+    "find": "return { packageManager, written: true };",
+    "replace": "return { packageManager, written: false };",
+    "test": "pnpm vitest run kit/ci/pin-package-manager.test.mts -t \"writes the one line with --write\""
+  },
+  {
+    "name": "pin: the version it is given",
+    "file": "kit/ci/pin-package-manager.mts",
+    "find": "wanted ?? (typeof current === \"string\" ? current : \"\")",
+    "replace": "(typeof current === \"string\" ? current : \"\")",
+    "test": "pnpm vitest run kit/ci/pin-package-manager.test.mts -t \"moves to the version it is given\""
+  },
+  {
+    "name": "pin: adds a field that is not there",
+    "file": "kit/ci/pin-package-manager.mts",
+    "find": "text.replace(/^\\{\\n(\\s*)/",
+    "replace": "text.replace(/^\\{\\r(\\s*)/",
+    "test": "pnpm vitest run kit/ci/pin-package-manager.test.mts -t \"adds the field as the first one\""
+  },
+  {
+    "name": "pin: nothing to write",
+    "file": "kit/ci/pin-package-manager.mts",
+    "find": "if (!write || packageManager === current) {",
+    "replace": "if (!write) {",
+    "test": "pnpm vitest run kit/ci/pin-package-manager.test.mts -t \"says it wrote nothing\""
+  },
+  {
+    "name": "pin: an exact version",
+    "file": "kit/ci/pin-package-manager.mts",
+    "find": "@(\\d+\\.\\d+\\.\\d+)/",
+    "replace": "@(\\S+)/",
+    "test": "pnpm vitest run kit/ci/pin-package-manager.test.mts -t \"refuses a version that is not exact\""
+  },
+  {
+    "name": "pin: a registry with no sha512",
+    "file": "kit/ci/pin-package-manager.mts",
+    "find": "if (hex.length !== 128) {",
+    "replace": "if (hex.length === 0) {",
+    "test": "pnpm vitest run kit/ci/pin-package-manager.test.mts -t \"registry has no sha512\""
+  },
+  {
+    "name": "pin: outside a project",
+    "file": "kit/ci/pin-package-manager.mts",
+    "find": "if (!existsSync(file)) {",
+    "replace": "if (false) {",
+    "test": "pnpm vitest run kit/ci/pin-package-manager.test.mts -t \"refuses outside a project\""
+  }
+]

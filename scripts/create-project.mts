@@ -8,7 +8,8 @@
 // writes the project a README of its own.
 //
 // `--with` takes add-on names separated by commas, or `recommended` for every
-// add-on whose manifest says it is. Without it no add-on is added: the choice
+// add-on whose manifest says it is. A name may carry an option of the add-on's
+// choice: `ci-security:renovate`. Without it no add-on is added: the choice
 // is the person's, and `add-to-project.mts` adds one at any later time.
 
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -16,7 +17,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { isMainModule } from "../kit/gates/lib/files.mts";
-import { addToProject, KIT, listAddons, type ListedAddon } from "./add-to-project.mts";
+import { addToProject, KIT, listAddons, type ListedAddon, parseUnit } from "./add-to-project.mts";
 import { listFiles } from "./lib/install.mts";
 
 const REPOSITORY = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -39,7 +40,7 @@ const README_TEMPLATE = join(REPOSITORY, "scripts", "templates", "README.project
  */
 const SKIPPED_IN_STARTER = new Set(["node_modules", "dist", "coverage", ".turbo", "tools", ".claude", ".codex"]);
 
-const TEXT_FILE = /\.(ts|tsx|mts|json|md|yaml|yml|html|css)$|^\.gitignore$/;
+const TEXT_FILE = /\.(ts|tsx|mts|json|json5|md|yaml|yml|html|css)$|^\.gitignore$/;
 
 export class ProjectError extends Error {}
 
@@ -113,7 +114,8 @@ export function createProject(
     const notes = writeProject(destination, scope, projectName, steps);
 
     const firstRuns = chosen.flatMap((addon) => steps.addAddon(destination, addon, scope).firstRun ?? []);
-    const added = chosen.flatMap((name) => available.filter((addon) => addon.name === name));
+    // Under the name it was asked for, so the README says which option the project has.
+    const added = chosen.flatMap((asked) => available.filter((addon) => addon.name === parseUnit(asked).name).map((addon) => nameWithOption(addon, asked)));
 
     // Last, because it names the add-ons and the commands they ask for.
     writeFileSync(join(destination, "README.md"), projectReadme({ name: projectName, scope, addons: added, firstRuns }));
@@ -128,6 +130,13 @@ export function createProject(
       `Could not create the project, and removed what it had written: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+}
+
+/** The add-on as the README lists it: under the name it was asked for, with what its option says after its summary. */
+function nameWithOption(addon: ListedAddon, asked: string): ListedAddon {
+  const says = addon.choice?.options[parseUnit(asked).option ?? ""];
+
+  return { ...addon, name: asked, summary: says === undefined ? addon.summary : `${addon.summary} ${says}` };
 }
 
 export interface ReadmeFacts {
@@ -161,20 +170,48 @@ export function projectReadme({ name, scope, addons, firstRuns }: ReadmeFacts, t
   });
 }
 
-/** The names to add: `recommended` becomes the add-ons that say they are; anything unknown is refused. */
+/**
+ * The add-ons to add, each at most once: `recommended` becomes the add-ons
+ * that say they are, and anything unknown is refused. An add-on named twice is
+ * added once, with the option that was asked for.
+ */
 function chooseAddons(asked: string[], available: ListedAddon[]): string[] {
-  const chosen = asked.flatMap((name) =>
+  const expanded = asked.flatMap((name) =>
     name === RECOMMENDED ? available.filter((addon) => addon.recommended).map((addon) => addon.name) : [name],
   );
-  const unknown = chosen.find((name) => !available.some((addon) => addon.name === name));
+  const chosen = new Map<string, string>();
 
-  if (unknown !== undefined) {
-    throw new ProjectError(
-      `"${unknown}" is not an add-on — there are: ${available.map((addon) => addon.name).join(", ")}, or "${RECOMMENDED}" for the recommended ones`,
-    );
+  for (const unit of expanded) {
+    const { name, option } = parseUnit(unit);
+    const addon = available.find((candidate) => candidate.name === name);
+
+    if (addon === undefined) {
+      throw new ProjectError(
+        `"${name}" is not an add-on — there are: ${available.map((candidate) => candidate.name).join(", ")}, or "${RECOMMENDED}" for the recommended ones`,
+      );
+    }
+
+    if (option !== undefined && !Object.hasOwn(addon.choice?.options ?? {}, option)) {
+      const options = Object.keys(addon.choice?.options ?? {});
+
+      throw new ProjectError(
+        options.length === 0 ? `the add-on "${name}" has no options, so "${unit}" means nothing` : `the add-on "${name}" has no option "${option}" — it has: ${options.join(", ")}`,
+      );
+    }
+
+    const before = chosen.get(name);
+
+    if (before !== undefined && option !== undefined && parseUnit(before).option !== undefined && before !== unit) {
+      throw new ProjectError(`"${before}" and "${unit}" are two options of one choice: a project has one of them`);
+    }
+
+    // The one with an option wins over the bare name, whichever came first.
+    if (before === undefined || option !== undefined) {
+      chosen.set(name, unit);
+    }
   }
 
-  return [...new Set(chosen)];
+  return [...chosen.values()];
 }
 
 function writeProject(destination: string, scope: string, projectName: string, steps: ProjectSteps): string[] {
@@ -219,7 +256,7 @@ export function parseArguments(argv: string[]): ProjectOptions {
   const [target, ...rest] = argv;
 
   if (target === undefined || target.startsWith("--")) {
-    throw new ProjectError("usage: create-project.mts <target> [--scope @acme] [--name my-app] [--with recommended|<add-on>,<add-on>]");
+    throw new ProjectError("usage: create-project.mts <target> [--scope @acme] [--name my-app] [--with recommended|<add-on>,<add-on>:<option>]");
   }
 
   const options: ProjectOptions = { target };

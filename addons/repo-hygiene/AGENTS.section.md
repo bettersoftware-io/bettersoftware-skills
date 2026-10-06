@@ -20,10 +20,17 @@ anchor the file really has. It does not follow `https:` links, and it does not
 read `tools/`. Those are yours to check by reading. Skip this for a change
 that touches no markdown.
 
-**CSS.** Fix what stylelint reports. Turn a rule off in
-`tools/repo-hygiene/stylelint.json` only when the project as a whole does not
-want it, never for one file that breaks it, and say why in the commit message.
-Do not add a `stylelint-disable` comment without a reason after it. Skip this
-for a change that touches no `.css` file.
+**CSS.** Fix what stylelint reports. A colour is written once, as a custom
+property where the project's other tokens are (`:root` in the client's
+`src/index.css`), and used as `var(--name)`. Before you add a token, look for
+one that already means the same thing, and name a new one for what it means
+(`--color-up`), not for how it looks (`--green`). A class is camelCase in a
+`*.module.css` file and kebab-case in any other stylesheet. Turn a rule off
+in `tools/repo-hygiene/stylelint.json` only when the project as a whole does
+not want it, never for one file that breaks it, and say why in the commit
+message. Do not edit `stylelint.base.json`: an update of the add-on replaces
+it. A `stylelint-disable` comment needs ` -- ` and the reason after the rule's
+name; use one only for a line that is a true exception. Skip this for a
+change that touches no `.css` file.
 
 Do not weaken a check to make it pass. If a finding looks wrong, say so.

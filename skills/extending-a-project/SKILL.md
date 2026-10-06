@@ -35,6 +35,13 @@ node <plugin root>/scripts/add-to-project.mts --list
 
 Adding a unit a project already has updates it.
 
+An add-on may offer a choice, which `--list` prints under it:
+`ci-security:renovate` takes Renovate's config in place of Dependabot's. Name
+an option only when the user asked for it. The add-on's name alone keeps the
+option the project has. Moving to another option removes the old option's
+file only if the project never changed it; otherwise the script says what is
+left to do, and that is the user's to decide.
+
 If the script is not there (the skill was copied on its own), clone
 `https://github.com/bettersoftware-io/skills` into a temporary folder and run
 the script from the clone.

@@ -1,7 +1,7 @@
 // Fixture factories shared by the repo-hygiene add-on's tests.
 
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -19,6 +19,28 @@ export function createFolder(files: Record<string, string> = {}): string {
   }
 
   return folder;
+}
+
+const REPOSITORY = join(import.meta.dirname, "..", "..", "..");
+
+export const STYLELINT_ROOT = "tools/repo-hygiene/stylelint.json";
+export const STYLELINT_BASE = "tools/repo-hygiene/stylelint.base.json";
+
+/**
+ * A project that has just received the add-on's two stylelint files, with
+ * this repository's installed packages as its own, so the real stylelint
+ * runs. `files` are added; one given under a config's path replaces it.
+ */
+export function createStyledProject(files: Record<string, string> = {}): string {
+  const project = createFolder({
+    [STYLELINT_ROOT]: readFileSync(join(TOOLS, "stylelint.json"), "utf8"),
+    [STYLELINT_BASE]: readFileSync(join(TOOLS, "stylelint.base.json"), "utf8"),
+    ...files,
+  });
+
+  symlinkSync(join(REPOSITORY, "node_modules"), join(project, "node_modules"));
+
+  return project;
 }
 
 /** Makes `folder` a git repository, so that its .gitignore counts. */

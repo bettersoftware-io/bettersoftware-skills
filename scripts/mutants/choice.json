@@ -1,0 +1,177 @@
+[
+  {
+    "name": "choice: the default when none is named",
+    "file": "scripts/add-to-project.mts",
+    "find": " : choice.default);",
+    "replace": " : options.at(-1));",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"gives the default option's files when none is named\""
+  },
+  {
+    "name": "choice: the option's files carry the project's scope",
+    "file": "scripts/add-to-project.mts",
+    "find": "rewriteScope(readFileSet(join(addon, \"choice\", name, \"files\"), \"\"), STARTER_SCOPE, projectScope)",
+    "replace": "readFileSet(join(addon, \"choice\", name, \"files\"), \"\")",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"gives the option that is named\""
+  },
+  {
+    "name": "choice: an update keeps the option",
+    "file": "scripts/add-to-project.mts",
+    "find": "asked ?? (installed !== undefined && options.includes(installed) ? installed",
+    "replace": "asked ?? (false ? installed",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"keeps the option the project has\""
+  },
+  {
+    "name": "choice: a file never changed is removed",
+    "file": "scripts/add-to-project.mts",
+    "find": "      rmSync(join(destination, owned));\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"moves to another option\""
+  },
+  {
+    "name": "choice: the new option is recorded on a move",
+    "file": "scripts/lib/install.mts",
+    "find": "...(choice === undefined ? {} : { choice }),",
+    "replace": "...{},",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"moves back the same way\""
+  },
+  {
+    "name": "choice: a changed file is left",
+    "file": "scripts/add-to-project.mts",
+    "find": "if (installed === readFileSync(join(destination, owned), \"utf8\")) {",
+    "replace": "if (installed !== undefined) {",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"leaves a file the project changed where it is\""
+  },
+  {
+    "name": "choice: no installed copy to compare with",
+    "file": "scripts/add-to-project.mts",
+    "find": "const why = installed === undefined ?",
+    "replace": "const why = installed === null ?",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"leaves a file it has no installed copy\""
+  },
+  {
+    "name": "choice: a file already deleted",
+    "file": "scripts/add-to-project.mts",
+    "find": "    if (!existsSync(join(destination, owned))) {\n      continue;",
+    "replace": "    if (false) {\n      continue;",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"old option that the project already deleted\""
+  },
+  {
+    "name": "choice: never over a file the project has",
+    "file": "scripts/add-to-project.mts",
+    "find": "(firstTime || neverGiven(path)) && !existsSync(join(destination, path))",
+    "replace": "(firstTime || neverGiven(path))",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"does not write over a file the project already has where\""
+  },
+  {
+    "name": "choice: an update of a project from before the choice keeps its file",
+    "file": "scripts/add-to-project.mts",
+    "find": " : choice.default);",
+    "replace": " : options.at(-1));",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"keeps its file on an update\""
+  },
+  {
+    "name": "choice: a project from before the choice has the default",
+    "file": "scripts/add-to-project.mts",
+    "find": "(installedChoice(destination, unit) ?? manifest.choice?.default)",
+    "replace": "installedChoice(destination, unit)",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"moves such a project off the default\""
+  },
+  {
+    "name": "choice: an option the add-on does not have",
+    "file": "scripts/add-to-project.mts",
+    "find": "if (asked !== undefined && !options.includes(asked)) {",
+    "replace": "if (false) {",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"refuses an option the add-on does not have, names\""
+  },
+  {
+    "name": "choice: an option on an add-on with none",
+    "file": "scripts/add-to-project.mts",
+    "find": "    if (asked !== undefined) {\n      throw",
+    "replace": "    if (false) {\n      throw",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"refuses an option on an add-on that has no choice\""
+  },
+  {
+    "name": "choice: an option no longer offered",
+    "file": "scripts/add-to-project.mts",
+    "find": "installed !== undefined && options.includes(installed) ? installed",
+    "replace": "installed !== undefined ? installed",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"no longer offered\""
+  },
+  {
+    "name": "choice: the list of add-ons names the options",
+    "file": "scripts/add-to-project.mts",
+    "find": "...(manifest.choice === undefined ? {} : { choice: manifest.choice }),",
+    "replace": "...{},",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"lists the options with the add-on\""
+  },
+  {
+    "name": "starting file: a new one reaches a project",
+    "file": "scripts/add-to-project.mts",
+    "find": "(keepsTemplates && templates.some(",
+    "replace": "(false && templates.some(",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"is written by the update, once\""
+  },
+  {
+    "name": "starting file: a new one is not written over the project's",
+    "file": "scripts/add-to-project.mts",
+    "find": "(firstTime || neverGiven(path)) && !existsSync(join(destination, path))",
+    "replace": "(firstTime || neverGiven(path))",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"is not written over a file the project already has under that name\""
+  },
+  {
+    "name": "starting file: no templates, no new file",
+    "file": "scripts/add-to-project.mts",
+    "find": "const keepsTemplates = templatesBefore.size > 0;",
+    "replace": "const keepsTemplates = true;",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"keeps no templates\""
+  },
+  {
+    "name": "create: the option is passed on",
+    "file": "scripts/create-project.mts",
+    "find": "      chosen.set(name, unit);",
+    "replace": "      chosen.set(name, name);",
+    "test": "pnpm vitest run scripts/create-project.test.mts -t \"passes an option on with its add-on\""
+  },
+  {
+    "name": "create: named twice, the option wins",
+    "file": "scripts/create-project.mts",
+    "find": "if (before === undefined || option !== undefined) {",
+    "replace": "if (before === undefined) {",
+    "test": "pnpm vitest run scripts/create-project.test.mts -t \"adds an add-on once when it is named twice\""
+  },
+  {
+    "name": "create: an unknown option is refused first",
+    "file": "scripts/create-project.mts",
+    "find": "if (option !== undefined && !Object.hasOwn(addon.choice?.options ?? {}, option)) {",
+    "replace": "if (false) {",
+    "test": "pnpm vitest run scripts/create-project.test.mts -t \"refuses an option the add-on does not have, an option\""
+  },
+  {
+    "name": "create: the README names the option",
+    "file": "scripts/create-project.mts",
+    "find": "return { ...addon, name: asked, summary",
+    "replace": "return { ...addon, summary",
+    "test": "pnpm vitest run scripts/create-project.test.mts -t \"says in the README which option\""
+  },
+  {
+    "name": "create: the README says what the option is",
+    "file": "scripts/create-project.mts",
+    "find": "says === undefined ? addon.summary : `${addon.summary} ${says}`",
+    "replace": "addon.summary",
+    "test": "pnpm vitest run scripts/create-project.test.mts -t \"says in the README which option\""
+  },
+  {
+    "name": "choice: the option is printed with what it says",
+    "file": "scripts/add-to-project.mts",
+    "find": "choiceSays: chosen === undefined ? undefined : manifest.choice?.options[chosen],",
+    "replace": "choiceSays: undefined,",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"prints the option the project has\""
+  },
+  {
+    "name": "choice: a removed file is printed",
+    "file": "scripts/add-to-project.mts",
+    "find": "...(result.choiceRemoved ?? []).map(",
+    "replace": "...([] as string[]).map(",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"prints the option the project has\""
+  }
+]

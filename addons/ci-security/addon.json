@@ -1,20 +1,30 @@
 {
   "name": "ci-security",
-  "summary": "Supply-chain checks for a project on GitHub: workflow lint (actionlint, zizmor), Dependency Review, pnpm audit, Dependabot and OpenSSF Scorecard.",
+  "summary": "Supply-chain checks for a project on GitHub: workflow lint (actionlint, zizmor), Dependency Review, pnpm audit, OpenSSF Scorecard, a Dockerfile check, a security policy, and Dependabot or Renovate.",
   "recommended": true,
   "packageJson": {
     ".": {
       "scripts": {
-        "lint:workflows": "node tools/ci-security/lint-workflows.mts"
+        "lint:workflows": "node tools/ci-security/lint-workflows.mts",
+        "check:dockerfiles": "node tools/ci-security/check-dockerfiles.mts"
       }
     }
   },
   "gates": {
-    "fast": [],
+    "fast": [
+      "pnpm check:dockerfiles"
+    ],
     "full": []
   },
   "startingFiles": [
-    ".github/dependabot.yml"
+    "SECURITY.md"
   ],
+  "choice": {
+    "default": "dependabot",
+    "options": {
+      "dependabot": "Dependabot opens the update pull requests. Nothing to install.",
+      "renovate": "Renovate opens them instead. A person installs its GitHub App on the repository first."
+    }
+  },
   "verify": "pnpm lint:workflows"
 }

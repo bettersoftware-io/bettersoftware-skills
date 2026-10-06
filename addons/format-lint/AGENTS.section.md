@@ -8,6 +8,11 @@ changes nothing. What it cannot decide is below.
 before you run the gate. Do not lay code out by hand, and do not sort imports
 by hand. Skip it when you changed no source, JSON or CSS file.
 
+**An import for its effect is sorted too.** `import "./index.css"` goes
+where the fixer puts it, after the code's imports. Do not write CSS that
+depends on which of two imported stylesheets loads first. If one must follow
+another, `@import` it from that one.
+
 **What the fixer leaves to you.** It applies only the fixes Biome calls safe.
 A finding it prints and does not fix is yours to fix in the code: add the
 braces, write the type, narrow the value. Do not pass `--unsafe` over the

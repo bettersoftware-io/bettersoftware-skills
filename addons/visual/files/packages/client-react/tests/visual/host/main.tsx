@@ -1,9 +1,3 @@
-// The app's real global stylesheet, loaded the way src/main.tsx loads it. A
-// copy of its rules here would drift, and the goldens would be of a page that
-// does not exist.
-import "#/index.css";
-import "./host.css";
-
 import FakeTimers from "@sinonjs/fake-timers";
 import { createRoot } from "react-dom/client";
 
@@ -15,10 +9,17 @@ import {
 } from "@app/client-core/testing/appHarness.ts";
 import { createViewModel, ViewModelProvider } from "@app/react-bindings";
 
+// The app's real global stylesheet, loaded the way src/main.tsx loads it. A
+// copy of its rules here would drift, and the goldens would be of a page that
+// does not exist.
+import "#/index.css";
 import { App } from "#/ui/App.tsx";
 
 import { type Scenario, scenarios } from "../scenarios.ts";
 import { ScenarioFrame } from "./ScenarioFrame.tsx";
+
+// After the app's stylesheet, by its group: the host's two rules win a tie.
+import "./host.css";
 
 // The visual host: the real UI on the real application, with only the outside
 // world replaced. It shows the one scenario named in the address

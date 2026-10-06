@@ -25,7 +25,7 @@ describe("the add-on as shipped", () => {
     expect(manifest.verify).toBe(commands.join(" && "));
   });
 
-  it("ships each settings file as a starting file, as JSON a tool can read", () => {
+  it("ships the project's two settings files as starting files, as JSON a tool can read", () => {
     expect(manifest.startingFiles).toEqual(["tools/repo-hygiene/syncpack.json", "tools/repo-hygiene/stylelint.json"]);
 
     for (const file of manifest.startingFiles) {
@@ -33,10 +33,20 @@ describe("the add-on as shipped", () => {
     }
   });
 
-  it("installs the package the stylelint settings extend", () => {
-    const settings = JSON.parse(readFileSync(join(addon, "files/tools/repo-hygiene/stylelint.json"), "utf8")) as { extends: string[] };
+  it("keeps the stylelint rules for itself, in a base the project's file extends", () => {
+    expect(manifest.startingFiles).not.toContain("tools/repo-hygiene/stylelint.base.json");
+    expect(existsSync(join(addon, "files/tools/repo-hygiene/stylelint.base.json"))).toBe(true);
+  });
 
-    expect(Object.keys(devDependencies)).toEqual(expect.arrayContaining(settings.extends));
+  it("installs every package the stylelint base extends or loads, in the range this repository tests with", () => {
+    const base = JSON.parse(readFileSync(join(addon, "files/tools/repo-hygiene/stylelint.base.json"), "utf8")) as { extends: string[]; plugins: string[] };
+    const tested = (JSON.parse(readFileSync(join(addon, "..", "..", "package.json"), "utf8")) as { devDependencies: Record<string, string> }).devDependencies;
+    const needed = ["stylelint", ...base.extends, ...base.plugins];
+
+    expect(base.plugins.length).toBeGreaterThan(0);
+    expect(base.extends.length).toBeGreaterThan(0);
+    expect(needed.map((name) => [name, devDependencies[name]])).toEqual(needed.map((name) => [name, tested[name]]));
+    expect(needed.filter((name) => devDependencies[name] === undefined)).toEqual([]);
   });
 
   it("lists its dev dependencies in the order a sorted package.json has them", () => {

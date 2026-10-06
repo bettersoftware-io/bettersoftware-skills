@@ -9,6 +9,7 @@ import type { Finding } from "./lib/config.mts";
 import { ConfigError } from "./lib/config.mts";
 import { resolveSubpathImport } from "./lib/files.mts";
 import { checkNodeFloor } from "./lib/node-floor.mts";
+import { checkPackageManager } from "./lib/package-manager.mts";
 import { lenientLintCommands } from "./lib/package-scripts.mts";
 import { formatFindings, runGates } from "./run.mts";
 
@@ -34,6 +35,7 @@ describe("a project that follows the rules", () => {
       "task-cache",
       "package-scripts",
       "node-floor",
+      "package-manager",
       "app-harness",
       "test-ids",
       "types-only",
@@ -271,6 +273,12 @@ describe("a project that breaks the rules", () => {
     expect(of("node-floor", "packages/domain/package.json")).toEqual([]);
   });
 
+  it("names a package manager pinned by version alone, and says how to add the hash", () => {
+    expect(of("package-manager").map((finding) => finding.file)).toEqual(["package.json"]);
+    expect(messages("package-manager", "package.json")).toContain('packageManager is "pnpm@12.6.0" and has no hash after the version');
+    expect(messages("package-manager", "package.json")).toContain("node tools/arch/ci/pin-package-manager.mts --write");
+  });
+
   it("names production code that imports test scaffolding, and leaves a test that does alone", () => {
     expect(messages("dependencies", "packages/client-core/src/presenters/ratesPresenter.ts")).toContain(
       "no-test-scaffolding-in-production: imports packages/client-core/src/testing/fakePrices.ts",
@@ -381,6 +389,7 @@ describe("the per-file path the editor hook uses", () => {
       "port-contracts",
       "package-scripts",
       "node-floor",
+      "package-manager",
       "app-harness",
       "test-ids",
       "types-only",
@@ -424,6 +433,7 @@ describe("the per-file path the editor hook uses", () => {
       "node-floor package.json",
       "node-floor package.json",
       "node-floor packages/rogue/package.json",
+      "package-manager package.json",
     ]);
   });
 
@@ -448,7 +458,7 @@ describe("the per-file path the editor hook uses", () => {
   it("reports a per-file gate the project gave nothing to judge as skipped", async () => {
     const result = await runGates({ root: join(fixtures, "dormant"), files: ["packages/domain/src/main.ts"] });
 
-    expect(Object.keys(result.skipped)).toEqual(["node-floor", "app-harness", "test-ids", "types-only"]);
+    expect(Object.keys(result.skipped)).toEqual(["node-floor", "package-manager", "app-harness", "test-ids", "types-only"]);
   });
 
   it("ignores a file outside the project and a file that no longer exists", async () => {
@@ -512,6 +522,7 @@ describe("a gate with nothing to judge", () => {
       "agent-docs": "no AGENTS.md or CLAUDE.md was found, so there was nothing to check",
       "task-cache": "no turbo.json was found, so there was nothing to check",
       "node-floor": "no package.json was found at the root, so there was nothing to check",
+      "package-manager": "no package.json was found at the root, so there was nothing to check",
       "app-harness": "no core package defines createApp(…), so there was no application for a test to build",
       "test-ids": "no client package is declared, so there was nothing to check",
       "types-only": "no package is declared typesOnly, so there was nothing to check",
@@ -634,11 +645,58 @@ describe("the Node floor in devEngines", () => {
   });
 });
 
+describe("the package manager the root package.json names", () => {
+  const HASH = "0123456789abcdef".repeat(8);
+
+  it("accepts one exact version with the sha512 hash of its release", () => {
+    expect(managerFindings({ packageManager: `pnpm@12.6.0+sha512.${HASH}` })).toEqual([]);
+    expect(managerFindings({ packageManager: `yarn@4.1.0+sha512.${HASH}` })).toEqual([]);
+  });
+
+  it("names a root with no packageManager field, or an empty one", () => {
+    expect(managerFindings({})).toEqual([expect.stringContaining("There is no packageManager field")]);
+    expect(managerFindings({ packageManager: "" })).toEqual([expect.stringContaining("There is no packageManager field")]);
+  });
+
+  it("names a version that is a range, a tag or half a version", () => {
+    for (const packageManager of ["pnpm@^12.6.0", "pnpm@latest", "pnpm@12", "pnpm"]) {
+      expect(managerFindings({ packageManager })).toEqual([expect.stringContaining(`packageManager is "${packageManager}". Write one exact version`)]);
+    }
+  });
+
+  it("names a hash that is too short, in capitals, or of a weaker kind", () => {
+    expect(managerFindings({ packageManager: `pnpm@12.6.0+sha512.${HASH.slice(1)}` })).toEqual([expect.stringContaining("which is not +sha512. and 128 hex digits")]);
+    expect(managerFindings({ packageManager: `pnpm@12.6.0+sha512.${HASH.toUpperCase()}` })).toEqual([expect.stringContaining("which is not +sha512.")]);
+    expect(managerFindings({ packageManager: `pnpm@12.6.0+sha1.${HASH.slice(0, 40)}` })).toEqual([expect.stringContaining('ends in "+sha1.')]);
+    expect(managerFindings({ packageManager: `pnpm@12.6.0+sha512.${HASH}0` })).toEqual([expect.stringContaining("which is not +sha512.")]);
+  });
+
+  it("is asked of the root manifest only, and only when that file is among the files given", () => {
+    const root = createRoot({ packageManager: "pnpm@12.6.0" });
+
+    expect(checkPackageManager({ root }, ["packages/domain/package.json"])).toEqual([]);
+    expect(checkPackageManager({ root }, ["package.json"])).toHaveLength(1);
+  });
+});
+
 describe("a project that cannot be judged", () => {
   it("refuses instead of passing when no layers are declared", async () => {
     await expect(runGates({ root: fixtures })).rejects.toBeInstanceOf(ConfigError);
   });
 });
+
+/** What the package-manager gate says about a project whose root package.json is this. */
+function managerFindings(manifest: object): string[] {
+  return checkPackageManager({ root: createRoot(manifest) }).map((finding) => finding.message);
+}
+
+function createRoot(manifest: object): string {
+  const root = mkdtempSync(join(tmpdir(), "arch-manager-"));
+
+  writeFileSync(join(root, "package.json"), JSON.stringify(manifest));
+
+  return root;
+}
 
 /** What the node-floor gate says about a project whose root package.json is this. */
 function floorFindings(manifest: object): string[] {

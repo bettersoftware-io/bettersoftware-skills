@@ -1,4 +1,9 @@
 :root {
+  /* Every colour has a name here, and a rule uses the name. `pnpm lint:css`,
+     where the project has it, fails a colour written in a rule. */
+  --color-up: #1a8f4c;
+  --color-down: #c0392b;
+
   font-family: system-ui, sans-serif;
   color-scheme: light dark;
 }
@@ -27,9 +32,9 @@ tr[data-stale="true"] {
 }
 
 td[data-movement="up"] {
-  color: #1a8f4c;
+  color: var(--color-up);
 }
 
 td[data-movement="down"] {
-  color: #c0392b;
+  color: var(--color-down);
 }

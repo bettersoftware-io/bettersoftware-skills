@@ -1,0 +1,359 @@
+[
+  {
+    "name": "dockerfiles: no Dockerfile is a skip",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "if (files.length === 0) {",
+    "replace": "if (files.length < 0) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"is skipped with the reason, and never passes\""
+  },
+  {
+    "name": "dockerfiles: says how much it judged",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "${images} FROM line(s)`",
+    "replace": "${images + 1} FROM line(s)`",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"passes, and says how much it judged\""
+  },
+  {
+    "name": "dockerfiles: scratch and a stage are bases",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "if (image === \"scratch\" || stages.includes(image)) {",
+    "replace": "if (stages.includes(image)) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts the empty image and a stage\""
+  },
+  {
+    "name": "dockerfiles: a tag with no digest",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "if (!DIGEST.test(image)) {",
+    "replace": "if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on a tag with no digest\""
+  },
+  {
+    "name": "dockerfiles: a digest cut short",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "[0-9a-f]{64}$/",
+    "replace": "[0-9a-f]{62,64}$/",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"on a digest that is cut short\""
+  },
+  {
+    "name": "dockerfiles: a build argument",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "if (image.includes(\"$\")) {",
+    "replace": "if (false) {",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on an image that is a build argument\""
+  },
+  {
+    "name": "dockerfiles: a name is a stage only after it",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "checkImage(file, line, image, stages));",
+    "replace": "checkImage(file, line, image, [...stages, \"later\"]));",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"judges every stage\""
+  },
+  {
+    "name": "dockerfiles: no USER, at the FROM line",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      line: lastFrom.line,\n",
+    "replace": "      line: 1,\n",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails when the last stage sets none\""
+  },
+  {
+    "name": "dockerfiles: root by number",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/^(root|0)(:|$)/",
+    "replace": "/^(root)(:|$)/",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails when the last stage ends as root\""
+  },
+  {
+    "name": "dockerfiles: the last USER counts",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    } else if (keyword === \"USER\") {\n      user = instruction;",
+    "replace": "    } else if (keyword === \"USER\") {\n      user ??= instruction;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"judges the last USER of the last stage\""
+  },
+  {
+    "name": "dockerfiles: a USER of an earlier stage",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "      lastFrom = instruction;\n      user = undefined;",
+    "replace": "      lastFrom = instruction;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"does not count a USER of an earlier stage\""
+  },
+  {
+    "name": "dockerfiles: a user that starts like root",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/^(root|0)(:|$)/",
+    "replace": "/^(root|0)/",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts a user that only starts like root\""
+  },
+  {
+    "name": "dockerfiles: RUN npm install -g",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/\\bnpm\\s+(?:install|i|add)\\b",
+    "replace": "/\\bnpm\\s+(?:i|add)\\b",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN npm install -g\""
+  },
+  {
+    "name": "dockerfiles: RUN npm i --global",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/\\bnpm\\s+(?:install|i|add)\\b[^&|;]*\\s(?:-g|--global)\\b/",
+    "replace": "/\\bnpm\\s+(?:install|i|add)\\b[^&|;]*\\s(?:-g)\\b/",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN npm i --global\""
+  },
+  {
+    "name": "dockerfiles: RUN \u2026 && npm install x -g",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/\\bnpm\\s+(?:install|i|add)\\b[^&|;]*\\s(?:-g|--global)\\b/",
+    "replace": "/\\bnpm\\s+(?:install|i|add)\\b\\s(?:-g|--global)\\b/",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN apt-get update\""
+  },
+  {
+    "name": "dockerfiles: RUN pnpm add -g",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/\\bpnpm\\s+(?:add|install|i)\\b",
+    "replace": "/\\bpnpm\\s+(?:install|i)\\b",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN pnpm add -g\""
+  },
+  {
+    "name": "dockerfiles: RUN yarn global add",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/\\byarn\\s+global\\s+add\\b/",
+    "replace": "/\\byarn\\s+globalx\\s+add\\b/",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN yarn global add\""
+  },
+  {
+    "name": "dockerfiles: RUN npx",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/\\bnpx\\s/",
+    "replace": "/\\bnpxx\\s/",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN npx turbo\""
+  },
+  {
+    "name": "dockerfiles: RUN pnpm dlx",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/\\b(?:pnpm|yarn)\\s+dlx\\b/",
+    "replace": "/\\b(?:yarn)\\s+dlx\\b/",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"fails on RUN pnpm dlx\""
+  },
+  {
+    "name": "dockerfiles: accepts RUN npm ci",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/\\bnpx\\s/",
+    "replace": "/\\bnpm\\s/",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts RUN npm ci\""
+  },
+  {
+    "name": "dockerfiles: accepts RUN npm install",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/\\bnpx\\s/",
+    "replace": "/\\bnpm\\s/",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts RUN npm install\""
+  },
+  {
+    "name": "dockerfiles: accepts RUN pnpm install --frozen-lockfile",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/\\bpnpm\\s+(?:add|install|i)\\b[^&|;]*\\s(?:-g|--global)\\b/",
+    "replace": "/\\bpnpm\\s+(?:add|install|i)\\b[^&|;]*\\s(?:-\\S+)\\b/",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts RUN pnpm install --frozen-lockfile\""
+  },
+  {
+    "name": "dockerfiles: -g of another command",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/\\bnpm\\s+(?:install|i|add)\\b[^&|;]*\\s(?:-g|--global)\\b/",
+    "replace": "/\\bnpm\\s+(?:install|i|add)\\b.*\\s(?:-g|--global)\\b/",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts RUN npm install && echo\""
+  },
+  {
+    "name": "dockerfiles: accepts RUN pnpm --filter",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "/\\b(?:pnpm|yarn)\\s+dlx\\b/",
+    "replace": "/\\b(?:pnpm|yarn)\\s+/",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"accepts RUN pnpm --filter\""
+  },
+  {
+    "name": "dockerfiles: a command over several lines",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "const continued = trimmed.endsWith(\"\\\\\");",
+    "replace": "const continued = false;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"runs over several lines as one\""
+  },
+  {
+    "name": "dockerfiles: the keyword in upper case",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "keyword: keyword.toUpperCase(), rest",
+    "replace": "keyword, rest",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"drops comments and blank lines\""
+  },
+  {
+    "name": "dockerfiles: no FROM",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "\"There is no FROM line,",
+    "replace": "\"No base,",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"says a file with no FROM\""
+  },
+  {
+    "name": "dockerfiles: which files",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "SKIPPED_FOLDERS.has(entry.name) || path === INSTALLED_TOOLING ? []",
+    "replace": "SKIPPED_FOLDERS.has(entry.name) ? []",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"finds them by name anywhere in the project\""
+  },
+  {
+    "name": "dockerfiles: the file and the line",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "[`  ${file}:${line}`,",
+    "replace": "[`  ${file}`,",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"names the file and the line of each finding\""
+  },
+  {
+    "name": "dockerfiles: the script prints the SKIP",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "    console.log(formatResult(result));",
+    "replace": "    console.log(\"\");",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"exits 0 with a SKIP line\""
+  },
+  {
+    "name": "dockerfiles: the script exits 1 on a finding",
+    "file": "addons/ci-security/files/tools/ci-security/check-dockerfiles.mts",
+    "find": "result.findings.length > 0 ? 1 : 0;",
+    "replace": "result.findings.length > 0 ? 0 : 0;",
+    "test": "pnpm vitest run addons/ci-security/tests/check-dockerfiles.test.mts -t \"exits 1 on a finding and 0 on none\""
+  },
+  {
+    "name": "addon: each script runs a tool it ships",
+    "file": "addons/ci-security/addon.json",
+    "find": "node tools/ci-security/check-dockerfiles.mts",
+    "replace": "node tools/ci-security/check-docker.mts",
+    "test": "pnpm vitest run addons/ci-security/tests/addon.test.mts -t \"adds two scripts\""
+  },
+  {
+    "name": "addon: the Dockerfile check is in gate:fast",
+    "file": "addons/ci-security/addon.json",
+    "find": "\"fast\": [\n      \"pnpm check:dockerfiles\"\n    ]",
+    "replace": "\"fast\": []",
+    "test": "pnpm vitest run addons/ci-security/tests/addon.test.mts -t \"joins gate:fast with the one check\""
+  },
+  {
+    "name": "addon: the policy is a starting file",
+    "file": "addons/ci-security/addon.json",
+    "find": "\"startingFiles\": [\n    \"SECURITY.md\"\n  ]",
+    "replace": "\"startingFiles\": []",
+    "test": "pnpm vitest run addons/ci-security/tests/addon.test.mts -t \"leaves the security policy to the project\""
+  },
+  {
+    "name": "addon: Dependabot is the default",
+    "file": "addons/ci-security/addon.json",
+    "find": "\"default\": \"dependabot\"",
+    "replace": "\"default\": \"renovate\"",
+    "test": "pnpm vitest run addons/ci-security/tests/addon.test.mts -t \"offers one update bot or the other\""
+  },
+  {
+    "name": "addon: the option says a person installs the app",
+    "file": "addons/ci-security/addon.json",
+    "find": "A person installs its GitHub App on the repository first.",
+    "replace": "Install its app.",
+    "test": "pnpm vitest run addons/ci-security/tests/addon.test.mts -t \"Renovate needs a person to install its app\""
+  },
+  {
+    "name": "policy: what Scorecard scores",
+    "file": "addons/ci-security/files/SECURITY.md",
+    "find": "(https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability)",
+    "replace": "(SECURITY.md)",
+    "test": "pnpm vitest run addons/ci-security/tests/addon.test.mts -t \"has what Scorecard scores\""
+  },
+  {
+    "name": "policy: how to report, and the scope",
+    "file": "addons/ci-security/files/SECURITY.md",
+    "find": "## In scope",
+    "replace": "## Covered",
+    "test": "pnpm vitest run addons/ci-security/tests/addon.test.mts -t \"says how to report in private\""
+  },
+  {
+    "name": "policy: the scope the installer rewrites",
+    "file": "addons/ci-security/files/SECURITY.md",
+    "find": "`@app/*`",
+    "replace": "`@acme/*`",
+    "test": "pnpm vitest run addons/ci-security/tests/addon.test.mts -t \"names the project's packages by the scope\""
+  },
+  {
+    "name": "policy: no link into the repository",
+    "file": "addons/ci-security/files/SECURITY.md",
+    "find": "(https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing-information-about-vulnerabilities/privately-reporting-a-security-vulnerability)",
+    "replace": "(docs/reporting.md)",
+    "test": "pnpm vitest run addons/ci-security/tests/addon.test.mts -t \"links to nothing in the repository\""
+  },
+  {
+    "name": "policy: the note to the maintainers",
+    "file": "addons/ci-security/files/SECURITY.md",
+    "find": "times you will keep",
+    "replace": "times",
+    "test": "pnpm vitest run addons/ci-security/tests/addon.test.mts -t \"tells the maintainers what is theirs\""
+  },
+  {
+    "name": "renovate: a form with comments",
+    "file": "addons/ci-security/choice/renovate/files/.github/renovate.json5",
+    "find": "// Renovate: one wave",
+    "replace": "// One wave",
+    "test": "pnpm vitest run addons/ci-security/tests/addon.test.mts -t \"is where Renovate looks for it\""
+  },
+  {
+    "name": "renovate: actions pinned by commit",
+    "file": "addons/ci-security/choice/renovate/files/.github/renovate.json5",
+    "find": "\"helpers:pinGitHubActionDigests\"",
+    "replace": "\"helpers:disableTypesNodeMajor\"",
+    "test": "pnpm vitest run addons/ci-security/tests/addon.test.mts -t \"pins every action by its commit\""
+  },
+  {
+    "name": "renovate: waits as long as Dependabot",
+    "file": "addons/ci-security/choice/renovate/files/.github/renovate.json5",
+    "find": "\"minimumReleaseAge\": \"7 days\"",
+    "replace": "\"minimumReleaseAge\": \"3 days\"",
+    "test": "pnpm vitest run addons/ci-security/tests/addon.test.mts -t \"waits as long as Dependabot does\""
+  },
+  {
+    "name": "renovate: never less than pnpm",
+    "file": "addons/ci-security/choice/renovate/files/.github/renovate.json5",
+    "find": "\"minimumReleaseAge\": \"7 days\"",
+    "replace": "\"minimumReleaseAge\": \"0 days\"",
+    "test": "pnpm vitest run addons/ci-security/tests/addon.test.mts -t \"never waits less than pnpm itself does\""
+  },
+  {
+    "name": "renovate: as many open as Dependabot",
+    "file": "addons/ci-security/choice/renovate/files/.github/renovate.json5",
+    "find": "\"prConcurrentLimit\": 5",
+    "replace": "\"prConcurrentLimit\": 10",
+    "test": "pnpm vitest run addons/ci-security/tests/addon.test.mts -t \"looks once a week\""
+  },
+  {
+    "name": "renovate: groups as Dependabot does",
+    "file": "addons/ci-security/choice/renovate/files/.github/renovate.json5",
+    "find": "\"matchUpdateTypes\": [\"minor\", \"patch\"]",
+    "replace": "\"matchUpdateTypes\": [\"patch\"]",
+    "test": "pnpm vitest run addons/ci-security/tests/addon.test.mts -t \"groups as Dependabot does\""
+  },
+  {
+    "name": "renovate: security fixes are Dependabot's",
+    "file": "addons/ci-security/choice/renovate/files/.github/renovate.json5",
+    "find": "\"vulnerabilityAlerts\": {\n    \"enabled\": false",
+    "replace": "\"vulnerabilityAlerts\": {\n    \"enabled\": true",
+    "test": "pnpm vitest run addons/ci-security/tests/addon.test.mts -t \"leaves security fixes to Dependabot\""
+  },
+  {
+    "name": "renovate: tools/ is not moved",
+    "file": "addons/ci-security/choice/renovate/files/.github/renovate.json5",
+    "find": "\"ignorePaths\": [\"**/node_modules/**\", \"tools/**\"]",
+    "replace": "\"ignorePaths\": [\"**/node_modules/**\"]",
+    "test": "pnpm vitest run addons/ci-security/tests/addon.test.mts -t \"moves nothing in pnpm-workspace.yaml\""
+  },
+  {
+    "name": "renovate: merges nothing by itself",
+    "file": "addons/ci-security/choice/renovate/files/.github/renovate.json5",
+    "find": "\"prConcurrentLimit\": 5,",
+    "replace": "\"prConcurrentLimit\": 5,\n  \"automerge\": true,",
+    "test": "pnpm vitest run addons/ci-security/tests/addon.test.mts -t \"merges nothing by itself\""
+  },
+  {
+    "name": "renovate: says a person installs the app",
+    "file": "addons/ci-security/choice/renovate/files/.github/renovate.json5",
+    "find": "A person does that",
+    "replace": "Do that",
+    "test": "pnpm vitest run addons/ci-security/tests/addon.test.mts -t \"nothing happens until a person installs\""
+  }
+]

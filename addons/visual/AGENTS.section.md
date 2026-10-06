@@ -10,6 +10,7 @@ pnpm visual          # compare every scenario with this system's goldens
 pnpm visual:update   # redraw this system's goldens
 pnpm visual:jitter   # measure how much the same commit differs from itself
 pnpm visual:check    # in gate:fast: Playwright version pin, typecheck of the tier
+pnpm visual:check:server   # in gate:fast: no Playwright server is started through pnpm
 ```
 
 `pnpm visual` is not part of `gate:full`: it needs a browser and goldens drawn
@@ -51,6 +52,11 @@ difference and can say why it is correct. If you cannot say why, stop and ask.
 - **A scenario fails now and then.** Something on the page still moves. Find it
   and pin it in the host (its clock, an animation, a late font). Do not add a
   wait, a retry or tolerance.
+- **A run prints its results and never ends.** A server was started through
+  pnpm and outlived it. Never write `pnpm exec`, `pnpm run` or `pnpm --filter`
+  in a `webServer.command`; start the program by its path
+  (`node_modules/.bin/vite`) with `cwd` set to the package.
+  `pnpm visual:check:server` fails on it.
 - **Changing `tolerance.ts`.** Only with a measurement: run `pnpm visual:jitter`
   and write what it found beside the numbers. Both knobs matter: a zero pixel
   budget with a loose `threshold` still misses a low-contrast change.

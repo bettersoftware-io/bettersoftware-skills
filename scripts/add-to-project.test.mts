@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
 
-import { addToProject, describeYours, listAddons, writeUnlessProtected } from "./add-to-project.mts";
+import { addToProject, describe as describeResult, describeYours, listAddons, parseUnit, writeUnlessProtected } from "./add-to-project.mts";
 import { InstallError, writeProjectFile } from "./lib/install.mts";
 
 describe("adding the kit", () => {
@@ -879,6 +879,271 @@ describe("adding an add-on", () => {
     expect(addToProject({ project, unit: "demo", repository, scope: "@acme" }).files.written).toHaveLength(2);
   });
 });
+
+describe("an add-on with a choice", () => {
+  const A = ".github/bot-a.yml";
+  const B = ".github/bot-b.json5";
+
+  it("gives the default option's files when none is named, and no other option's", () => {
+    const { repository, project } = createWorldWithChoice();
+
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(read(project, A)).toBe("# bot a, for @acme/web\n");
+    expect(existsSync(join(project, B))).toBe(false);
+    expect(result.choice).toBe("bot-a");
+    expect(result.created).toEqual([A]);
+    expect(readJson(project, "tools/installed.json").demo.choice).toBe("bot-a");
+  });
+
+  it("gives the option that is named, with the project's scope in it, and not the default's files", () => {
+    const { repository, project } = createWorldWithChoice();
+
+    const result = addToProject({ project, unit: "demo:bot-b", repository });
+
+    expect(read(project, B)).toBe("// bot b, for @acme/web\n");
+    expect(existsSync(join(project, A))).toBe(false);
+    expect(result.unit).toBe("demo");
+    expect(readJson(project, "tools/installed.json").demo.choice).toBe("bot-b");
+    expect(readJson(project, "tools/installed.json")["demo:bot-b"]).toBeUndefined();
+  });
+
+  it("keeps the option the project has when the add-on is updated by its name alone", () => {
+    const { repository, project } = createWorldWithChoice();
+    addToProject({ project, unit: "demo:bot-b", repository });
+    write(repository, "addons/demo/files/tools/demo/check.mts", "// the add-on's check, version 2\n");
+
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(result.choice).toBe("bot-b");
+    expect(result.created).toEqual([]);
+    expect(existsSync(join(project, A))).toBe(false);
+    expect(read(project, B)).toBe("// bot b, for @acme/web\n");
+  });
+
+  it("moves to another option: removes the file the project never changed, and writes the new one", () => {
+    const { repository, project } = createWorldWithChoice();
+    addToProject({ project, unit: "demo", repository });
+
+    const result = addToProject({ project, unit: "demo:bot-b", repository });
+
+    expect(existsSync(join(project, A))).toBe(false);
+    expect(read(project, B)).toBe("// bot b, for @acme/web\n");
+    expect(result.choiceRemoved).toEqual([A]);
+    expect(result.created).toEqual([B]);
+    expect(result.notes).toEqual([]);
+    expect(Object.keys(readJson(project, "tools/installed.json").demo.files).filter((path) => path.startsWith("tools/templates/"))).toEqual([
+      "tools/templates/demo..github__bot-b.json5.txt",
+    ]);
+  });
+
+  it("moves back the same way", () => {
+    const { repository, project } = createWorldWithChoice();
+    addToProject({ project, unit: "demo:bot-b", repository });
+
+    const result = addToProject({ project, unit: "demo:bot-a", repository });
+
+    expect(existsSync(join(project, B))).toBe(false);
+    expect(read(project, A)).toBe("# bot a, for @acme/web\n");
+    expect(result.choiceRemoved).toEqual([B]);
+    expect(readJson(project, "tools/installed.json").demo.choice).toBe("bot-a");
+  });
+
+  it("leaves a file the project changed where it is, writes the new option beside it, and says what to do", () => {
+    const { repository, project } = createWorldWithChoice();
+    addToProject({ project, unit: "demo", repository });
+    write(project, A, "# bot a, with the project's own schedule\n");
+
+    const result = addToProject({ project, unit: "demo:bot-b", repository });
+
+    expect(read(project, A)).toBe("# bot a, with the project's own schedule\n");
+    expect(read(project, B)).toBe("// bot b, for @acme/web\n");
+    expect(result.choiceRemoved).toEqual([]);
+    expect(result.notes).toEqual([
+      `${A} is from the option "bot-a", which "bot-b" replaces. It was changed in this project, so it was left where it is. Move what you changed to the new option's file, then delete it: while both are there, both options are in force`,
+    ]);
+  });
+
+  it("leaves a file it has no installed copy to compare with, and says that it cannot tell", () => {
+    const { repository, project } = createWorldWithChoice();
+    addToProject({ project, unit: "demo", repository });
+    rmSync(join(project, "tools/templates/demo..github__bot-a.yml.txt"));
+
+    const result = addToProject({ project, unit: "demo:bot-b", repository });
+
+    expect(existsSync(join(project, A))).toBe(true);
+    expect(result.notes.join("\n")).toContain("No copy of it as it was installed is kept here, so whether it was changed cannot be told");
+  });
+
+  it("says nothing about a file of the old option that the project already deleted", () => {
+    const { repository, project } = createWorldWithChoice();
+    addToProject({ project, unit: "demo", repository });
+    rmSync(join(project, A));
+
+    const result = addToProject({ project, unit: "demo:bot-b", repository });
+
+    expect(result.choiceRemoved).toEqual([]);
+    expect(result.notes).toEqual([]);
+  });
+
+  it("does not write over a file the project already has where the new option's goes", () => {
+    const { repository, project } = createWorldWithChoice();
+    addToProject({ project, unit: "demo", repository });
+    write(project, B, "// the project wrote this before it switched\n");
+
+    const result = addToProject({ project, unit: "demo:bot-b", repository });
+
+    expect(read(project, B)).toBe("// the project wrote this before it switched\n");
+    expect(result.created).toEqual([]);
+  });
+
+  it("takes a project that had the add-on before it offered a choice as having the default, and keeps its file on an update", () => {
+    const { repository, project } = createWorldBeforeTheChoice();
+
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(result.choice).toBe("bot-a");
+    expect(result.choiceRemoved).toEqual([]);
+    expect(read(project, A)).toBe("# bot a, for @acme/web\n");
+    expect(readJson(project, "tools/installed.json").demo.choice).toBe("bot-a");
+  });
+
+  it("moves such a project off the default it never chose by name, removing the file it never changed", () => {
+    const { repository, project } = createWorldBeforeTheChoice();
+
+    const result = addToProject({ project, unit: "demo:bot-b", repository });
+
+    expect(result.choiceRemoved).toEqual([A]);
+    expect(existsSync(join(project, A))).toBe(false);
+    expect(existsSync(join(project, B))).toBe(true);
+  });
+
+  it("refuses an option the add-on does not have, names the ones it has, and changes nothing", () => {
+    const { repository, project } = createWorldWithChoice();
+
+    expect(() => addToProject({ project, unit: "demo:bot-c", repository })).toThrow(
+      new InstallError('the add-on "demo" has no option "bot-c" — it has: bot-a, bot-b (bot-a when none is named)'),
+    );
+    expect(existsSync(join(project, "tools/demo/check.mts"))).toBe(false);
+    expect(readJson(project, "package.json").scripts.demo).toBeUndefined();
+  });
+
+  it("refuses an option on an add-on that has no choice", () => {
+    const { repository, project } = createWorldWithKit();
+
+    expect(() => addToProject({ project, unit: "demo:bot-b", repository })).toThrow(/has no options, so "demo:bot-b" means nothing/);
+    expect(existsSync(join(project, "tools/demo/check.mts"))).toBe(false);
+  });
+
+  it("goes back to the default when the option the project had is no longer offered", () => {
+    const { repository, project } = createWorldWithChoice();
+    addToProject({ project, unit: "demo:bot-b", repository });
+    const manifest = readJson(repository, "addons/demo/addon.json");
+    write(repository, "addons/demo/addon.json", JSON.stringify({ ...manifest, choice: { default: "bot-a", options: { "bot-a": "Bot A." } } }));
+
+    expect(addToProject({ project, unit: "demo", repository }).choice).toBe("bot-a");
+  });
+
+  it("prints the option the project has with what the add-on says about it, and each file it removed", () => {
+    const { repository, project } = createWorldWithChoice();
+    addToProject({ project, unit: "demo", repository });
+
+    const printed = describeResult(addToProject({ project, unit: "demo:bot-b", repository }), project);
+
+    expect(printed).toContain("\n  option   bot-b: Bot B opens them.\n");
+    expect(printed).toContain(`\n  removed  ${A} (an option this project no longer has; it was never changed here)\n`);
+    expect(printed).toContain(`\n  created  ${B}\n`);
+  });
+
+  it("lists the options with the add-on, and which one is the default", () => {
+    const { repository } = createWorldWithChoice();
+
+    expect(listAddons(repository)[0]?.choice).toEqual({ default: "bot-a", options: { "bot-a": "Bot A opens them.", "bot-b": "Bot B opens them." } });
+    expect(parseUnit("demo:bot-b")).toEqual({ name: "demo", option: "bot-b" });
+    expect(parseUnit("demo")).toEqual({ name: "demo" });
+  });
+});
+
+describe("a starting file that a later version of an add-on is the first to ship", () => {
+  it("is written by the update, once, in a project that has no file there", () => {
+    const { repository, project } = createWorldWithKit();
+    withStartingFiles(repository);
+    addToProject({ project, unit: "demo", repository });
+    withPolicyFile(repository);
+
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(result.created).toEqual(["POLICY.md"]);
+    expect(read(project, "POLICY.md")).toBe("# Policy, as shipped\n");
+
+    rmSync(join(project, "POLICY.md"));
+
+    expect(addToProject({ project, unit: "demo", repository }).created).toEqual([]);
+    expect(existsSync(join(project, "POLICY.md"))).toBe(false);
+  });
+
+  it("is not written over a file the project already has under that name", () => {
+    const { repository, project } = createWorldWithKit();
+    withStartingFiles(repository);
+    addToProject({ project, unit: "demo", repository });
+    write(project, "POLICY.md", "# The project's own policy\n");
+    withPolicyFile(repository);
+
+    expect(addToProject({ project, unit: "demo", repository }).created).toEqual([]);
+    expect(read(project, "POLICY.md")).toBe("# The project's own policy\n");
+  });
+
+  it("is not written in a project whose copy of the add-on keeps no templates: a file missing there may have been deleted", () => {
+    const { repository, project } = createWorldWithKit();
+    addToProject({ project, unit: "demo", repository });
+    withPolicyFile(repository);
+
+    expect(addToProject({ project, unit: "demo", repository }).created).toEqual([]);
+    expect(existsSync(join(project, "POLICY.md"))).toBe(false);
+  });
+});
+
+/** Gives the demo add-on a text starting file it did not have before. */
+function withPolicyFile(repository: string): void {
+  const manifest = readJson(repository, "addons/demo/addon.json");
+
+  write(repository, "addons/demo/addon.json", JSON.stringify({ ...manifest, startingFiles: [...(manifest.startingFiles ?? []), "POLICY.md"] }));
+  write(repository, "addons/demo/files/POLICY.md", "# Policy, as shipped\n");
+}
+
+/** Gives the demo add-on a choice between two bots, each with one file, the first the default. */
+function withChoice(repository: string): void {
+  const manifest = readJson(repository, "addons/demo/addon.json");
+
+  manifest.startingFiles = [];
+  manifest.choice = { default: "bot-a", options: { "bot-a": "Bot A opens them.", "bot-b": "Bot B opens them." } };
+  write(repository, "addons/demo/addon.json", JSON.stringify(manifest));
+  write(repository, "addons/demo/choice/bot-a/files/.github/bot-a.yml", "# bot a, for @app/web\n");
+  write(repository, "addons/demo/choice/bot-b/files/.github/bot-b.json5", "// bot b, for @app/web\n");
+}
+
+/** A project that took the demo add-on when bot A's file was a plain starting file, and the add-on as it is now, with the choice. */
+function createWorldBeforeTheChoice(): { repository: string; project: string } {
+  const world = createWorldWithKit();
+  const { repository, project } = world;
+  const manifest = readJson(repository, "addons/demo/addon.json");
+
+  write(repository, "addons/demo/addon.json", JSON.stringify({ ...manifest, startingFiles: [".github/bot-a.yml"] }));
+  write(repository, "addons/demo/files/.github/bot-a.yml", "# bot a, for @app/web\n");
+  addToProject({ project, unit: "demo", repository });
+  rmSync(join(repository, "addons/demo/files/.github/bot-a.yml"));
+  withChoice(repository);
+
+  return world;
+}
+
+function createWorldWithChoice(): { repository: string; project: string } {
+  const world = createWorldWithKit();
+
+  withChoice(world.repository);
+
+  return world;
+}
 
 const KIT_FILES = [
   "tools/arch/gates/run.mts",

@@ -1,0 +1,64 @@
+{
+  "extends": ["stylelint-config-standard"],
+  "plugins": ["stylelint-declaration-strict-value"],
+  "reportDescriptionlessDisables": true,
+  "reportInvalidScopeDisables": true,
+  "reportNeedlessDisables": true,
+  "rules": {
+    "color-no-invalid-hex": true,
+    "no-duplicate-selectors": true,
+    "no-invalid-double-slash-comments": true,
+    "no-irregular-whitespace": true,
+    "declaration-block-no-duplicate-custom-properties": true,
+    "font-family-no-missing-generic-family-keyword": true,
+    "function-linear-gradient-no-nonstandard-direction": true,
+    "string-no-newline": true,
+    "selector-class-pattern": [
+      "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      {
+        "message": "A class in a plain stylesheet is kebab-case: price-row. (A class in a *.module.css file is camelCase, because it becomes a property of the imported object.)"
+      }
+    ],
+    "custom-property-pattern": [
+      "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      {
+        "message": "A custom property is kebab-case: --color-up."
+      }
+    ],
+    "scale-unlimited/declaration-strict-value": [
+      ["/color$/", "fill", "stroke"],
+      {
+        "ignoreValues": [
+          "transparent",
+          "currentColor",
+          "currentcolor",
+          "inherit",
+          "initial",
+          "unset",
+          "revert",
+          "revert-layer",
+          "none",
+          "auto",
+          "/^color-mix\\(in [a-z0-9-]+(?: [a-z]+ hue)?, (?:[0-9.]+% )?(?:var\\(--[a-z0-9-]+\\)|currentcolor|transparent)(?: [0-9.]+%)?, (?:[0-9.]+% )?(?:var\\(--[a-z0-9-]+\\)|currentcolor|transparent)(?: [0-9.]+%)?\\)$/"
+        ],
+        "ignoreFunctions": false,
+        "expandShorthand": true,
+        "disableFix": true,
+        "message": "${property}: \"${value}\" is not a token. Define a colour once, as a custom property (--color-up: #1a8f4c;), and use it as var(--color-up). A colour mixed from tokens is allowed: color-mix(in srgb, var(--color-up) 20%, transparent)."
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["**/*.module.css"],
+      "rules": {
+        "selector-class-pattern": [
+          "^[a-z][a-zA-Z0-9]*$",
+          {
+            "message": "A class in a CSS Module is camelCase: priceRow. It becomes a property of the imported object (styles.priceRow), and a dash would need styles[\"price-row\"]."
+          }
+        ]
+      }
+    }
+  ]
+}

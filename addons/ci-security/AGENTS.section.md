@@ -2,12 +2,13 @@
 
 Three workflows check the supply chain on GitHub: `CI security` (workflow lint
 and `pnpm audit --prod`), `Dependency Review` and `Scorecard`. They need the
-network, so none of them is in `pnpm gate:full`. This section is what they
-cannot decide.
+network, so none of them is in `pnpm gate:full`. `pnpm check:dockerfiles`
+needs none and is in `gate:fast`. This section is what they cannot decide.
 
 ```bash
 pnpm lint:workflows              # actionlint (valid?) then zizmor (safe?)
 pnpm lint:workflows zizmor       # one of them
+pnpm check:dockerfiles           # base images by digest, no root, no package outside a lockfile
 ```
 
 Exit 0 is a pass. Exit 1 is a finding, named in the linter's output above the
@@ -55,6 +56,28 @@ Never loosen `fail-on-severity`, `fail-on-scopes` or `deny-licenses` to pass.
 
 The same steps as an advisory above. The weekly run can fail with no change in
 the project: an advisory was published for a version already in the lockfile.
+
+### When you add or change a Dockerfile
+
+Run `pnpm check:dockerfiles`. Take a digest from the registry
+(`docker buildx imagetools inspect <image>:<tag>`), never from memory, and
+keep the tag in front of it for the reader. Do not turn an image into a
+build argument to get past the check. Skip this when no Dockerfile changed.
+
+### The update bot
+
+The project has one update bot, Dependabot or Renovate, and its config is the
+one file for it in `.github/`. Never add a config for the other by hand: two
+bots open the same pull requests twice. To
+move from one to the other, tell the user; it is one command in the
+repository the add-on came from, and Renovate needs its GitHub App installed
+by a person. Do not shorten the release age in either file to get an update
+sooner.
+
+### `SECURITY.md`
+
+It is the project's own text. Change it only when the user asks, and keep
+its promises (the answer time, the disclosure time) ones the user chose.
 
 ### Moving a linter to a newer release
 

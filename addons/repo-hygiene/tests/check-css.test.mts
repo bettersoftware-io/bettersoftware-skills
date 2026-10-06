@@ -13,7 +13,7 @@ describe("a project with stylesheets", () => {
     const tools = createFakeTools();
     const result = checkCss(createFolder({ ...CONFIG, "packages/a/src/ui.css": "", "packages/a/src/base.css": "" }), tools.run);
 
-    expect(tools.calls).toEqual(["stylelint --config tools/repo-hygiene/stylelint.json packages/a/src/base.css packages/a/src/ui.css"]);
+    expect(tools.calls).toEqual(["stylelint --config tools/repo-hygiene/stylelint.json --max-warnings 0 packages/a/src/base.css packages/a/src/ui.css"]);
     expect(result.failed).toBe(false);
     expect(formatResult(result)).toBe("PASS css — 2 stylesheet(s) linted");
   });
@@ -48,10 +48,10 @@ describe("a project with stylesheets", () => {
 
   it("lints a large project in runs of 200 files, and fails if any run does", () => {
     const files = Object.fromEntries(Array.from({ length: 201 }, (_, index) => [`src/s${String(index).padStart(3, "0")}.css`, ""]));
-    const tools = createFakeTools({ "stylelint --config tools/repo-hygiene/stylelint.json src/s200.css": { status: 2, stdout: "src/s200.css: bad" } });
+    const tools = createFakeTools({ "stylelint --config tools/repo-hygiene/stylelint.json --max-warnings 0 src/s200.css": { status: 2, stdout: "src/s200.css: bad" } });
     const result = checkCss(createFolder({ ...CONFIG, ...files }), tools.run);
 
-    expect(tools.calls.map((call) => call.split(" ").length - 3)).toEqual([200, 1]);
+    expect(tools.calls.map((call) => call.split(" ").length - 5)).toEqual([200, 1]);
     expect(result).toMatchObject({ failed: true, report: "src/s200.css: bad", files: 201 });
   });
 });
@@ -65,7 +65,7 @@ describe("which stylesheets are linted", () => {
       tools.run,
     );
 
-    expect(tools.calls).toEqual(["stylelint --config tools/repo-hygiene/stylelint.json src/ui.css"]);
+    expect(tools.calls).toEqual(["stylelint --config tools/repo-hygiene/stylelint.json --max-warnings 0 src/ui.css"]);
   });
 
   it("leaves out a stylesheet git ignores", () => {
@@ -75,7 +75,7 @@ describe("which stylesheets are linted", () => {
     initGit(root);
     checkCss(root, tools.run);
 
-    expect(tools.calls).toEqual(["stylelint --config tools/repo-hygiene/stylelint.json src/ui.css"]);
+    expect(tools.calls).toEqual(["stylelint --config tools/repo-hygiene/stylelint.json --max-warnings 0 src/ui.css"]);
   });
 });
 

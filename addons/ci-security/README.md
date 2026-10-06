@@ -2,18 +2,21 @@
 
 Adds supply-chain and workflow checks to a project created from the starter
 and hosted on GitHub: a lint of the workflows themselves, a review of every
-dependency change, an audit of the production dependencies, a Dependabot
-config and an OpenSSF Scorecard.
+dependency change, an audit of the production dependencies, an OpenSSF
+Scorecard, a check of the project's Dockerfiles, a security policy to start
+from, and the config of one update bot.
 
 ```bash
-node scripts/add-to-project.mts <project> ci-security
+node scripts/add-to-project.mts <project> ci-security            # with Dependabot
+node scripts/add-to-project.mts <project> ci-security:renovate   # with Renovate instead
 cd <project> && pnpm install && pnpm lint:workflows
 ```
 
-Every check here needs the network, so none joins `gate:fast` or `gate:full`.
-A gate needs nothing beyond `pnpm install`, and an agent runs the gates in a
-sandbox that may have no network. The checks run in workflows of their own,
-and the workflow lint also runs by hand before a push.
+Every check but one needs the network, so it joins neither `gate:fast` nor
+`gate:full`. A gate needs nothing beyond `pnpm install`, and an agent runs
+the gates in a sandbox that may have no network. Those checks run in
+workflows of their own, and the workflow lint also runs by hand before a
+push. The Dockerfile check reads files only, so it is in `gate:fast`.
 
 ## What it adds
 
@@ -24,9 +27,12 @@ and the workflow lint also runs by hand before a push.
 | Workflow lint and audit | `.github/workflows/ci-security.yml` | On pull requests, on main and weekly: actionlint, zizmor, `pnpm audit --prod` |
 | Dependency Review | `.github/workflows/dependency-review.yml` | On pull requests: fails one that brings in a known advisory or a strong-copyleft licence |
 | Scorecard | `.github/workflows/scorecard.yml` | Weekly and when `.github/` or branch protection changes: findings to code scanning. Gates nothing |
-| Dependabot | `.github/dependabot.yml` | Weekly version updates for npm and for actions, never a release younger than seven days. Written once, then the project's own |
+| `pnpm check:dockerfiles` | `tools/ci-security/check-dockerfiles.mts` | Reads every Dockerfile: each base image named by digest, the last stage not run as root, no package installed outside a lockfile. `SKIP` when the project has none. Joins `gate:fast` |
+| Security policy | `SECURITY.md` | How to report in private, what to expect, what is in scope. Written once, then the project's own |
+| Dependabot (the default) | `.github/dependabot.yml` | Weekly version updates for npm and for actions, never a release younger than seven days. Written once, then the project's own |
+| Renovate (`ci-security:renovate`) | `.github/renovate.json5` | The same policy for Renovate, in place of the Dependabot file. Written once, then the project's own |
 
-One script is added to the root `package.json`. No package is installed.
+Two scripts are added to the root `package.json`. No package is installed.
 
 ## Why each tool
 
@@ -42,13 +48,62 @@ decision record of the project these checks come from.
 | **Dependabot** | Keeps versions and action commits moving, a week behind their release. A malicious release is usually removed within days |
 | **Scorecard** | The repository's settings, which no file shows: branch protection, token defaults, and the day one of them is loosened |
 
-**Renovate is the alternative to Dependabot's version updates.** It needs the
-Mend Renovate app installed on the repository; Dependabot needs nothing, which
-is why it is the one shipped. Do not run both for version updates: they open
-the same pull requests twice. If you move to Renovate, set
-`open-pull-requests-limit: 0` in `dependabot.yml` (security updates still
-flow), give Renovate `minimumReleaseAge` and `helpers:pinGitHubActionDigests`,
-and turn off its `vulnerabilityAlerts`.
+## Dependabot or Renovate
+
+A project has one of the two, never both: two bots open the same pull
+requests twice. Dependabot is the default because it needs nothing installed.
+
+```bash
+node scripts/add-to-project.mts <project> ci-security:renovate     # move to Renovate
+node scripts/add-to-project.mts <project> ci-security:dependabot   # move back
+node scripts/add-to-project.mts <project> ci-security              # update; keeps the one the project has
+```
+
+Moving removes the other bot's file if the project never changed it. A file
+the project changed is left where it is, and the script says so: move what
+you changed to the new file, then delete the old one yourself.
+[How a choice works](../README.md#a-choice).
+
+**Renovate needs its GitHub App installed on the repository**
+(<https://github.com/apps/renovate>). A person does that, in the settings of
+the organisation or the account. Until then nothing happens: no pull request,
+no issue, and no error anywhere. The file alone does nothing. After the app
+is installed Renovate first opens one "Configure Renovate" pull request, or
+goes straight to work when it finds the file; check the Dependency Dashboard
+issue it opens.
+
+The two files hold one policy:
+
+| | `dependabot.yml` | `renovate.json5` |
+|---|---|---|
+| When | `interval: weekly` | `schedule: before 6am on monday` (UTC) |
+| How young a release may be | `cooldown: default-days: 7` | `minimumReleaseAge: 7 days`, held back until then (`internalChecksFilter: strict`) |
+| Grouping | Minor and patch in one pull request, each major alone; the actions in one | The same two groups |
+| Open at once | `open-pull-requests-limit: 5` | `prConcurrentLimit: 5` |
+| Actions | The commit and the version comment move together | `helpers:pinGitHubActionDigests` does the same, and pins an action that is not pinned yet |
+| Security fixes | Dependabot security updates, a repository setting | Still Dependabot security updates. Renovate's `vulnerabilityAlerts` is off, so no fix arrives twice |
+
+`minimumReleaseAge` in `pnpm-workspace.yaml` is a day. Both bots wait
+longer, and Renovate must never wait less: pnpm refuses a younger release,
+and the pull request could not update the lockfile. A test holds the three
+numbers together.
+
+What only Renovate does, and the file settles:
+
+- It reads every file it knows, so it is told to leave `tools/` alone. That
+  folder is what the kit and the add-ons installed; an update of an add-on
+  replaces it and refuses a file changed in the project.
+- It reads the `overrides` in `pnpm-workspace.yaml` as ordinary dependencies
+  and would lift a pin written for one advisory to the next major. Nothing in
+  that file is moved.
+- It moves the `packageManager` field with its hash, and the digest of a base
+  image in a Dockerfile. Dependabot needs a `docker` entry for the second,
+  and leaves the first to a person (`tools/arch/ci/pin-package-manager.mts`).
+
+Left out of the source's Renovate config: its auto-merge rules (a policy a
+project decides for itself; Dependabot's file has none either), its hourly
+limit, and its package rules for React Native, Expo, a deploy tool and its
+own lint packages.
 
 Not included, and why: **CodeQL** is a repository setting (default setup), not
 a file, so it is in the list below. **Snyk, SonarCloud** and other vendor
@@ -65,7 +120,9 @@ them. All are under Settings.
 | Dependabot alerts and Dependabot security updates | Advanced Security | No pull request is opened when an advisory hits a version already on main |
 | Dependabot version updates | Advanced Security | Usually on once `dependabot.yml` exists; check it |
 | CodeQL default setup, with the `actions` language | Advanced Security → Code scanning | No static analysis of the project's own code. It is also where Scorecard's findings are shown |
-| Private vulnerability reporting | Advanced Security | Nobody can report a flaw in private. Add a `SECURITY.md` too: Scorecard looks for it |
+| Private vulnerability reporting | Advanced Security | Nobody can report a flaw in private, and the "Report a vulnerability" button that `SECURITY.md` points to does not exist |
+| The Renovate app, with `ci-security:renovate` only | <https://github.com/apps/renovate>, then the repository | Nothing happens. No pull request, and no error |
+| The three things `SECURITY.md` asks its maintainers for, in the comment at its top | The file itself | The policy promises an answer in 7 days and disclosure within 90, which may not be times you keep |
 | A ruleset on `main` that requires a pull request and these status checks: `workflow lint (actionlint · zizmor)`, `pnpm audit (production dependencies)`, `dependency review (advisories · licences)`, and the starter's `gates · lint · typecheck · test · build` | Rules → Rulesets | The checks run and anyone can merge past a red one |
 | Workflow permissions: read repository contents | Actions → General | A workflow with no `permissions:` block gets a write token |
 
@@ -75,6 +132,50 @@ requests.
 In a private repository, Dependency Review and code scanning need GitHub
 Advanced Security. Without it, delete `dependency-review.yml` and
 `scorecard.yml`; the rest works.
+
+## The security policy
+
+`SECURITY.md` at the root is a file to start from. GitHub shows it under the
+repository's Security tab and links to it from the "new issue" page; it
+looks in the root, in `docs/` and in `.github/`. OpenSSF Scorecard's
+Security-Policy check looks in the same places and scores three things: a
+link or an address to report to, text of the policy's own, and words about
+disclosure with a time in numbers. The file has all three, and a test holds
+them.
+
+It names the project's packages by their scope (`@app/*`, which the
+installer rewrites) and nothing else about the project. It links only to
+GitHub's own guide, so the link check of the `repo-hygiene` add-on has
+nothing in it to resolve. A comment at its top, which a reader of the
+rendered page does not see, lists what the maintainers must change.
+
+## The Dockerfile check
+
+```
+PASS dockerfiles — 1 Dockerfile(s), 1 FROM line(s)
+SKIP dockerfiles — the project has no Dockerfile, so there was nothing to check
+```
+
+The starter has no Dockerfile, so a new project sees the `SKIP` line (exit
+0). The check is there for the day the server gets an image.
+
+| It fails on | Why |
+|---|---|
+| A `FROM` whose image has no `@sha256:` digest, or is a build argument | A tag is moved to a new image whenever its owner pushes one. A digest names one image for good. Scorecard's Pinned-Dependencies check reports the same line |
+| A last stage with no `USER`, or one that ends as `root` or `0` | The build needs root; the running program does not. Without it a way out of the program is a root shell in the container |
+| A `RUN` with `npm install -g`, `pnpm add -g`, `yarn global add`, `npx` or `dlx` | The package has no pinned version and no checksum. Install from a lockfile |
+
+`scratch` and a stage of the same file are accepted as a base. Files are
+found by name (`Dockerfile`, `Dockerfile.*`, `*.Dockerfile`, `Containerfile`)
+anywhere outside installed and generated folders and `tools/`.
+
+The source project runs no linter on its Dockerfile. These are the three
+things it fixed in it by hand and now holds with a pin, a grep and a review;
+they are the portable part. The visual add-on's `visual:check` compares the
+Playwright image tag in the workflows with the npm version. That is another
+question (do two versions agree), about another kind of file, and nothing
+here repeats it. An image named in a workflow's `container:` is zizmor's to
+judge.
 
 ## The local lint
 
@@ -113,7 +214,7 @@ it. With no network it fails with a connection error; it does not pass.
 ## The workflows
 
 - **Every action is pinned by its full commit hash**, with the version in a
-  comment. Dependabot's `github-actions` entry moves both together.
+  comment. The update bot moves both together.
 - **`permissions: contents: read`** on every workflow. The one write is
   `security-events: write` on the Scorecard job, to upload its findings.
 - **`persist-credentials: false`** on every checkout. No job pushes.
@@ -126,17 +227,18 @@ it. With no network it fails with a connection error; it does not pass.
 
 ## How it was tested
 
-**The tools.** 98 tests in `tests/`, run with
+**The tools.** 147 tests in `tests/`, run with
 `pnpm vitest run addons/ci-security` from this repository's root. No test
 touches the network: a download is a function that returns bytes, the archive
 extraction and the linter run are stand-ins. `system.test.mts` runs the real
 `tar` on an archive it makes, and the real tool in a folder with no workflow
-(it stops before any download).
+(it stops before any download). `check-dockerfiles.test.mts` runs the check
+on Dockerfiles it writes, and the script itself in a folder of its own.
 
-**Every test can fail.** One mutant per test, run with the coverage add-on's
-tool: 96 of 96 killed. The two remaining tests list files, which a
-find-and-replace cannot break, so each was made red by hand: a `.js` file put
-in `files/`, and a fourth workflow.
+**Every test can fail.** For the first 98 tests, one mutant per test, run
+with the coverage add-on's tool: 96 of 96 killed. The two remaining tests
+list files, which a find-and-replace cannot break, so each was made red by
+hand: a `.js` file put in `files/`, and a fourth workflow.
 
 The first run had twelve survivors, all in `pins.test.mts`, and they were a
 fault in the spec: the `-t` filter matched no test, vitest ran nothing and
@@ -144,6 +246,22 @@ exited 0, so every mutant "survived". The filters were fixed, and each of the
 96 was then checked to select exactly one test. One real gap was found while
 writing the mutants: a single test covered two deletions of a stale binary, so
 neither could be seen alone. It is now two tests.
+
+For the Dockerfile check, the security policy, the two bots' files and the
+manifest (2026-10-06): `tests/mutants.json`, 51 of 51 killed. One more test,
+that the policy is at the root, lists files; it was made red by hand with a
+second policy under `files/docs/`.
+
+**The Renovate config** was read by Renovate's own validator
+(`renovate-config-validator --strict`, Renovate 44.133.0, 2026-10-06), as the
+repository config at `.github/renovate.json5`: "Config validated
+successfully". As a control, a file with `minimumReleaseAge` as a number and
+a misspelt key was refused with exit 1. The validator warned that its RE2
+module was not built on this machine and fell back to JavaScript's regular
+expressions; the config has none.
+
+**The Dockerfile check** was also run on the source project's own
+Dockerfile, which is written to these three rules: `PASS`, 1 file, 1 `FROM`.
 
 **In a project**, on macOS arm64, 2026-10-05. Created with
 `create-project.mts`, then `add-to-project.mts <project> ci-security`,
@@ -164,6 +282,23 @@ neither could be seen alone. It is now two tests.
 | `pnpm audit --prod`, before `pnpm install` | exit 0, "No known vulnerabilities found" |
 | `pnpm audit --prod` against a registry that refuses the connection | exit 1 with the connection error |
 | `add-to-project.mts <project> ci-security` a second time | "0 file(s) written, 8 already up to date"; a hash of every file in the project is the same before and after |
+
+On 2026-10-06, in projects with every add-on and the scope
+`@ci-organisation-with-a-long-name`:
+
+| Command | Result |
+|---|---|
+| Created with `ci-security`: `pnpm gate:full`, `pnpm lint:workflows`, `pnpm visual` | exit 0 each. `.github/` holds `dependabot.yml` and no Renovate file; `SECURITY.md` is at the root with the project's scope in it; `SKIP dockerfiles` |
+| Created with `ci-security:renovate`: the same three | exit 0 each. `.github/` holds `renovate.json5` and no Dependabot file; `tools/installed.json` records `renovate` |
+| `add-to-project.mts <project> ci-security:renovate` on the first | `dependabot.yml` removed ("it was never changed here"), `renovate.json5` created |
+| `ci-security` again, by name alone | 0 files written; still Renovate |
+| `ci-security:dependabot` | `renovate.json5` removed, `dependabot.yml` created; `git status` empty: the project is back at its commit |
+| The same move with one line added to `dependabot.yml` first | The file is left, `renovate.json5` is created, and "Still to do by hand" says to move the change and delete the file |
+| `ci-security:snyk` | exit 1, names the two options, changes nothing |
+| `pnpm gate:fast` and `pnpm lint:workflows` after all of that | exit 0 |
+| A `Dockerfile` with `FROM node:26-slim`, `npm install -g corepack` and no `USER` | `FAIL dockerfiles (3)`, each with file and line; `pnpm gate:fast` exit 1 |
+| The same file with a digest, a lockfile install and `USER node` | `PASS dockerfiles`, exit 0 |
+| The add-on alone, by the steps of this repository's CI job | `pnpm gate:full` exit 0 |
 
 ## Limits
 
@@ -188,7 +323,7 @@ neither could be seen alone. It is now two tests.
 - **The first run of the local lint needs the network.** In a sandbox without
   it the answer is `SKIP`, exit 2. That is correct and it is not a pass.
 - **No Windows build is pinned.** Run the lint under WSL, or leave it to CI.
-- **Dependabot does not manage the two linter pins.** A person changes the
+- **No update bot manages the two linter pins.** A person changes the
   version, four URLs and four checksums together. `pins.mts` belongs to the
   add-on, so a project that edits it must pass `--force` on the next update
   of the add-on.
@@ -202,7 +337,19 @@ neither could be seen alone. It is now two tests.
   change before it merges.
 - **The weekly runs stop** when a repository has had no activity for 60 days;
   GitHub disables scheduled workflows then.
-- **`dependabot.yml` is not updated** when the add-on is. It is the project's
-  file from the first install.
+- **`dependabot.yml`, `renovate.json5` and `SECURITY.md` are not updated**
+  when the add-on is. Each is the project's file from the first install. When
+  the add-on's version of one changes, the update shows the lines.
+- **The Renovate config was not run.** Its form was checked by Renovate's own
+  validator (see "How it was tested"); no repository with the app installed
+  has used it, so no pull request it opens has been seen.
+- **The Dockerfile check reads text.** It does not build, and it does not
+  know an image by its content: a digest that names the wrong image passes.
+  It does not follow an `ARG` to its value; it asks for the image written
+  out. `pip`, `apt` and `curl | sh` are not judged.
+- **A project from before `SECURITY.md` was shipped** gets it on the next
+  update of the add-on, unless its copy of the add-on is from before
+  templates were kept (2026-10-06); then copy it from
+  `tools/templates/ci-security.SECURITY.md.txt`.
 - **The lint tool's cache is under `node_modules/`**, so removing
   `node_modules` means one more download.

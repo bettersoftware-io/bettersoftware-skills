@@ -51,6 +51,19 @@ files in this project, so they apply to everyone who works on it and to CI.
 
 {{addons}}
 
+## By hand
+
+- **A newer pnpm.** `packageManager` in `package.json` names pnpm by its
+  version and by the hash of that release, which Corepack checks the download
+  against. To move to another version run
+  `node tools/arch/ci/pin-package-manager.mts pnpm@<version> --write`, then
+  `pnpm install`. Do not type the hash.
+- **What an add-on leaves to a person** is written at the top of the file it
+  gave the project to keep. Read that file once: a security policy has times
+  to make your own, and an update bot may need an app installed on the
+  repository before it does anything. Settings on GitHub that no file can
+  make are listed in that add-on's README, in the repository below.
+
 `tools/installed.json` records what is installed now. The kit and the add-ons
 come from <https://github.com/bettersoftware-io/skills>, which also holds the
 script that adds one or brings one up to date.

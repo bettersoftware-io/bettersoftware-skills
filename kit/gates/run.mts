@@ -25,6 +25,7 @@ import { isMainModule } from "./lib/files.mts";
 import { checkInstructionPaths, instructionsSkipReason } from "./lib/instructions.mts";
 import { checkLanguage, languageSkipReason } from "./lib/language.mts";
 import { checkNodeFloor, nodeFloorSkipReason } from "./lib/node-floor.mts";
+import { checkPackageManager, packageManagerSkipReason } from "./lib/package-manager.mts";
 import { checkPackageScripts, packageScriptsSkipReason } from "./lib/package-scripts.mts";
 import { checkStructure, checkStructureOfFiles } from "./lib/structure.mts";
 import { checkTaskCache, taskCacheSkipReason } from "./lib/task-cache.mts";
@@ -65,6 +66,7 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
         "port-contracts",
         "package-scripts",
         "node-floor",
+        "package-manager",
         "app-harness",
         "test-ids",
         "types-only",
@@ -72,6 +74,7 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
       skipped: dropUndefined({
         "typescript-only": languageSkipReason(project),
         "node-floor": nodeFloorSkipReason(project),
+        "package-manager": packageManagerSkipReason(project),
         "app-harness": appHarnessSkipReason(project),
         "test-ids": testIdsSkipReason(project),
         "types-only": typesOnlySkipReason(project),
@@ -83,6 +86,7 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
         ...checkContractsImportNoImplementation(project, relativeFiles),
         ...checkPackageScripts(project, relativeFiles),
         ...checkNodeFloor(project, relativeFiles),
+        ...checkPackageManager(project, relativeFiles),
         ...checkAppHarness(project, relativeFiles),
         ...checkTestIds(project, relativeFiles),
         ...checkTypesOnly(project, relativeFiles),
@@ -101,6 +105,7 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
       "task-cache",
       "package-scripts",
       "node-floor",
+      "package-manager",
       "app-harness",
       "test-ids",
       "types-only",
@@ -113,6 +118,7 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
       "task-cache": taskCacheSkipReason(project),
       "package-scripts": packageScriptsSkipReason(project),
       "node-floor": nodeFloorSkipReason(project),
+      "package-manager": packageManagerSkipReason(project),
       "app-harness": appHarnessSkipReason(project),
       "test-ids": testIdsSkipReason(project),
       "types-only": typesOnlySkipReason(project),
@@ -127,6 +133,7 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
       ...checkTaskCache(project),
       ...checkPackageScripts(project),
       ...checkNodeFloor(project),
+      ...checkPackageManager(project),
       ...checkAppHarness(project),
       ...checkTestIds(project),
       ...checkTypesOnly(project),

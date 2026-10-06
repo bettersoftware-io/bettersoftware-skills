@@ -567,20 +567,6 @@
     "test": "pnpm vitest run addons/repo-hygiene/tests/addon.test.mts -t \"joins every script to gate:fast\""
   },
   {
-    "name": "addon: ships each settings file as a starting file",
-    "file": "addons/repo-hygiene/addon.json",
-    "find": "\"tools/repo-hygiene/syncpack.json\",",
-    "replace": "",
-    "test": "pnpm vitest run addons/repo-hygiene/tests/addon.test.mts -t \"ships each settings file as a starting file\""
-  },
-  {
-    "name": "addon: installs the package the stylelint settings extend",
-    "file": "addons/repo-hygiene/addon.json",
-    "find": "\"stylelint-config-standard\": \"^40.0.0\",",
-    "replace": "",
-    "test": "pnpm vitest run addons/repo-hygiene/tests/addon.test.mts -t \"installs the package the stylelint settings extend\""
-  },
-  {
     "name": "addon: in the order a sorted package.json has them",
     "file": "addons/repo-hygiene/addon.json",
     "find": "\"syncpack\": \"^15.3.2\"",
@@ -593,5 +579,334 @@
     "find": "  return errors;\n}",
     "replace": "  return errors.slice(0, 1);\n}",
     "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"reports dependencies that are not in order\""
+  },
+  {
+    "name": "addon: ships the project's two settings files as starting files",
+    "file": "addons/repo-hygiene/addon.json",
+    "find": "\"tools/repo-hygiene/syncpack.json\",",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/addon.test.mts -t \"two settings files as starting files\""
+  },
+  {
+    "name": "addon: keeps the stylelint rules for itself",
+    "file": "addons/repo-hygiene/addon.json",
+    "find": "\"tools/repo-hygiene/stylelint.json\"\n",
+    "replace": "\"tools/repo-hygiene/stylelint.json\",\n    \"tools/repo-hygiene/stylelint.base.json\"\n",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/addon.test.mts -t \"keeps the stylelint rules for itself\""
+  },
+  {
+    "name": "addon: installs every package the stylelint base extends or loads",
+    "file": "addons/repo-hygiene/addon.json",
+    "find": "        \"stylelint-declaration-strict-value\": \"^1.12.1\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/addon.test.mts -t \"installs every package the stylelint base\""
+  },
+  {
+    "name": "addon: the plugin's range is the one this repository tests with",
+    "file": "addons/repo-hygiene/addon.json",
+    "find": "\"stylelint-declaration-strict-value\": \"^1.12.1\"",
+    "replace": "\"stylelint-declaration-strict-value\": \"^1.11.1\"",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/addon.test.mts -t \"installs every package the stylelint base\""
+  },
+  {
+    "name": "css-rules: the starter's stylesheet passes",
+    "file": "starter/packages/client-react/src/index.css",
+    "find": "color: var(--color-up);",
+    "replace": "color: #1a8f4c;",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"pass as they are\""
+  },
+  {
+    "name": "css-rules: color-no-invalid-hex",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"color-no-invalid-hex\": true",
+    "replace": "\"color-no-invalid-hex\": null",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"fail on color-no-invalid-hex\""
+  },
+  {
+    "name": "css-rules: no-duplicate-selectors",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"no-duplicate-selectors\": true",
+    "replace": "\"no-duplicate-selectors\": null",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"fail on no-duplicate-selectors\""
+  },
+  {
+    "name": "css-rules: no-invalid-double-slash-comments",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"no-invalid-double-slash-comments\": true",
+    "replace": "\"no-invalid-double-slash-comments\": null",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"fail on no-invalid-double-slash\""
+  },
+  {
+    "name": "css-rules: no-irregular-whitespace",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"no-irregular-whitespace\": true",
+    "replace": "\"no-irregular-whitespace\": null",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"fail on no-irregular-whitespace\""
+  },
+  {
+    "name": "css-rules: declaration-block-no-duplicate-custom-properties",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"declaration-block-no-duplicate-custom-properties\": true",
+    "replace": "\"declaration-block-no-duplicate-custom-properties\": null",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"fail on declaration-block-no-duplicate\""
+  },
+  {
+    "name": "css-rules: font-family-no-missing-generic-family-keyword",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"font-family-no-missing-generic-family-keyword\": true",
+    "replace": "\"font-family-no-missing-generic-family-keyword\": null",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"fail on font-family-no-missing\""
+  },
+  {
+    "name": "css-rules: function-linear-gradient-no-nonstandard-direction",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"function-linear-gradient-no-nonstandard-direction\": true",
+    "replace": "\"function-linear-gradient-no-nonstandard-direction\": null",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"fail on function-linear-gradient\""
+  },
+  {
+    "name": "css-rules: string-no-newline",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"string-no-newline\": true",
+    "replace": "\"string-no-newline\": null",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"fail on string-no-newline\""
+  },
+  {
+    "name": "css-rules: kebab-case in a plain stylesheet",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"selector-class-pattern\": [\n      \"^[a-z][a-z0-9]*(-[a-z0-9]+)*$\"",
+    "replace": "\"selector-class-pattern\": [\n      \".*\"",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"wants kebab-case for a class in a plain stylesheet\""
+  },
+  {
+    "name": "css-rules: camelCase in a CSS Module",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"^[a-z][a-zA-Z0-9]*$\"",
+    "replace": "\".*\"",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"wants camelCase for a class in a CSS Module\""
+  },
+  {
+    "name": "css-rules: kebab-case for a custom property",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"custom-property-pattern\": [\n      \"^[a-z][a-z0-9]*(-[a-z0-9]+)*$\"",
+    "replace": "\"custom-property-pattern\": [\n      \".*\"",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"wants kebab-case for a custom property\""
+  },
+  {
+    "name": "css-rules: fails on color: #1a8f4c",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "[\"/color$/\", \"fill\", \"stroke\"]",
+    "replace": "[\"/-color$/\", \"fill\", \"stroke\"]",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"fails on color: #1a8f4c\""
+  },
+  {
+    "name": "css-rules: fails on color: red",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "[\"/color$/\", \"fill\", \"stroke\"]",
+    "replace": "[\"/-color$/\", \"fill\", \"stroke\"]",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"fails on color: red\""
+  },
+  {
+    "name": "css-rules: fails on background-color: rgb",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "[\"/color$/\", \"fill\", \"stroke\"]",
+    "replace": "[\"color\", \"fill\", \"stroke\"]",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"fails on background-color: rgb\""
+  },
+  {
+    "name": "css-rules: fails on border-color: hsl",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "[\"/color$/\", \"fill\", \"stroke\"]",
+    "replace": "[\"color\", \"fill\", \"stroke\"]",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"fails on border-color: hsl\""
+  },
+  {
+    "name": "css-rules: fails on outline-color: #000",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "[\"/color$/\", \"fill\", \"stroke\"]",
+    "replace": "[\"color\", \"fill\", \"stroke\"]",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"fails on outline-color: #000\""
+  },
+  {
+    "name": "css-rules: fails on fill: #1a8f4c",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "[\"/color$/\", \"fill\", \"stroke\"]",
+    "replace": "[\"/color$/\", \"stroke\"]",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"fails on fill: #1a8f4c\""
+  },
+  {
+    "name": "css-rules: fails on stroke: red",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "[\"/color$/\", \"fill\", \"stroke\"]",
+    "replace": "[\"/color$/\", \"fill\"]",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"fails on stroke: red\""
+  },
+  {
+    "name": "css-rules: fails on border: 1px solid #ccc",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"expandShorthand\": true",
+    "replace": "\"expandShorthand\": false",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"fails on border: 1px solid #ccc\""
+  },
+  {
+    "name": "css-rules: fails on background: linear-gradient",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"expandShorthand\": true",
+    "replace": "\"expandShorthand\": false",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"fails on background: linear-gradient\""
+  },
+  {
+    "name": "css-rules: fails on color: color-mix(in srgb, #fff",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"ignoreFunctions\": false",
+    "replace": "\"ignoreFunctions\": true",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"fails on color: color-mix\\\\(in srgb, #fff\""
+  },
+  {
+    "name": "css-rules: accepts color: var(--color-up)",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"ignoreFunctions\": false",
+    "replace": "\"ignoreFunctions\": false,\n        \"ignoreVariables\": false",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"accepts color: var\\\\(--color-up\\\\)\""
+  },
+  {
+    "name": "css-rules: accepts color: var(--color-up, #1a8f4c)",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"ignoreFunctions\": false",
+    "replace": "\"ignoreFunctions\": false,\n        \"ignoreVariables\": false",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"accepts color: var\\\\(--color-up\\\\, #1a8f4c\\\\)\""
+  },
+  {
+    "name": "css-rules: accepts color: currentcolor",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "          \"currentcolor\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"accepts color: currentcolor\""
+  },
+  {
+    "name": "css-rules: accepts color: inherit",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "          \"inherit\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"accepts color: inherit\""
+  },
+  {
+    "name": "css-rules: accepts background-color: transparent",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "          \"transparent\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"accepts background-color: transparent\""
+  },
+  {
+    "name": "css-rules: accepts fill: none",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "          \"none\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"accepts fill: none\""
+  },
+  {
+    "name": "css-rules: accepts accent-color: auto",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "          \"auto\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"accepts accent-color: auto\""
+  },
+  {
+    "name": "css-rules: accepts border: 1px solid var(--line)",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"ignoreFunctions\": false",
+    "replace": "\"ignoreFunctions\": false,\n        \"ignoreVariables\": false",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"accepts border: 1px solid var\\\\(--line\\\\)\""
+  },
+  {
+    "name": "css-rules: accepts border: 0",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "[\"/color$/\", \"fill\", \"stroke\"]",
+    "replace": "[\"/color$/\", \"fill\", \"stroke\", \"border\", \"background\"]",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"accepts border: 0\""
+  },
+  {
+    "name": "css-rules: accepts outline: 2px solid currentcolor",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "          \"currentcolor\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"accepts outline: 2px solid currentcolor\""
+  },
+  {
+    "name": "css-rules: accepts background: url",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "[\"/color$/\", \"fill\", \"stroke\"]",
+    "replace": "[\"/color$/\", \"fill\", \"stroke\", \"border\", \"background\"]",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"accepts background: url\""
+  },
+  {
+    "name": "css-rules: accepts background: color-mix(in srgb, currentcolor",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"/^color-mix\\\\(in",
+    "replace": "\"/^colour-mix\\\\(in",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"accepts background: color-mix\\\\(in srgb\\\\, curre\""
+  },
+  {
+    "name": "css-rules: accepts color: color-mix(in oklch",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"/^color-mix\\\\(in",
+    "replace": "\"/^colour-mix\\\\(in",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"accepts color: color-mix\\\\(in oklch\""
+  },
+  {
+    "name": "css-rules: the message names the property and the value",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "is not a token.",
+    "replace": "is wrong.",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"names the property and the value\""
+  },
+  {
+    "name": "css-rules: a disable needs a reason",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"reportDescriptionlessDisables\": true",
+    "replace": "\"reportDescriptionlessDisables\": false",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"needs a reason after it\""
+  },
+  {
+    "name": "css-rules: a disable with a reason passes",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "[\"/color$/\", \"fill\", \"stroke\"]",
+    "replace": "[\"fill\", \"stroke\"]",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"passes with a reason\""
+  },
+  {
+    "name": "css-rules: a needless disable fails",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"reportNeedlessDisables\": true",
+    "replace": "\"reportNeedlessDisables\": false",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"switches off a rule that reports nothing there\""
+  },
+  {
+    "name": "css-rules: a disable of an unknown rule fails",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.base.json",
+    "find": "\"reportInvalidScopeDisables\": true",
+    "replace": "\"reportInvalidScopeDisables\": false",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"names a rule the project does not run\""
+  },
+  {
+    "name": "css-rules: the project's file can switch a base rule off (fixture)",
+    "file": "addons/repo-hygiene/tests/css-rules.test.mts",
+    "find": "rules: { \"selector-class-pattern\": null } }",
+    "replace": "rules: {} }",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"switch off a rule the base sets\""
+  },
+  {
+    "name": "css-rules: a warning fails",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-css.mts",
+    "find": "\"--max-warnings\", \"0\", ",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"sets to a warning\""
+  },
+  {
+    "name": "css-rules: the project's file only extends the base",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.json",
+    "find": "./stylelint.base.json",
+    "replace": "stylelint-config-standard",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"has a project file that only extends the base\""
   }
 ]
