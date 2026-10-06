@@ -3,9 +3,9 @@
 // its "remote" is another folder beside it.
 
 import { spawnSync } from "node:child_process";
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { delimiter, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 
 export const ADDON = join(import.meta.dirname, "..");
 export const REPOSITORY = join(ADDON, "..", "..");
@@ -112,24 +112,22 @@ export function createRemote(): Remote {
 }
 
 export const HOOK = "tools/agent-workflow/hooks/split-outward-commands.mts";
-export const SETTING = "tools/agent-workflow.config.json";
 
 export interface Project {
   /** A checkout with the add-on's tools in it, one commit on `main`, and a local branch `worktree-a`. */
   project: string;
   /** The bare repository its `origin` points at. */
   origin: string;
-  /**
-   * A folder that plays the person's home, so that the hook reads no global
-   * git settings of the machine the tests run on. Its `bin` is first on the
-   * hook's `PATH` and holds a stand-in for `gh`, so that no test can reach
-   * the real one, and through it GitHub.
-   */
+  /** An empty folder that plays the person's home, so that nothing reads the settings of the machine the tests run on. */
   home: string;
 }
 
-/** A project as a person has it after turning the approvals on: a real repository with a real `origin` beside it. */
-export function createProject(setting: Record<string, unknown> = { approvePushAndCreate: true, approveMerge: true }): Project {
+/**
+ * A project in which an earlier version of the hook let a routine push run
+ * without a prompt: a real repository with a real `origin` beside it, a work
+ * branch, and `setting` in the file that version read.
+ */
+export function createProject(setting: Record<string, unknown>): Project {
   const root = createFolder();
   const origin = join(root, "origin.git");
   const project = join(root, "project");
@@ -137,10 +135,9 @@ export function createProject(setting: Record<string, unknown> = { approvePushAn
 
   mkdirSync(origin);
   mkdirSync(home);
-  writeGh(home, {});
   git(origin, "init", "--quiet", "--bare", "--initial-branch=main");
   cpSync(join(ADDON, "files/tools"), join(project, "tools"), { recursive: true });
-  writeFile(project, SETTING, `${JSON.stringify(setting)}\n`);
+  writeFile(project, "tools/agent-workflow.config.json", `${JSON.stringify(setting)}\n`);
   git(project, "init", "--quiet", "--initial-branch=main");
   git(project, "remote", "add", "origin", origin);
   commit(project, "the project", {});
@@ -149,16 +146,6 @@ export function createProject(setting: Record<string, unknown> = { approvePushAn
   git(project, "branch", "worktree-a");
 
   return { project, origin, home };
-}
-
-/** The environment a host's session gives the hook, on a machine with nothing set up: no `GIT_…` or `GH_…` variable, an empty home. */
-export function sessionEnvironment(home: string, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
-  return {
-    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:GIT_|GH_|XDG_CONFIG_HOME$)/.test(name))),
-    HOME: home,
-    PATH: [join(home, "bin"), process.env.PATH ?? ""].join(delimiter),
-    ...extra,
-  };
 }
 
 export interface HookRun {
@@ -170,57 +157,18 @@ export interface HookRun {
   reason: string;
 }
 
-/** Runs the hook as Claude Code starts it, for a plain Bash call in the project unless `change` says otherwise. */
+/** Runs the hook started with `args`, for a plain Bash call in the project unless `change` says otherwise. */
 export function runHook(
   { project, home }: Pick<Project, "project" | "home">,
   command: string,
-  { change = {}, env = {}, args = ["--host=claude-code"] }: { change?: Record<string, unknown>; env?: Record<string, string>; args?: string[] } = {},
+  { change = {}, env, args = [] }: { change?: Record<string, unknown>; env?: NodeJS.ProcessEnv; args?: string[] } = {},
 ): HookRun {
   const run = spawnSync(process.execPath, [join(project, HOOK), ...args], {
     input: JSON.stringify({ tool_name: "Bash", tool_input: { command }, cwd: project, permission_mode: "default", ...change }),
     encoding: "utf8",
-    env: sessionEnvironment(home, env),
+    env: env ?? { ...process.env, HOME: home },
   });
   const output = run.stdout === "" ? undefined : (JSON.parse(run.stdout) as { hookSpecificOutput: { permissionDecision: string; permissionDecisionReason: string } }).hookSpecificOutput;
 
   return { status: run.status, stdout: run.stdout, stderr: run.stderr, decision: output?.permissionDecision ?? "", reason: output?.permissionDecisionReason ?? "" };
-}
-
-/**
- * Puts a stand-in for `gh` in the home's `bin`. It answers `gh pr view` and
- * `gh repo view` with the JSON given and exits 0 (or with `exit`), fails for
- * a read that was given none and for anything else, and writes each call to `gh-calls` in the home.
- */
-export function writeGh(home: string, answers: { pull?: unknown; repository?: unknown; exit?: number }): void {
-  const file = join(home, "bin", "gh");
-  const answer = (name: string, value: unknown): string => {
-    writeFile(home, name, value === undefined ? "" : typeof value === "string" ? value : JSON.stringify(value));
-
-    return value === undefined ? "exit 1" : `cat "$HOME/${name}"; exit ${answers.exit ?? 0}`;
-  };
-
-  writeFile(
-    home,
-    "bin/gh",
-    [
-      "#!/bin/sh",
-      'echo "$*" >> "$HOME/gh-calls"',
-      'case "$1 $2" in',
-      `  "pr view") ${answer("pull.json", answers.pull)} ;;`,
-      `  "repo view") ${answer("repository.json", answers.repository)} ;;`,
-      "  *) exit 9 ;;",
-      "esac",
-      "",
-    ].join("\n"),
-  );
-  chmodSync(file, 0o755);
-}
-
-/** What the stand-in for `gh` was called with, one call per entry. */
-export function ghCalls(home: string): string[] {
-  try {
-    return readFileSync(join(home, "gh-calls"), "utf8").trim().split("\n");
-  } catch {
-    return [];
-  }
 }

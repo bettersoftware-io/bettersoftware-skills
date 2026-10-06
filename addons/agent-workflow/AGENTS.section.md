@@ -9,7 +9,7 @@ pnpm worktree <name> [--ready]     # a worktree beside the project, on worktree-
 pnpm changelog weeks               # the weeks CHANGELOG.md has no entry for
 pnpm changelog prs <week>          # what was merged in a week (reads GitHub)
 pnpm changelog check <week>        # every merged pull request cited, every citation defined
-pnpm agent-workflow:check          # the hook works and is registered; whether approval is on
+pnpm agent-workflow:check          # the hook works and is registered in each host's settings
 ```
 
 ### An outward step is a call of its own
@@ -52,38 +52,17 @@ spread through the work cost one wait each.
 Skip this ordering for a task with no outward step, and when the user asks
 for a push now.
 
-### What runs without a prompt
+### Every outward step asks
 
-Nothing, unless the project turned it on. The setting is
-`tools/agent-workflow.config.json`, with two switches: `approvePushAndCreate`
-and `approveMerge`. Both are off unless the project turned them on, and then
-every push and pull request step asks a person. Do not change that file, the
-hook under `tools/agent-workflow/`, or `.claude/settings.json` unless the user
-asks: that is the user's decision, not a step of the work.
+The hook never lets a command run without a prompt. It refuses a chain and
+says nothing else, so each push, each pull request step and each merge asks a
+person, under the host's own rules. Do not add an `allow` rule for one to
+`.claude/settings.json`, and do not change the hook under
+`tools/agent-workflow/`, unless the user asks: that is the user's decision,
+not a step of the work.
 
-With `approvePushAndCreate` on, in Claude Code the hook approves a command
-that is exactly one of these and nothing more:
-
-- `git push -u origin worktree-<name>` (or without `-u`), run from inside
-  the project or one of its worktrees.
-- `gh pr create --head worktree-<name>` with `--title`, `--body`, `--base`,
-  `--draft`, `--fill` or their short forms. `--head` is required.
-
-With `approveMerge` on, also:
-
-- `gh pr merge <number> --match-head-commit <commit>` with one of `--merge`,
-  `--squash`, `--rebase`, and `--subject`, `--body`. `<commit>` is the whole
-  forty-digit name of the commit the branch is at: print it first with
-  `git rev-parse worktree-<name>`, in a call of its own.
-
-Each may end in `2>&1`, in `| tail -<n>` or `| head -<n>`, or in both.
-
-Give a title, a subject or a body as one quoted word:
-
-- in single quotes, when the text has no `'` in it;
-- or in double quotes, when it has no `$`, backtick, backslash or `!`.
-
-A body of several lines is the same: put the new lines inside the quotes.
+Give a title or a body as one quoted word, with the new lines inside the
+quotes, so that the prompt shows the whole text as it will be sent:
 
 ```bash
 gh pr create --head worktree-price-list --title 'Add the price list' --body '## Summary
@@ -92,34 +71,9 @@ gh pr create --head worktree-price-list --title 'Add the price list' --body '## 
 - The total no longer counts a row twice'
 ```
 
-Do not use `--body "$(cat <<'EOF' … EOF)"`, `--body-file`, a variable or any
-`$(…)`. None is pre-approved: an old bash runs what a heredoc's body holds.
-If the text needs both a `'` and a `$`, reword it (`it is` for `it's`), or
-let the command ask.
-
-The hook also asks git, and for a merge GitHub, whether the step would do
-what its words say. It is approved only when:
-
-- the call is a plain one: not in the background, in the default or the
-  accept-edits permission mode, run in this project's checkout or one of its
-  worktrees;
-- `origin` is set up as a clone leaves it, the branch is a real local branch
-  that tracks nothing or its own name, and no `pre-push` hook is there;
-- for `gh`, `origin` is the only remote;
-- for a merge, the pull request is open, comes from a `worktree-…` branch of
-  this repository, goes into the default branch, and is at the commit named
-  in the command, which is also where the local branch is.
-
-When one of those does not hold, the hook asks and gives the reason. Read the
-reason to the user. Do not change the configuration to make the question go
-away, and do not try another spelling: the question is there for a person to
-answer. Anything else asks too: another flag, a second branch, another
-remote, `git -C <dir> push`, a push of a branch not named `worktree-…`.
 Never use `--admin`, `--force` or `--delete` unless the user asked for
 exactly that. Never merge a pull request you did not open in this session
 unless the user named it.
-
-Codex is not told to approve anything. Its own approval settings decide.
 
 ### Start every change in a worktree
 

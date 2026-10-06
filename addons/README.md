@@ -92,10 +92,18 @@ addons/<name>/
   `add-to-project.mts` exits 3: the add-on's files are in, and the add-on is
   not whole.
 - `retiredFiles` names a file an older version of the add-on had the project
-  own and no longer reads, with the starting file that took its place
-  (`replacedBy`) and a sentence for the person (`note`). While the old file is
-  in the project every update says so, and writes the new starting file if
-  the project does not have it. A setting is never left silently unread.
+  own and no longer reads, with a sentence for the person (`note`) and, when
+  there is one, the starting file that took its place (`replacedBy`). While
+  the old file is in the project every update says so, and writes the new
+  starting file if the project does not have it. A setting is never left
+  silently unread.
+- `retiredHookCommands` names a command line an older version registered for
+  a hook, with the command line `hostSettings` registers now. The merge never
+  rewrites a project's entry, so without this an update would add the new
+  line beside the old one and the hook would run twice. With it, a project
+  that has the old line keeps it, gets no second one, and is told so on each
+  update. The old line must still work: a hook whose arguments changed has to
+  ignore the ones it no longer reads.
 - `firstRun` is a command to run once after installing, before `verify`. It
   is for an add-on whose verdict depends on something the installer changes:
   `format-lint` asks for its fixer, because a package scope of another length

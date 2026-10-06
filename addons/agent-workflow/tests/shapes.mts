@@ -1,48 +1,52 @@
-// The two tables the approval is tested against: every command the hook
-// approves, and commands one step away from one. The shell tests run the
-// first table through every shell on the machine.
+// The two tables the hook is swept with: every command an earlier version
+// let run without a prompt, and commands one step away from one. The hook
+// must answer nothing or a refusal for all of them, alone or joined.
 
-/** The form the reader once approved. bash 3.2 runs what its body holds, so it is a near-miss now. */
-export const HEREDOC_BODY = "\"$(cat <<'EOF'\n## Summary\n- don't chain; `git push` && $(rm -rf x) | $HOME \"quoted\"\nEOF\n)\"";
-/** A commit's whole name, for the merges. */
-export const SHA = "0123456789abcdef0123456789abcdef01234567";
-export const LONGEST = `worktree-${"a".repeat(91)}`;
+/** A pull request body as a heredoc. bash 3.2 runs what such a body holds. */
+const HEREDOC_BODY = "\"$(cat <<'EOF'\n## Summary\n- don't chain; `git push` && $(rm -rf x) | $HOME \"quoted\"\nEOF\n)\"";
+const LONGEST = `worktree-${"a".repeat(91)}`;
 
-/** Every command the hook approves, with what it says it approved. */
-export const APPROVED: [string, string][] = [
-  ["git push origin worktree-a", "a push of the work branch worktree-a to origin"],
-  ["git push -u origin worktree-rates-filter", "a push of the work branch worktree-rates-filter to origin"],
-  ["git push --set-upstream origin worktree-a.b_c-1", "a push of the work branch worktree-a.b_c-1 to origin"],
-  [`git push origin ${LONGEST}`, `a push of the work branch ${LONGEST} to origin`],
-  ["git  push \t origin   worktree-a ", "a push of the work branch worktree-a to origin"],
-  ["git push origin worktree-a 2>&1", "a push of the work branch worktree-a to origin"],
-  ["git push origin worktree-a | tail -2", "a push of the work branch worktree-a to origin"],
-  ["git push -u origin worktree-a 2>&1 | tail -n 5", "a push of the work branch worktree-a to origin"],
-  ["git push -u origin worktree-a 2>&1 | head -20", "a push of the work branch worktree-a to origin"],
-  ["gh pr create --head worktree-a", "opening a pull request"],
-  ["gh pr create --head worktree-a --fill", "opening a pull request"],
-  ["gh pr create --head worktree-a -f -d", "opening a pull request"],
-  ["gh pr create --head worktree-a --title T --body B", "opening a pull request"],
-  ['gh pr create --head worktree-a --title "fix: a thing (#12), it\'s done" --body \'no $expansion `here` \\n && ; | ! ~ * {a,b} #x =ls\'', "opening a pull request"],
-  ["gh pr create --head worktree-a --title 'Add the price list!' --body '## Summary\n\n- one (link) and a ) \" ; echo no ; \"\n- two `echo no` $(echo no)\n\tindented\n'", "opening a pull request"],
-  ['gh pr create --head worktree-a --title "feat: prices" --body "## Summary\n\n- it\'s here; a | b && c > d < e (f) [g] * ? ~ # % ^ = + @\n- done"', "opening a pull request"],
-  ["gh pr create --head worktree-a --title '' --body \"\"", "opening a pull request"],
-  ["gh pr create --head worktree-a --title 'non-breaking\u00a0space, line\u2028separator, caf\u00e9, \u{1F600}' --body 'x' 2>&1 | tail -3", "opening a pull request"],
-  ['gh pr create -t "x" -b "two\nlines" -B main -H worktree-a --draft', "opening a pull request"],
-  ["gh pr create --fill --base release/1.x --head worktree-a", "opening a pull request"],
-  ["gh pr merge 12 --match-head-commit 0123456789abcdef0123456789abcdef01234567", "merging pull request 12"],
-  ["gh pr merge 12 --match-head-commit 0123456789abcdef0123456789abcdef01234567 --merge", "merging pull request 12"],
-  ["gh pr merge 12 --match-head-commit 0123456789abcdef0123456789abcdef01234567 -m", "merging pull request 12"],
-  ["gh pr merge 7 --match-head-commit 0123456789abcdef0123456789abcdef01234567 --squash", "merging pull request 7"],
-  ["gh pr merge 7 --match-head-commit 0123456789abcdef0123456789abcdef01234567 --rebase", "merging pull request 7"],
-  ["gh pr merge 7 --match-head-commit 0123456789abcdef0123456789abcdef01234567 -s", "merging pull request 7"],
-  ["gh pr merge 7 --match-head-commit 0123456789abcdef0123456789abcdef01234567 -r", "merging pull request 7"],
-  ['gh pr merge 12 --match-head-commit 0123456789abcdef0123456789abcdef01234567 --merge --subject "docs: the week" --body \'as agreed\'', "merging pull request 12"],
-  ["gh pr merge 12 --match-head-commit 0123456789abcdef0123456789abcdef01234567 -t x -b 'why\n\nand how'", "merging pull request 12"],
-  ["gh pr merge 12 --match-head-commit 0123456789abcdef0123456789abcdef01234567 --merge 2>&1 | tail -2", "merging pull request 12"],
+/** What the setting file of that version held with everything turned on. Nothing reads it now. */
+export const OLD_SETTING_ON = { approvePushAndCreate: true, approveMerge: true };
+
+/**
+ * Every command an earlier version of the hook answered `allow` for, when
+ * the project had turned that on. The hook must never answer so again.
+ */
+export const ONCE_ALLOWED: string[] = [
+  "git push origin worktree-a",
+  "git push -u origin worktree-rates-filter",
+  "git push --set-upstream origin worktree-a.b_c-1",
+  `git push origin ${LONGEST}`,
+  "git  push \t origin   worktree-a ",
+  "git push origin worktree-a 2>&1",
+  "git push origin worktree-a | tail -2",
+  "git push -u origin worktree-a 2>&1 | tail -n 5",
+  "git push -u origin worktree-a 2>&1 | head -20",
+  "gh pr create --head worktree-a",
+  "gh pr create --head worktree-a --fill",
+  "gh pr create --head worktree-a -f -d",
+  "gh pr create --head worktree-a --title T --body B",
+  'gh pr create --head worktree-a --title "fix: a thing (#12), it\'s done" --body \'no $expansion `here` \\n && ; | ! ~ * {a,b} #x =ls\'',
+  "gh pr create --head worktree-a --title 'Add the price list!' --body '## Summary\n\n- one (link) and a ) \" ; echo no ; \"\n- two `echo no` $(echo no)\n\tindented\n'",
+  'gh pr create --head worktree-a --title "feat: prices" --body "## Summary\n\n- it\'s here; a | b && c > d < e (f) [g] * ? ~ # % ^ = + @\n- done"',
+  "gh pr create --head worktree-a --title '' --body \"\"",
+  "gh pr create --head worktree-a --title 'non-breaking\u00a0space, line\u2028separator, caf\u00e9, \u{1F600}' --body 'x' 2>&1 | tail -3",
+  'gh pr create -t "x" -b "two\nlines" -B main -H worktree-a --draft',
+  "gh pr create --fill --base release/1.x --head worktree-a",
+  "gh pr merge 12 --match-head-commit 0123456789abcdef0123456789abcdef01234567",
+  "gh pr merge 12 --match-head-commit 0123456789abcdef0123456789abcdef01234567 --merge",
+  "gh pr merge 12 --match-head-commit 0123456789abcdef0123456789abcdef01234567 -m",
+  "gh pr merge 7 --match-head-commit 0123456789abcdef0123456789abcdef01234567 --squash",
+  "gh pr merge 7 --match-head-commit 0123456789abcdef0123456789abcdef01234567 --rebase",
+  "gh pr merge 7 --match-head-commit 0123456789abcdef0123456789abcdef01234567 -s",
+  "gh pr merge 7 --match-head-commit 0123456789abcdef0123456789abcdef01234567 -r",
+  'gh pr merge 12 --match-head-commit 0123456789abcdef0123456789abcdef01234567 --merge --subject "docs: the week" --body \'as agreed\'',
+  "gh pr merge 12 --match-head-commit 0123456789abcdef0123456789abcdef01234567 -t x -b 'why\n\nand how'",
+  "gh pr merge 12 --match-head-commit 0123456789abcdef0123456789abcdef01234567 --merge 2>&1 | tail -2",
 ];
 
-/** Commands one step away from an approved one. None may be approved. */
+/** Commands one step away from one of those. */
 export const NEAR_MISSES: [string, string][] = [
   // git push: more than one thing pushed, or something other than a plain push
   ["a second refspec", "git push origin worktree-a main"],
@@ -264,7 +268,7 @@ export const NEAR_MISSES: [string, string][] = [
   ["a substitution in the subject", 'gh pr merge 12 --match-head-commit 0123456789abcdef0123456789abcdef01234567 --subject "$(id)"'],
   ["a word every object has", "gh pr merge 12 --match-head-commit 0123456789abcdef0123456789abcdef01234567 hasOwnProperty"],
   ["a push joined to it", "gh pr merge 12 --match-head-commit 0123456789abcdef0123456789abcdef01234567 --merge && git push origin worktree-a"],
-  // other steps: never approved, whatever their form
+  // other steps
   ["gh pr edit", "gh pr edit 12 --title t"],
   ["gh pr close", "gh pr close 12"],
   ["gh pr comment", "gh pr comment 12 --body hi"],

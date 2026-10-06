@@ -32,7 +32,7 @@ node <plugin root>/scripts/add-to-project.mts --list
 | `visual` | Screenshot tests of the UI against committed golden images |
 | `e2e` | End-to-end tests: Playwright drives the built client in a real browser, on the simulator and against the real server |
 | `performance` | A static check of animations and transitions, a runtime motion audit, a guide |
-| `agent-workflow` | A hook that keeps each push and pull request step in a call of its own and approves the routine ones by exact shape, a worktree script, a weekly tag, a checked changelog |
+| `agent-workflow` | A hook that keeps each push and pull request step in a call of its own, a worktree script, a weekly tag, a checked changelog |
 
 Adding a unit a project already has updates it.
 

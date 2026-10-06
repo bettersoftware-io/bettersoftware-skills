@@ -856,6 +856,57 @@ describe("adding an add-on", () => {
     expect(addToProject({ project, unit: "demo", repository }).notes).toEqual([]);
   });
 
+  it("says a file is no longer read when nothing took its place, writes nothing for it, and leaves it there", () => {
+    const { repository, project } = createWorldWithKit();
+    const manifest = readJson(repository, "addons/demo/addon.json");
+
+    manifest.retiredFiles = { "tools/demo.config.json": { note: "Delete it." } };
+    write(repository, "addons/demo/addon.json", JSON.stringify(manifest));
+    write(project, "tools/demo.config.json", '{ "on": true }\n');
+
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(result.created).toEqual([]);
+    expect(read(project, "tools/demo.config.json")).toBe('{ "on": true }\n');
+    expect(result.notes).toEqual(["tools/demo.config.json is no longer read, and nothing took its place. Delete it."]);
+    expect(result.unmerged).toEqual([]);
+
+    rmSync(join(project, "tools/demo.config.json"));
+
+    expect(addToProject({ project, unit: "demo", repository }).notes).toEqual([]);
+  });
+
+  it("does not register a hook a second time when the project has it under the command line of an older version, and says so", () => {
+    const { repository, project } = createWorldWithKit();
+    withHostSettings(repository);
+
+    const manifest = readJson(repository, "addons/demo/addon.json");
+    const now = "node tools/demo/hook.mts";
+    const before = `${now} --as=before`;
+
+    manifest.hostSettings = { ".claude/settings.json": { hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: now }] }] } } };
+    manifest.retiredHookCommands = { [before]: now };
+    write(repository, "addons/demo/addon.json", JSON.stringify(manifest));
+
+    const settings = `${JSON.stringify({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: before, timeout: 30 }] }] } }, null, 2)}\n`;
+
+    write(project, ".claude/settings.json", settings);
+
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(read(project, ".claude/settings.json")).toBe(settings);
+    expect(result.settingsChanges).toEqual([]);
+    expect(result.unmerged).toEqual([]);
+    expect(result.notes).toEqual([
+      `.claude/settings.json starts a hook with the command line of an older version: ${before}. That still works, so it was left as it is and no second hook was added. The add-on now registers: ${now}`,
+    ]);
+
+    manifest.retiredHookCommands = {};
+    write(repository, "addons/demo/addon.json", JSON.stringify(manifest));
+
+    expect(addToProject({ project, unit: "demo", repository }).settingsChanges).toEqual([`.claude/settings.json: hooks.PreToolUse: ${now}`]);
+  });
+
   it("refuses a retired file that is a link out of the project, before anything is written", () => {
     const { repository, project } = createWorldWithKit();
     withRetiredFile(repository);

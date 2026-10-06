@@ -30,7 +30,7 @@ import { fileURLToPath } from "node:url";
 import { isMainModule } from "../kit/gates/lib/files.mts";
 import { LINT_DEPENDENCIES } from "../kit/lint-dependencies.mts";
 import { type Declaration, declarePackages } from "./lib/architecture.mts";
-import { type Json, mergeSettings, parseSettings, SettingsError } from "./lib/host-settings.mts";
+import { type Json, mergeSettings, parseSettings, type RetiredCommands, SettingsError } from "./lib/host-settings.mts";
 import {
   assertInside,
   type InstallOutcome,
@@ -160,13 +160,20 @@ interface AddonManifest {
    */
   hostSettings?: Record<string, Json>;
   /**
+   * Command lines an older version of the add-on registered for a hook, each
+   * with the command line `hostSettings` registers now. The old line must
+   * still work. A project that has it keeps it, is told so, and does not get
+   * the new one beside it: the hook would run twice.
+   */
+  retiredHookCommands?: RetiredCommands;
+  /**
    * Files an older version of the add-on had the project own and no longer
    * reads, keyed by path. When one is still in the project, the installer
    * says so with `note`, and writes the starting file that took its place
-   * (`replacedBy`) if the project does not have it: an update must not leave
-   * a setting silently unread.
+   * (`replacedBy`) if there is one and the project does not have it: an
+   * update must not leave a setting silently unread.
    */
-  retiredFiles?: Record<string, { replacedBy: string; note: string }>;
+  retiredFiles?: Record<string, { replacedBy?: string; note: string }>;
   /** True for an add-on a new project should take unless it has a reason not to. */
   recommended?: boolean;
   /**
@@ -354,6 +361,11 @@ function addAddon(destination: string, project: string, asked: string, force: bo
       continue;
     }
 
+    if (replacedBy === undefined) {
+      retired.push(`${path} is no longer read, and nothing took its place. ${note}`);
+      continue;
+    }
+
     const content = starting.get(replacedBy);
     const written = content !== undefined && !existsSync(join(destination, replacedBy));
 
@@ -382,6 +394,7 @@ function addAddon(destination: string, project: string, asked: string, force: bo
     ...choiceNotes,
     ...architecturePlan.notes,
     ...settingsPlan.unmerged,
+    ...settingsPlan.kept,
     ...retired,
     ...outcome.refused.map(
       (path) => `${path} could not be written: the host this ran under keeps that folder read-only. Outside it, run this script again`,
@@ -493,6 +506,8 @@ interface SettingsPlan {
   writes: { path: string; content: string; added: string[] }[];
   /** What a settings file needed and did not get, each with what to add by hand. */
   unmerged: string[];
+  /** Each hook the project still starts with an older command line, which was left as it is. */
+  kept: string[];
 }
 
 /**
@@ -502,7 +517,7 @@ interface SettingsPlan {
  * file is never replaced.
  */
 function planHostSettings(project: string, manifest: AddonManifest): SettingsPlan {
-  const plan: SettingsPlan = { writes: [], unmerged: [] };
+  const plan: SettingsPlan = { writes: [], unmerged: [], kept: [] };
 
   for (const [path, wanted] of Object.entries(manifest.hostSettings ?? {})) {
     assertInside(project, path);
@@ -511,12 +526,18 @@ function planHostSettings(project: string, manifest: AddonManifest): SettingsPla
 
     try {
       const current = existsSync(file) ? parseSettings(readFileSync(file, "utf8"), path) : {};
-      const { merged, added, skipped } = mergeSettings(current, wanted);
+      const { merged, added, skipped, kept } = mergeSettings(current, wanted, manifest.retiredHookCommands);
 
       if (added.length > 0) {
         plan.writes.push({ path, content: `${JSON.stringify(merged, null, 2)}\n`, added });
       }
 
+      plan.kept.push(
+        ...kept.map(
+          ({ has, now }) =>
+            `${path} starts a hook with the command line of an older version: ${has}. That still works, so it was left as it is and no second hook was added. The add-on now registers: ${now}`,
+        ),
+      );
       plan.unmerged.push(...skipped.map((entry) => `${path}: ${entry}. The project's value was left as it is: correct it by hand, then run this again`));
     } catch (error) {
       if (!(error instanceof SettingsError)) {

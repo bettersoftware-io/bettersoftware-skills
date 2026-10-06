@@ -11,6 +11,12 @@
 //
 // Merging the same settings a second time changes nothing.
 //
+// An add-on may change the command line of a hook it registers. A project
+// that has the old line must not get the new one beside it: the hook would
+// run twice. So the add-on names the old line (`retired`), and a hook found
+// under it counts as there. The project's entry is left as it is, and is
+// named in `kept`.
+//
 // Where the project's file has a value of another kind than the add-on needs
 // (`"permissions": null`, `"ask": "Bash(x)"`, `"PreToolUse": {}`), the first
 // rule holds and the project's value stands. That leaves the add-on's entries
@@ -24,7 +30,12 @@ export interface MergeResult {
   added: string[];
   /** One line per place where the project's value is of another kind, with what was left out there. */
   skipped: string[];
+  /** Each hook command of the project that is an older form of one the add-on registers now, with that one. */
+  kept: { has: string; now: string }[];
 }
+
+/** Older command lines of a hook, each with the command line that took its place. */
+export type RetiredCommands = Record<string, string>;
 
 export class SettingsError extends Error {}
 
@@ -46,46 +57,53 @@ export function parseSettings(text: string, path: string): { [key: string]: Json
 }
 
 /** `current` with everything from `wanted` that it lacks. `current` itself is not changed. */
-export function mergeSettings(current: Json, wanted: Json, path: string[] = []): MergeResult {
+export function mergeSettings(current: Json, wanted: Json, retired: RetiredCommands = {}, path: string[] = []): MergeResult {
   if (isObject(current) && isObject(wanted)) {
     const merged: { [key: string]: Json } = { ...current };
     const added: string[] = [];
     const skipped: string[] = [];
+    const kept: MergeResult["kept"] = [];
 
     for (const [key, value] of Object.entries(wanted)) {
       if (key in current) {
-        const inner = mergeSettings(current[key] as Json, value, [...path, key]);
+        const inner = mergeSettings(current[key] as Json, value, retired, [...path, key]);
 
         merged[key] = inner.merged;
         added.push(...inner.added);
         skipped.push(...inner.skipped);
+        kept.push(...inner.kept);
       } else {
         merged[key] = value;
         added.push(...describeAdded(value, [...path, key]));
       }
     }
 
-    return { merged, added, skipped };
+    return { merged, added, skipped, kept };
   }
 
   if (Array.isArray(current) && Array.isArray(wanted)) {
     const merged = [...current];
     const added: string[] = [];
+    const kept: MergeResult["kept"] = [];
 
     for (const entry of wanted) {
-      if (!merged.some((existing) => isSameEntry(existing, entry, path))) {
+      const found = isHookGroup(path) ? findHookGroup(merged, entry, retired) : merged.some((existing) => isEqual(existing, entry)) ? [] : undefined;
+
+      if (found === undefined) {
         merged.push(entry);
         added.push(...describeAdded(entry, path));
+      } else {
+        kept.push(...found);
       }
     }
 
-    return { merged, added, skipped: [] };
+    return { merged, added, skipped: [], kept };
   }
 
   // A plain value, or two values of different kinds: the project's stands.
   // A list or an object the add-on needed is then missing, and that is said.
   if (kindOf(wanted) === "a value" || kindOf(current) === kindOf(wanted)) {
-    return { merged: current, added: [], skipped: [] };
+    return { merged: current, added: [], skipped: [], kept: [] };
   }
 
   const left = describeAdded(wanted, path).map((entry) => entry.slice(entry.indexOf(": ") + 2));
@@ -93,6 +111,7 @@ export function mergeSettings(current: Json, wanted: Json, path: string[] = []):
   return {
     merged: current,
     added: [],
+    kept: [],
     skipped: [`${path.join(".")} is ${kindOf(current)} in the project and ${kindOf(wanted)} is needed there, so ${left.length} entr${left.length === 1 ? "y was" : "ies were"} not merged: ${left.join("; ")}`],
   };
 }
@@ -101,20 +120,41 @@ function kindOf(value: Json): "a list" | "an object" | "a value" {
   return Array.isArray(value) ? "a list" : isObject(value) ? "an object" : "a value";
 }
 
-/**
- * Whether the project's list already holds this entry. Under `hooks`, an entry
- * is a group of commands, and it is there when its commands are: a project
- * that changed the group's timeout or matcher still has the hook, and adding
- * the group again would run it twice.
- */
-function isSameEntry(existing: Json, wanted: Json, path: string[]): boolean {
-  if (path[0] === "hooks" && path.length === 2) {
-    const commands = hookCommands(wanted);
+/** Under `hooks`, a list holds groups of commands, one list per event. */
+function isHookGroup(path: string[]): boolean {
+  return path[0] === "hooks" && path.length === 2;
+}
 
-    return commands.length > 0 && commands.every((command) => hookCommands(existing).includes(command));
+/**
+ * Whether one of the project's groups already holds every command of this
+ * group: a project that changed the group's timeout or matcher still has the
+ * hook, and adding the group again would run it twice. A command is also
+ * there under an older command line the add-on names. Undefined when no
+ * group holds them all; else the older lines that stood in for one, which is
+ * none when each command was found as it is written now.
+ */
+function findHookGroup(groups: Json[], wanted: Json, retired: RetiredCommands): MergeResult["kept"] | undefined {
+  const commands = hookCommands(wanted);
+
+  if (commands.length === 0) {
+    return undefined;
   }
 
-  return isEqual(existing, wanted);
+  // As it is written now, in any group, before an older line is looked for.
+  if (groups.some((group) => commands.every((command) => hookCommands(group).includes(command)))) {
+    return [];
+  }
+
+  for (const group of groups) {
+    const has = hookCommands(group);
+    const older = commands.map((command) => (has.includes(command) ? command : has.find((line) => retired[line] === command)));
+
+    if (older.every((line) => line !== undefined)) {
+      return commands.flatMap((now, index) => (older[index] === now ? [] : [{ has: older[index] as string, now }]));
+    }
+  }
+
+  return undefined;
 }
 
 function hookCommands(group: Json): string[] {
@@ -128,7 +168,7 @@ function describeAdded(value: Json, path: string[]): string[] {
     return value.flatMap((entry) => describeAdded(entry, path));
   }
 
-  if (path[0] === "hooks" && path.length === 2) {
+  if (isHookGroup(path)) {
     return hookCommands(value).map((command) => `${path.join(".")}: ${command}`);
   }
 

@@ -32,11 +32,13 @@ describe("merging an add-on's entries into a host's settings", () => {
       merged: { permissions: "all" },
       added: [],
       skipped: ["permissions is a value in the project and an object is needed there, so 1 entry was not merged: x"],
+      kept: [],
     });
     expect(mergeSettings({ hooks: { Stop: "none" } }, { hooks: { Stop: [createGroup("node a.mts")] } })).toEqual({
       merged: { hooks: { Stop: "none" } },
       added: [],
       skipped: ["hooks.Stop is a value in the project and a list is needed there, so 1 entry was not merged: node a.mts"],
+      kept: [],
     });
   });
 
@@ -117,6 +119,43 @@ describe("merging an add-on's entries into a host's settings", () => {
 
     expect(added).toEqual([]);
     expect(merged).toEqual(project);
+  });
+
+  it("counts a hook as there under a command line the add-on registered before, leaves it as it is, and names it", () => {
+    const project = { hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "node split.mts --host=x", timeout: 30 }] }] } };
+    const wanted = { hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "node split.mts", timeout: 5 }] }] } };
+
+    expect(mergeSettings(project, wanted, { "node split.mts --host=x": "node split.mts" })).toEqual({
+      merged: project,
+      added: [],
+      skipped: [],
+      kept: [{ has: "node split.mts --host=x", now: "node split.mts" }],
+    });
+  });
+
+  it("adds the hook beside a command line nobody named as an older one, and beside one named for another hook", () => {
+    const project = { hooks: { PreToolUse: [createGroup("node split.mts --host=x", "Bash")] } };
+    const wanted = { hooks: { PreToolUse: [createGroup("node split.mts", "Bash")] } };
+
+    expect(mergeSettings(project, wanted).added).toEqual(["hooks.PreToolUse: node split.mts"]);
+    expect(mergeSettings(project, wanted, { "node split.mts --host=x": "node other.mts" }).added).toEqual(["hooks.PreToolUse: node split.mts"]);
+  });
+
+  it("names nothing as kept when the hook is there as it is written now, with or without the older line beside it", () => {
+    const retired = { "node split.mts --host=x": "node split.mts" };
+    const wanted = { hooks: { PreToolUse: [createGroup("node split.mts", "Bash")] } };
+    const both = { hooks: { PreToolUse: [createGroup("node split.mts --host=x", "Bash"), createGroup("node split.mts", "Bash")] } };
+
+    expect(mergeSettings(wanted, wanted, retired)).toEqual({ merged: wanted, added: [], skipped: [], kept: [] });
+    expect(mergeSettings(both, wanted, retired)).toEqual({ merged: both, added: [], skipped: [], kept: [] });
+  });
+
+  it("does not take an older line under another event for the hook", () => {
+    const project = { hooks: { PostToolUse: [createGroup("node split.mts --host=x", "Bash")], PreToolUse: [] } };
+    const { added, kept } = mergeSettings(project, { hooks: { PreToolUse: [createGroup("node split.mts", "Bash")] } }, { "node split.mts --host=x": "node split.mts" });
+
+    expect(added).toEqual(["hooks.PreToolUse: node split.mts"]);
+    expect(kept).toEqual([]);
   });
 
   it("adds a hook beside another event's hook with the same command, and names it by its command", () => {
