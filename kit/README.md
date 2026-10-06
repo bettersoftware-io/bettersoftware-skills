@@ -750,10 +750,14 @@ gate:full is red.
   `node_modules/.bin` holds). The shell is asked with `command -v`; no list
   of its builtins is kept, so an unknown word is never taken for harmless.
   `cd`, `export`, `set`, `.`, `eval`, `exec`, a bare `NAME=value`, `!`, `{`,
-  `time`, a function, and a chain that reads `$?`, `$_`, `$!` or `${…}`: the
-  script runs whole, in one shell, as pnpm runs it. That is only less exact
-  about which part failed. A test runs each of these by pnpm and by the
-  runner and compares the exit codes.
+  a function, and a chain that reads `$?`, `$_`, `$!` or `${…}`: the script
+  runs whole, in one shell, as pnpm runs it. That is only less exact about
+  which part failed. The shell asked is `/bin/sh`, so the answer fits the
+  machine: bash on a Mac, dash on Ubuntu. A word with a slash is a path, and
+  the file is looked at instead, because shells answer differently about one
+  (dash says any path that exists is a command). A test runs each of these
+  by pnpm and by the runner and compares the exit codes with each other; it
+  states no number that only one shell gives.
 - **It runs what pnpm would run, or it lets pnpm run it.** A part is opened
   up only when that is certain: `pnpm run <name>` with nothing after it, or
   `pnpm <name>` where the name holds a colon. `pnpm audit` is pnpm's own
