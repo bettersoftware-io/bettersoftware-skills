@@ -7,6 +7,9 @@
     "test": "vitest run"
   },
   "exports": "./src/index.ts",
+  "imports": {
+    "#/*": "./src/*"
+  },
   "dependencies": {
     "@fx/domain": "workspace:*",
     "rxjs": "^7.8"

@@ -9,7 +9,7 @@ import { basename, dirname, join, normalize } from "node:path";
 
 import type { DomainPackage, Finding, Project } from "./config.mts";
 import { packagesWithRole } from "./config.mts";
-import { isInside, isTestFile, listSourceFiles, readCodeLines } from "./files.mts";
+import { isInside, isTestFile, listSourceFiles, readCodeLines, resolveSubpathImport } from "./files.mts";
 
 const GATE = "port-contracts";
 const PORT_FILE = /Port\.ts$/;
@@ -197,9 +197,13 @@ export function checkContractsImportNoImplementation({ root, config, workspace }
       readCodeLines(root, file).forEach((code, index) => {
         for (const [, specifier] of code.matchAll(IMPORTED)) {
           const owner = workspace.find(({ name }) => specifier === name || specifier.startsWith(`${name}/`));
+          // Three ways to name a file: by a relative path, through the
+          // package's own `#/` alias, and through another package's name.
           const target = specifier.startsWith(".")
             ? normalize(join(dirname(file), specifier))
-            : owner && `${owner.path}/src/${specifier.slice(owner.name.length + 1) || "index.ts"}`;
+            : specifier.startsWith("#")
+              ? resolveSubpathImport(root, domain.path, specifier)
+              : owner && `${owner.path}/src/${specifier.slice(owner.name.length + 1) || "index.ts"}`;
           const adapters = target === undefined ? undefined : config.adapters.find((folder) => isInside(target, folder));
           const outside = owner !== undefined && !ownAndAllowed.includes(owner.path);
 

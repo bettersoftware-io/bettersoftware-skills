@@ -15,8 +15,9 @@ directly by stripping the types, which needs Node 22.18 or later, and
 
 | Part | What it checks | Needs |
 |---|---|---|
-| `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction, the paths the agent instructions name, the task cache, every package's scripts, the one app harness, test ids, types-only packages | Node; `dependency-cruiser` for the dependency gate |
+| `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction, the paths the agent instructions name, the task cache, every package's scripts, where the Node floor is declared, the one app harness, test ids, types-only packages | Node; `dependency-cruiser` for the dependency gate |
 | `eslint.config.mts` + `eslint-rules/` | Thirteen AST lint rules of its own (naming, reading order, fixtures, page objects, no real sleeps in tests, one import per module), and the settings of ESLint's rules that go with them: function declarations, blank lines, named object types, no CommonJS, React's hook rules | `eslint`, `typescript-eslint`, `eslint-plugin-react-hooks` |
+| `ci/enable-corepack.mts` | Nothing: it gives a workflow the pnpm that `packageManager` pins, on a Node that no longer ships Corepack | `npm`, which ships with Node |
 | `hooks/after-edit.mts` | Runs the per-file gates on the file an agent just wrote | Claude Code or Codex |
 | `hooks/before-stop.mts` | Refuses to let an agent finish while `gate:full` is red, on any tree that has not already passed it | Claude Code or Codex; git |
 
@@ -34,7 +35,8 @@ A project declares its layers once, in `architecture.config.mts`
 | `dependencies` | An import points outward; the domain, or a package that asked, uses a Node built-in; the core imports a UI framework; a presenter or a state machine imports an adapter; production code imports test scaffolding; a confined library is imported outside its packages; the UI imports the composition root or an adapter; anything imports an integration package; there is a cycle |
 | `agent-docs` | `AGENTS.md` or `CLAUDE.md` names a file or folder that does not exist |
 | `task-cache` | A cached task in `turbo.json` has a key that leaves out the packages a package imports; a package's tsconfig extends a file outside the package that is not a global dependency; a package with tests that need a port caches its `test` task |
-| `package-scripts` | A workspace package has no `typecheck` script, or no `test` (or `test:…`) script and no listed reason |
+| `package-scripts` | A workspace package has no `typecheck` script, or no `test` (or `test:…`) script and no listed reason; a script, the root's or a package's, runs `eslint` without `--max-warnings 0` |
+| `node-floor` | A `package.json`, the root's or a package's, has `engines.node`; the root's has no `devEngines.runtime` that names `node` with a version and `"onFail": "error"` |
 | `app-harness` | A test calls the function that builds the whole application, anywhere but the one harness file |
 | `test-ids` | A test id is written as a string literal, in a component, a selector or a query, outside the client's test-ids file |
 | `types-only` | A package declared `typesOnly` exports a runtime value |
@@ -191,6 +193,59 @@ packagesWithoutTests: {
   "packages/core-api": "it holds only types, so there is nothing to run",
 },
 ```
+
+### The Node floor is not in `engines.node`
+
+The tooling is TypeScript that Node runs directly, so it needs a recent Node.
+Written as `"engines": { "node": ">=26" }` that floor passes every check and
+fails the first deploy: a host's build (`vercel build`, for one) reads the
+field, accepts only the Node lines it offers, and stops before the build
+starts. No step in CI runs that build. In the source project it failed a real
+deploy.
+
+So the floor is `devEngines.runtime` in the root `package.json`:
+
+```json
+"devEngines": { "runtime": { "name": "node", "version": ">=26", "onFail": "error" } }
+```
+
+A host does not read it. pnpm does, and refuses to install on an older Node,
+which it never did for `engines.node`. The `node-floor` gate fails on
+`engines.node` in any `package.json` of the workspace, and on a root that does
+not declare the floor this way. With no `package.json` at the root it reports
+`SKIP`.
+
+Skip the gate's advice only where `engines.node` is a promise to people who
+install the package: a library published to npm. Nothing here is published.
+
+### pnpm in CI, on a Node without Corepack
+
+Node 25 and later no longer ship Corepack, so `corepack enable` is not there
+to run. `ci/enable-corepack.mts` installs it first:
+
+```yaml
+- name: Enable Corepack
+  run: node tools/arch/ci/enable-corepack.mts
+```
+
+It runs `npm ci` on `ci/corepack/package-lock.json`, which pins one version
+with a sha512 hash, in the runner's temporary folder, and puts the `pnpm` shim
+on the path of the later steps. An `npm install -g corepack` would do the same
+with a version no lockfile holds, which the workflow security lint and OpenSSF
+Scorecard both report. The step comes after the checkout, since the script is
+in the repository, and the workflow sets `COREPACK_ENABLE_DOWNLOAD_PROMPT` to
+`"0"`.
+
+A newer Corepack arrives with a newer kit. A dependency bot does not see the
+pin unless it is told to read `tools/arch/ci/corepack`.
+
+### A lint warning fails
+
+ESLint exits 0 on a warning. A rule at "warn", set by the project or by a
+preset it takes in, then reports on every run and stops nothing. The
+`package-scripts` gate fails on a script that runs `eslint` without
+`--max-warnings 0`, in the root `package.json` and in each package's. A script
+that passes `--fix` is left alone: a fixer gives no verdict.
 
 ### Test scaffolding stays in tests
 
@@ -376,7 +431,7 @@ The stop hook runs the project's `gate:full` script, the one CI runs, so
 `gate:full` is held to `gate:fast`.
 
 ```json
-"gate:fast": "node tools/arch/gates/run.mts && eslint . && pnpm typecheck",
+"gate:fast": "node tools/arch/gates/run.mts && eslint --max-warnings 0 . && pnpm typecheck",
 "gate:full": "pnpm gate:fast && pnpm test && pnpm build"
 ```
 

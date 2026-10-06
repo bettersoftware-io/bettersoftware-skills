@@ -1,10 +1,14 @@
 // Package-scripts gate: every workspace package has a `typecheck` script and a
-// test script.
+// test script, and no script runs ESLint in a way that lets a warning through.
 //
 // A task runner runs a task only in the packages that declare its script, and
 // says nothing about the rest. A new package with no `typecheck` is therefore
 // never typechecked, and one with no `test` never tested, with every run
 // green. Read from each package.json, so the gate needs no task runner to run.
+//
+// ESLint exits 0 on a warning. A rule set to "warn", by the project or by a
+// preset it takes in, then reports on every run and stops nothing, and the
+// count only grows. `--max-warnings 0` makes a warning fail.
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -12,18 +16,51 @@ import { join } from "node:path";
 import type { Finding, Project } from "./config.mts";
 
 const GATE = "package-scripts";
+const ROOT_MANIFEST = "package.json";
 
 interface Manifest {
   scripts?: Record<string, string>;
 }
 
 /** Why this gate judged nothing, if it did. */
-export function packageScriptsSkipReason({ workspace }: Project): string | undefined {
-  return workspace.length === 0 ? "no workspace package was found, so there was nothing to check" : undefined;
+export function packageScriptsSkipReason({ root, workspace }: Project): string | undefined {
+  return workspace.length === 0 && !existsSync(join(root, ROOT_MANIFEST))
+    ? "no workspace package was found, so there was nothing to check"
+    : undefined;
+}
+
+// `eslint` as a command: at the start of a script or after `&&`, `;`, `|` or a
+// runner (`pnpm exec eslint`). Not `eslint-something`, and not a path.
+const ESLINT_COMMAND = /(?:^|[\s;&|])eslint(?=\s|$)([^;&|]*)/g;
+
+/** The ESLint commands in a script that would exit 0 on a warning. A fixer is left out: it is not a verdict. */
+export function lenientLintCommands(script: string): string[] {
+  return [...script.matchAll(ESLINT_COMMAND)]
+    .map(([, flags = ""]) => flags)
+    .filter((flags) => !/(^|\s)--fix(-dry-run)?(\s|$)/.test(flags) && !/(^|\s)--max-warnings[= ]0(\s|$)/.test(flags))
+    .map((flags) => `eslint${flags}`.trim());
 }
 
 export function checkPackageScripts({ root, config, workspace }: Project, onlyFiles?: string[]): Finding[] {
   const findings: Finding[] = [];
+
+  for (const file of [ROOT_MANIFEST, ...workspace.map(({ path }) => `${path}/package.json`)]) {
+    if ((onlyFiles && !onlyFiles.includes(file)) || !existsSync(join(root, file))) {
+      continue;
+    }
+
+    const { scripts = {} } = JSON.parse(readFileSync(join(root, file), "utf8")) as Manifest;
+
+    for (const [name, script] of Object.entries(scripts)) {
+      for (const command of lenientLintCommands(script)) {
+        findings.push({
+          gate: GATE,
+          file,
+          message: `The script "${name}" runs \`${command}\` without --max-warnings 0. ESLint exits 0 on a warning, so a rule set to "warn" reports on every run and stops nothing. Add --max-warnings 0 to the command.`,
+        });
+      }
+    }
+  }
 
   for (const { path, name } of workspace) {
     const file = `${path}/package.json`;

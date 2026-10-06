@@ -1,0 +1,13 @@
+{
+  "name": "fx",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint .",
+    "gate:fast": "node tools/arch/gates/run.mts && pnpm exec eslint --max-warnings 5 . && pnpm typecheck",
+    "lint:format": "eslint-config-inspector --open false"
+  },
+  "engines": {
+    "node": ">=26"
+  }
+}

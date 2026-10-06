@@ -7,6 +7,9 @@
     "test:unit": "vitest run"
   },
   "exports": "./src/index.ts",
+  "imports": {
+    "#/*": "./src/*"
+  },
   "dependencies": {
     "@fx/react-bindings": "workspace:*",
     "@fx/domain": "workspace:*"

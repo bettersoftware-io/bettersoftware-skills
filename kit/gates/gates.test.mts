@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, symlinkSync } from "node:fs";
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,6 +7,9 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import type { Finding } from "./lib/config.mts";
 import { ConfigError } from "./lib/config.mts";
+import { resolveSubpathImport } from "./lib/files.mts";
+import { checkNodeFloor } from "./lib/node-floor.mts";
+import { lenientLintCommands } from "./lib/package-scripts.mts";
 import { formatFindings, runGates } from "./run.mts";
 
 const fixtures = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
@@ -29,6 +32,7 @@ describe("a project that follows the rules", () => {
       "agent-docs",
       "task-cache",
       "package-scripts",
+      "node-floor",
       "app-harness",
       "test-ids",
       "types-only",
@@ -218,6 +222,35 @@ describe("a project that breaks the rules", () => {
     expect(of("package-scripts", "packages/domain/package.json")).toEqual([]);
   });
 
+  it("names each script that runs ESLint and lets a warning through, in the root and in a package", () => {
+    const lenient = (file: string): string[] =>
+      of("package-scripts", file)
+        .map((finding) => finding.message)
+        .filter((message) => message.includes("--max-warnings 0"));
+
+    expect(lenient("package.json")).toEqual([
+      expect.stringContaining('The script "lint" runs `eslint .` without'),
+      expect.stringContaining('The script "gate:fast" runs `eslint --max-warnings 5 .` without'),
+    ]);
+    expect(lenient("packages/contract-types/package.json")).toEqual([
+      expect.stringContaining('The script "lint" runs `eslint src`'),
+    ]);
+    expect(lenient("packages/domain/package.json")).toEqual([]);
+  });
+
+  it("names engines.node in the root and in a package, and a root with no floor in devEngines", () => {
+    expect(of("node-floor").map((finding) => finding.file)).toEqual([
+      "package.json",
+      "package.json",
+      "packages/rogue/package.json",
+    ]);
+    expect(of("node-floor", "package.json")[0]?.message).toContain('engines.node is ">=26"');
+    expect(of("node-floor", "package.json")[0]?.message).toContain("refuses a range above the Node it offers");
+    expect(of("node-floor", "package.json")[1]?.message).toContain('devEngines.runtime does not name "node"');
+    expect(messages("node-floor", "packages/rogue/package.json")).toContain('"version": ">=24", "onFail": "error"');
+    expect(of("node-floor", "packages/domain/package.json")).toEqual([]);
+  });
+
   it("names production code that imports test scaffolding, and leaves a test that does alone", () => {
     expect(messages("dependencies", "packages/client-core/src/presenters/ratesPresenter.ts")).toContain(
       "no-test-scaffolding-in-production: imports packages/client-core/src/testing/fakePrices.ts",
@@ -236,16 +269,44 @@ describe("a project that breaks the rules", () => {
       of("dependencies")
         .filter((finding) => finding.message.includes("takes-ports-as-arguments"))
         .map((finding) => finding.file),
-    ).toEqual(["packages/client-core/src/presenters/ratesPresenter.ts"]);
+    ).toEqual([
+      "packages/client-core/src/presenters/aliasedPresenter.ts",
+      "packages/client-core/src/presenters/ratesPresenter.ts",
+    ]);
+  });
+
+  it("names a forbidden import written through the package's own #/ alias, by where it lands", () => {
+    const aliased = messages("dependencies", "packages/client-core/src/presenters/aliasedPresenter.ts");
+
+    expect(aliased).toContain("client-core-takes-ports-as-arguments: imports packages/client-core/src/adapters/wsPrice.ts");
+    expect(aliased).toContain("no-test-scaffolding-in-production: imports packages/client-core/src/testing/fakePrices.ts");
+    expect(messages("dependencies", "packages/client-react/src/ui/AliasedList.tsx")).toContain(
+      "client-react-ui-never-imports-app: imports packages/client-react/src/app/startApp.ts",
+    );
+  });
+
+  it("names an alias that leads nowhere, since no rule can see that edge", () => {
+    const blind = of("dependencies", "packages/react-bindings/src/aliased.ts");
+
+    expect(blind).toHaveLength(1);
+    expect(blind[0]?.message).toContain('The import "#/missing.ts" did not resolve');
+    expect(blind[0]?.message).toContain('"imports": { "#/*": "./src/*" }');
+    expect(messages("dependencies")).not.toContain('The import "#/adapters/wsPrice.ts" did not resolve');
   });
 
   it("names a contract that imports an implementation, with its line", () => {
     const impure = of("port-contracts", "packages/domain/src/ports/__contracts__/QuotePortContract.ts");
 
-    expect(impure.map((finding) => finding.line)).toEqual([1, 3, 4]);
+    expect(impure.map((finding) => finding.line)).toEqual([1, 3, 4, 7]);
     expect(impure[0]?.message).toContain("packages/domain/src/simulators");
     expect(impure[1]?.message).toContain("packages/client-core/src/adapters");
     expect(impure[2]?.message).toContain("@fx/rogue");
+  });
+
+  it("names a contract that reaches an implementation through the package's #/ alias", () => {
+    const [aliased] = of("port-contracts", "packages/domain/src/ports/__contracts__/QuotePortContract.ts").slice(3);
+
+    expect(aliased?.message).toContain('The contract imports "#/simulators/priceSimulator.ts", an implementation (packages/domain/src/simulators)');
   });
 
   it("names a test that builds the application itself, with its line", () => {
@@ -299,6 +360,7 @@ describe("the per-file path the editor hook uses", () => {
       "dumb-ui",
       "port-contracts",
       "package-scripts",
+      "node-floor",
       "app-harness",
       "test-ids",
       "types-only",
@@ -333,11 +395,24 @@ describe("the per-file path the editor hook uses", () => {
     expect(files.map(gateOf)).toEqual([["port-contracts"], ["package-scripts"], ["app-harness"], ["test-ids"], ["types-only"]]);
   });
 
+  it("judges the root manifest and a package's given alone, and asks no floor of a package", async () => {
+    const result = await runGates({ root: broken, files: ["package.json", "packages/rogue/package.json"] });
+
+    expect(result.findings.map(({ gate, file }) => `${gate} ${file}`)).toEqual([
+      "package-scripts package.json",
+      "package-scripts package.json",
+      "node-floor package.json",
+      "node-floor package.json",
+      "node-floor packages/rogue/package.json",
+    ]);
+  });
+
   it("says nothing about the same kinds of file when they follow the rules", async () => {
     const result = await runGates({
       root: clean,
       files: [
         "packages/domain/src/ports/__contracts__/PricePortContract.ts",
+        "package.json",
         "packages/contract-types/package.json",
         "packages/client-core/src/presenters/pricesPresenter.test.ts",
         "packages/client-core/src/testing/appHarness.ts",
@@ -353,7 +428,7 @@ describe("the per-file path the editor hook uses", () => {
   it("reports a per-file gate the project gave nothing to judge as skipped", async () => {
     const result = await runGates({ root: join(fixtures, "dormant"), files: ["packages/domain/src/main.ts"] });
 
-    expect(Object.keys(result.skipped)).toEqual(["app-harness", "test-ids", "types-only"]);
+    expect(Object.keys(result.skipped)).toEqual(["node-floor", "app-harness", "test-ids", "types-only"]);
   });
 
   it("ignores a file outside the project and a file that no longer exists", async () => {
@@ -416,6 +491,7 @@ describe("a gate with nothing to judge", () => {
       "port-contracts": "no port interfaces were found, so there was nothing to check",
       "agent-docs": "no AGENTS.md or CLAUDE.md was found, so there was nothing to check",
       "task-cache": "no turbo.json was found, so there was nothing to check",
+      "node-floor": "no package.json was found at the root, so there was nothing to check",
       "app-harness": "no core package defines createApp(…), so there was no application for a test to build",
       "test-ids": "no client package is declared, so there was nothing to check",
       "types-only": "no package is declared typesOnly, so there was nothing to check",
@@ -433,8 +509,102 @@ describe("a gate with nothing to judge", () => {
   });
 });
 
+describe("a #… import, read from the package's own package.json", () => {
+  const imports = (declared: object): string => {
+    const root = mkdtempSync(join(tmpdir(), "arch-alias-"));
+
+    mkdirSync(join(root, "packages/domain"), { recursive: true });
+    writeFileSync(join(root, "packages/domain/package.json"), JSON.stringify({ imports: declared }));
+
+    return root;
+  };
+
+  it("lands in the folder the pattern names", () => {
+    const root = imports({ "#/*": "./src/*" });
+
+    expect(resolveSubpathImport(root, "packages/domain", "#/simulators/priceSimulator.ts")).toBe(
+      "packages/domain/src/simulators/priceSimulator.ts",
+    );
+    expect(resolveSubpathImport(root, "packages/domain", "#/index.ts")).toBe("packages/domain/src/index.ts");
+  });
+
+  it("takes an exact name, a second pattern, and a target given by condition", () => {
+    const root = imports({ "#config": "./src/config.ts", "#tests/*.ts": { import: "./tests/*.mts" }, "#/*": "./src/*" });
+
+    expect(resolveSubpathImport(root, "packages/domain", "#config")).toBe("packages/domain/src/config.ts");
+    expect(resolveSubpathImport(root, "packages/domain", "#tests/pages/list.ts")).toBe("packages/domain/tests/pages/list.mts");
+    expect(resolveSubpathImport(root, "packages/domain", "#/a.ts")).toBe("packages/domain/src/a.ts");
+  });
+
+  it("is undefined for an alias nobody declared, a package with no manifest, and a specifier that is no alias", () => {
+    const root = imports({ "#tests/*": "./tests/*", "#off": null });
+
+    expect(resolveSubpathImport(root, "packages/domain", "#/a.ts")).toBeUndefined();
+    expect(resolveSubpathImport(root, "packages/domain", "#tests")).toBeUndefined();
+    expect(resolveSubpathImport(root, "packages/domain", "#off")).toBeUndefined();
+    expect(resolveSubpathImport(root, "packages/shared", "#tests/a.ts")).toBeUndefined();
+    expect(resolveSubpathImport(root, "packages/domain", "./tests/a.ts")).toBeUndefined();
+  });
+});
+
+describe("an ESLint command in a script", () => {
+  it("is held to --max-warnings 0, wherever in the script it is", () => {
+    expect(lenientLintCommands("eslint .")).toEqual(["eslint ."]);
+    expect(lenientLintCommands("pnpm gates && eslint --flag x . && pnpm typecheck")).toEqual(["eslint --flag x ."]);
+    expect(lenientLintCommands("eslint --max-warnings 0 . && eslint --config typed.mts .")).toEqual(["eslint --config typed.mts ."]);
+    expect(lenientLintCommands("eslint")).toEqual(["eslint"]);
+  });
+
+  it("passes with the flag in either spelling, and only with zero", () => {
+    expect(lenientLintCommands("eslint . --max-warnings 0")).toEqual([]);
+    expect(lenientLintCommands("eslint --max-warnings=0 .")).toEqual([]);
+    expect(lenientLintCommands("eslint --max-warnings 05 .")).toEqual(["eslint --max-warnings 05 ."]);
+    expect(lenientLintCommands("eslint --max-warnings 10 .")).toEqual(["eslint --max-warnings 10 ."]);
+  });
+
+  it("leaves a fixer alone, and a command that only has eslint in its name", () => {
+    expect(lenientLintCommands("eslint --fix .")).toEqual([]);
+    expect(lenientLintCommands("eslint . --fix-dry-run")).toEqual([]);
+    expect(lenientLintCommands("eslint-config-inspector && node_modules/eslint/bin/x && my-eslint .")).toEqual([]);
+    expect(lenientLintCommands("eslint --fixture .")).toEqual(["eslint --fixture ."]);
+  });
+});
+
+describe("the Node floor in devEngines", () => {
+  it("accepts the floor as one of several runtimes", () => {
+    expect(floorFindings({ devEngines: { runtime: [{ name: "bun", version: ">=1" }, { name: "node", version: ">=26", onFail: "error" }] } })).toEqual([]);
+  });
+
+  it("names a runtime that is not node, and one with no version", () => {
+    expect(floorFindings({ devEngines: { runtime: { name: "bun", version: ">=1", onFail: "error" } } })).toEqual([
+      expect.stringContaining('does not name "node" with a version range'),
+    ]);
+    expect(floorFindings({ devEngines: { runtime: { name: "node", onFail: "error" } } })).toEqual([
+      expect.stringContaining('does not name "node" with a version range'),
+    ]);
+  });
+
+  it("names a floor that an install is allowed to ignore, set or not", () => {
+    expect(floorFindings({ devEngines: { runtime: { name: "node", version: ">=26", onFail: "warn" } } })).toEqual([
+      expect.stringContaining('has onFail "warn". Set "onFail": "error"'),
+    ]);
+    expect(floorFindings({ devEngines: { runtime: { name: "node", version: ">=26" } } })).toEqual([
+      expect.stringContaining("has no onFail"),
+    ]);
+  });
+});
+
 describe("a project that cannot be judged", () => {
   it("refuses instead of passing when no layers are declared", async () => {
     await expect(runGates({ root: fixtures })).rejects.toBeInstanceOf(ConfigError);
   });
 });
+
+/** What the node-floor gate says about a project whose root package.json is this. */
+function floorFindings(manifest: object): string[] {
+  const root = mkdtempSync(join(tmpdir(), "arch-floor-"));
+
+  writeFileSync(join(root, "package.json"), JSON.stringify(manifest));
+
+  return checkNodeFloor({ root, workspace: [] }).map((finding) => finding.message);
+}
