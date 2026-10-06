@@ -67,6 +67,7 @@ import {
   findOwnedChanges,
   type OwnedChange,
   readTemplates,
+  printable,
   showLines,
   type Template,
   withoutAddonSections,
@@ -1377,7 +1378,7 @@ if (isMainModule(import.meta.url)) {
   const argv = process.argv.slice(2);
 
   if (argv.includes("--list") || argv.length === 0) {
-    console.log(usage());
+    console.log(printable(usage()));
     process.exit(argv.length === 0 ? 1 : 0);
   }
 
@@ -1385,19 +1386,19 @@ if (isMainModule(import.meta.url)) {
     const options = parseArguments(argv);
 
     if (argv.includes("--compare")) {
-      console.log(describeComparison(compareWithTemplates({ ...options, unit: options.unit as string | undefined })));
+      console.log(printable(describeComparison(compareWithTemplates({ ...options, unit: options.unit as string | undefined }))));
       process.exit(0);
     }
 
     const result = addToProject(options);
 
-    console.log(describe(result, options.project));
+    console.log(printable(describe(result, options.project)));
 
     if (result.unmerged.length > 0) {
       process.exit(3);
     }
   } catch (error) {
-    console.error(error instanceof InstallError ? error.message : error);
+    console.error(error instanceof InstallError ? printable(error.message) : error);
     process.exit(1);
   }
 }

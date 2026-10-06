@@ -162,13 +162,52 @@ export function differenceOf(template: string, yours: Buffer | string): string[]
     return ["  (not shown: the project's file is not text, or is larger than 512 KB)"];
   }
 
+  // The comparison's table has a cell for each pair of lines: bounded before it is built, not after.
+  if (countLines(template) * countLines(text) > MOST_COMPARED_CELLS) {
+    return ["  (not shown: the two files have too many lines to compare here)"];
+  }
+
   return changedLines(template, text).map(showSafely);
+}
+
+/** Lines of one text times lines of the other, above which two files are not compared line by line. */
+export const MOST_COMPARED_CELLS = 4_000_000;
+
+function countLines(text: string): number {
+  let lines = 1;
+
+  for (let at = text.indexOf("\n"); at !== -1; at = text.indexOf("\n", at + 1)) {
+    lines += 1;
+  }
+
+  return lines;
+}
+
+// Every C0 and C1 control and the delete character; the two Unicode line
+// breaks; and the marks that reorder text on screen (a line could be made to
+// read as another).
+const UNPRINTABLE = "\\u0000-\\u0008\\u000b-\\u001f\\u007f-\\u009f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069";
+
+function writeOut(character: string): string {
+  const code = character.charCodeAt(0);
+
+  return code <= 0xff ? `\\x${code.toString(16).padStart(2, "0")}` : `\\u${code.toString(16).padStart(4, "0")}`;
+}
+
+/**
+ * A whole message as it may be printed: its line breaks and tabs kept, every
+ * other control character written out. Everything this script prints goes
+ * through it, since a path, a setting or a note may carry text from a file of
+ * the project.
+ */
+export function printable(message: string): string {
+  return message.replace(new RegExp(`[${UNPRINTABLE}]`, "g"), writeOut);
 }
 
 /** One line as it may be printed: no control character, and not longer than a screen can use. */
 export function showSafely(line: string): string {
-  // Every C0 and C1 control but the tab, and the delete character.
-  const plain = line.replace(/[\u0000-\u0008\u000a-\u001f\u007f-\u009f]/g, (control) => `\\x${control.charCodeAt(0).toString(16).padStart(2, "0")}`);
+  // As `printable`, and a line break too: this is one line.
+  const plain = printable(line).replace(/\n/g, "\\x0a");
 
   return plain.length <= LONGEST_SHOWN_LINE ? plain : `${plain.slice(0, LONGEST_SHOWN_LINE)}… (${plain.length - LONGEST_SHOWN_LINE} more characters)`;
 }

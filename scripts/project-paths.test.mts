@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { addToProject, compareWithTemplates, describeComparison, describeYours, isUnitName } from "./add-to-project.mts";
 import { createProject, ProjectError } from "./create-project.mts";
 import { InstallError, listProjectFolders, projectHas, readProjectFile, readProjectText } from "./lib/install.mts";
-import { differenceOf, showSafely } from "./lib/templates.mts";
+import { differenceOf, MOST_COMPARED_CELLS, printable, showSafely } from "./lib/templates.mts";
 
 // The installer compares a project's own files with templates and prints the
 // difference. So what it reads can end up on a screen, and the paths it reads
@@ -232,6 +232,32 @@ describe("what is printed from a file of the project", () => {
     ["is larger than 512 KB", Buffer.from("line\n".repeat(110_000))],
   ])("is not shown at all when the file %s", (_what, yours) => {
     expect(differenceOf("26\n", yours)).toEqual(["  (not shown: the project's file is not text, or is larger than 512 KB)"]);
+  });
+
+  it("is not compared at all when the two files have too many lines, before the comparison's table is built", () => {
+    const template = "a\n".repeat(3000);
+    const yours = "b\n".repeat(Math.ceil(MOST_COMPARED_CELLS / 3000));
+    const startedAt = Date.now();
+
+    expect(differenceOf(template, yours)).toEqual(["  (not shown: the two files have too many lines to compare here)"]);
+    expect(Date.now() - startedAt).toBeLessThan(500);
+  });
+
+  it("has the marks that reorder a line, and the Unicode line breaks, written out", () => {
+    expect(showSafely("+ safe\u202etxt.exe\u2066x\u2028y")).toBe("+ safe\\u202etxt.exe\\u2066x\\u2028y");
+  });
+
+  it("keeps a message's own line breaks and tabs, and writes out every other control character in it", () => {
+    expect(printable("merged   a\u001b[2J.json\n\tb\u0007\rc")).toBe("merged   a\\x1b[2J.json\n\tb\\x07\\x0dc");
+  });
+
+  it("every message the two scripts print goes through that", () => {
+    for (const file of ["add-to-project.mts", "create-project.mts"]) {
+      const printed = [...readFileSync(join(SCRIPTS, file), "utf8").matchAll(/console\.(?:log|error)\(([^\n]*)/g)].map(([, argument]) => argument);
+
+      expect(printed.length).toBeGreaterThan(0);
+      expect(printed.filter((argument) => !argument.includes("printable("))).toEqual([]);
+    }
   });
 
   it("is the difference, for a small text file", () => {

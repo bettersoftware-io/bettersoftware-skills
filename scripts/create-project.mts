@@ -19,6 +19,7 @@ import { fileURLToPath } from "node:url";
 import { isMainModule } from "../kit/gates/lib/files.mts";
 import { addToProject, KIT, listAddons, type ListedAddon, parseUnit } from "./add-to-project.mts";
 import { listFiles, renameScope } from "./lib/install.mts";
+import { printable } from "./lib/templates.mts";
 
 const REPOSITORY = dirname(dirname(fileURLToPath(import.meta.url)));
 const STARTER_SCOPE = "@app";
@@ -291,9 +292,9 @@ if (isMainModule(import.meta.url)) {
     const added = addons.length === 0 ? "" : `\nWith: ${addons.join(", ")}`;
     const byHand = notes.length === 0 ? "" : `\n\nStill to do by hand:\n${notes.map((note) => `  - ${note}`).join("\n")}`;
 
-    console.log(`Created ${destination}${added}${byHand}\n\nNext:\n  cd ${destination}\n  git init\n  pnpm install${once}\n  pnpm gate:full`);
+    console.log(printable(`Created ${destination}${added}${byHand}\n\nNext:\n  cd ${destination}\n  git init\n  pnpm install${once}\n  pnpm gate:full`));
   } catch (error) {
-    console.error(error instanceof ProjectError ? error.message : error);
+    console.error(error instanceof ProjectError ? printable(error.message) : error);
     process.exit(1);
   }
 }
