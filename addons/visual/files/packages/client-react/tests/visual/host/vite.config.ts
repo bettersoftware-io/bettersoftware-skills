@@ -10,7 +10,9 @@ import { HOST, PORT } from "./address.ts";
 export default defineConfig({
   root: fileURLToPath(new URL(".", import.meta.url)),
   // A cache of its own, so the host and `pnpm dev` never invalidate each other's.
-  cacheDir: fileURLToPath(new URL("../../../node_modules/.vite-visual", import.meta.url)),
+  cacheDir: fileURLToPath(
+    new URL("../../../node_modules/.vite-visual", import.meta.url),
+  ),
   plugins: [react()],
   server: {
     host: HOST,

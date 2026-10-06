@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { Machine, SelectionIntents, SelectionState } from "@app/client-core";
+import type {
+  Machine,
+  SelectionIntents,
+  SelectionState,
+} from "@app/client-core";
 import { createSelectionMachine } from "@app/client-core";
 
 import { mountMachine } from "./useMachine.page.tsx";

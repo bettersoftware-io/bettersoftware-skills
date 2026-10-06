@@ -1,7 +1,22 @@
 import { type DefaultedStateObservable, state } from "@rx-state/core";
-import { concat, groupBy, map, mergeMap, type Observable, of, scan, switchMap, timer } from "rxjs";
+import {
+  concat,
+  groupBy,
+  map,
+  mergeMap,
+  type Observable,
+  of,
+  scan,
+  switchMap,
+  timer,
+} from "rxjs";
 
-import { type Movement, type PricePort, type PriceTick, trackMovement } from "@app/domain";
+import {
+  type Movement,
+  type PricePort,
+  type PriceTick,
+  trackMovement,
+} from "@app/domain";
 
 /** How long a symbol can go without a price before its row is shown as stale. */
 export const STALE_AFTER_MS = 5000;
@@ -24,8 +39,13 @@ export function createPricesPresenter(port: PricePort): PricesPresenter {
     groupBy((tick) => tick.symbol),
     // Within one symbol, a new tick restarts the wait that marks the row stale.
     mergeMap((ticksOfSymbol$) => ticksOfSymbol$.pipe(switchMap(showThenAge))),
-    scan((rows, row) => new Map(rows).set(row.symbol, row), new Map<string, PriceRow>()),
-    map((rows) => [...rows.values()].sort((a, b) => a.symbol.localeCompare(b.symbol))),
+    scan(
+      (rows, row) => new Map(rows).set(row.symbol, row),
+      new Map<string, PriceRow>(),
+    ),
+    map((rows) =>
+      [...rows.values()].sort((a, b) => a.symbol.localeCompare(b.symbol)),
+    ),
   );
 
   return { rows$: state(rows$, []) };

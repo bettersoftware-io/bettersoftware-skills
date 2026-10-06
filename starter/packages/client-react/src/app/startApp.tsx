@@ -22,7 +22,9 @@ export function startApp(): () => void {
     throw new Error("index.html has no #root element");
   }
 
-  const viewModel = createViewModel(createApp(buildPorts(import.meta.env.VITE_SERVER_URL)));
+  const viewModel = createViewModel(
+    createApp(buildPorts(import.meta.env.VITE_SERVER_URL)),
+  );
 
   const root = createRoot(container);
 

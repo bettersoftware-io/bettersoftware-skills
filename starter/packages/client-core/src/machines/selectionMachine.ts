@@ -17,7 +17,10 @@ type SelectionAction = { type: "select"; symbol: string } | { type: "clear" };
 
 const INITIAL: SelectionState = { selected: null };
 
-export function reduceSelection(current: SelectionState, action: SelectionAction): SelectionState {
+export function reduceSelection(
+  current: SelectionState,
+  action: SelectionAction,
+): SelectionState {
   if (action.type === "clear" || current.selected === action.symbol) {
     return INITIAL;
   }
@@ -26,13 +29,18 @@ export function reduceSelection(current: SelectionState, action: SelectionAction
 }
 
 /** Which row is selected. Subjects in, one reducer, one state stream out. */
-export function createSelectionMachine(): Machine<SelectionState, SelectionIntents> {
+export function createSelectionMachine(): Machine<
+  SelectionState,
+  SelectionIntents
+> {
   const select$ = new Subject<string>();
   const clear$ = new Subject<void>();
 
   const state$ = state(
     merge(
-      select$.pipe(map((symbol): SelectionAction => ({ type: "select", symbol }))),
+      select$.pipe(
+        map((symbol): SelectionAction => ({ type: "select", symbol })),
+      ),
       clear$.pipe(map((): SelectionAction => ({ type: "clear" }))),
     ).pipe(scan(reduceSelection, INITIAL)),
     INITIAL,

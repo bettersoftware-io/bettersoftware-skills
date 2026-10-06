@@ -19,14 +19,20 @@ const config: ArchitectureConfig = {
     "packages/shared": { role: "shared" },
     "packages/client-core": { role: "core" },
     "packages/react-bindings": { role: "bindings" },
-    "packages/client-react": { role: "client", entry: ["main.tsx", "index.css", "*.d.ts"] },
+    "packages/client-react": {
+      role: "client",
+      entry: ["main.tsx", "index.css", "*.d.ts"],
+    },
     "packages/server": { role: "server" },
     "packages/integration": { role: "integration" },
   },
 
   // Folders whose modules implement ports. Each must run the contract test of
   // every port it implements.
-  adapters: ["packages/domain/src/simulators", "packages/client-core/src/adapters"],
+  adapters: [
+    "packages/domain/src/simulators",
+    "packages/client-core/src/adapters",
+  ],
 };
 
 export default config;

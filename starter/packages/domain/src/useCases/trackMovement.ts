@@ -7,7 +7,9 @@ import type { Movement, Price, PriceTick } from "../entities/price.ts";
  * symbol. The memory of previous prices lives inside `defer`, so every
  * subscription starts with its own.
  */
-export function trackMovement(prices$: Observable<Price>): Observable<PriceTick> {
+export function trackMovement(
+  prices$: Observable<Price>,
+): Observable<PriceTick> {
   return defer(() => {
     const previous = new Map<string, number>();
 
@@ -23,7 +25,10 @@ export function trackMovement(prices$: Observable<Price>): Observable<PriceTick>
   });
 }
 
-function compareWithPrevious(before: number | undefined, mid: number): Movement {
+function compareWithPrevious(
+  before: number | undefined,
+  mid: number,
+): Movement {
   if (before === undefined || before === mid) {
     return "flat";
   }

@@ -1,4 +1,8 @@
-import { type AppPorts, createWsConnection, createWsPricePort } from "@app/client-core";
+import {
+  type AppPorts,
+  createWsConnection,
+  createWsPricePort,
+} from "@app/client-core";
 import { createPriceSimulator } from "@app/domain";
 
 /**

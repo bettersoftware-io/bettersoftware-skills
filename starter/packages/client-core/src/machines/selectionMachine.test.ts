@@ -4,25 +4,39 @@ import { createSelectionMachine, reduceSelection } from "./selectionMachine.ts";
 
 describe("reduceSelection", () => {
   it("selects a symbol", () => {
-    expect(reduceSelection({ selected: null }, { type: "select", symbol: "EURUSD" })).toEqual({
+    expect(
+      reduceSelection({ selected: null }, { type: "select", symbol: "EURUSD" }),
+    ).toEqual({
       selected: "EURUSD",
     });
   });
 
   it("moves the selection to another symbol", () => {
-    expect(reduceSelection({ selected: "EURUSD" }, { type: "select", symbol: "GBPUSD" })).toEqual({
+    expect(
+      reduceSelection(
+        { selected: "EURUSD" },
+        { type: "select", symbol: "GBPUSD" },
+      ),
+    ).toEqual({
       selected: "GBPUSD",
     });
   });
 
   it("clears when the selected symbol is selected again", () => {
-    expect(reduceSelection({ selected: "EURUSD" }, { type: "select", symbol: "EURUSD" })).toEqual({
+    expect(
+      reduceSelection(
+        { selected: "EURUSD" },
+        { type: "select", symbol: "EURUSD" },
+      ),
+    ).toEqual({
       selected: null,
     });
   });
 
   it("clears on request", () => {
-    expect(reduceSelection({ selected: "EURUSD" }, { type: "clear" })).toEqual({ selected: null });
+    expect(reduceSelection({ selected: "EURUSD" }, { type: "clear" })).toEqual({
+      selected: null,
+    });
   });
 });
 

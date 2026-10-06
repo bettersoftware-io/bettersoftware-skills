@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type FakeWebSocket, installFakeWebSocket } from "../testing/fakeWebSocket.ts";
+import {
+  type FakeWebSocket,
+  installFakeWebSocket,
+} from "../testing/fakeWebSocket.ts";
 import { createWsConnection } from "./wsConnection.ts";
 
 describe("the WebSocket connection", () => {

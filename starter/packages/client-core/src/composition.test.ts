@@ -13,7 +13,9 @@ describe("the application", () => {
 
     prices$.next({ symbol: "EURUSD", mid: 1.1 });
 
-    expect(app.presenters.prices.rows$.getValue().map((row) => row.symbol)).toEqual(["EURUSD"]);
+    expect(
+      app.presenters.prices.rows$.getValue().map((row) => row.symbol),
+    ).toEqual(["EURUSD"]);
 
     subscription.unsubscribe();
   });

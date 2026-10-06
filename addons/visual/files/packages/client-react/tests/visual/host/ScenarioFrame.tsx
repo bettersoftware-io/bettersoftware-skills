@@ -1,4 +1,10 @@
-import { type ReactElement, type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type ReactElement,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { FRAME_TESTID } from "./address.ts";
 
@@ -17,7 +23,10 @@ interface ScenarioFrameProps {
  * after its children's. By then the price list has subscribed, so a delivery
  * is not lost.
  */
-export function ScenarioFrame({ seed, children }: ScenarioFrameProps): ReactElement {
+export function ScenarioFrame({
+  seed,
+  children,
+}: ScenarioFrameProps): ReactElement {
   const [ready, setReady] = useState(false);
   const seeded = useRef(false);
 

@@ -22,7 +22,13 @@ describe("trackMovement", () => {
     prices$.next({ symbol: "GBPUSD", mid: 1.2 });
     prices$.next({ symbol: "EURUSD", mid: 1.2 });
 
-    expect(ticks.map((tick) => tick.movement)).toEqual(["flat", "flat", "up", "down", "flat"]);
+    expect(ticks.map((tick) => tick.movement)).toEqual([
+      "flat",
+      "flat",
+      "up",
+      "down",
+      "flat",
+    ]);
   });
 
   it("gives each subscription its own memory", () => {

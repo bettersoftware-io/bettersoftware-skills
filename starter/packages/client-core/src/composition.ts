@@ -6,7 +6,10 @@ import {
   type SelectionIntents,
   type SelectionState,
 } from "./machines/selectionMachine.ts";
-import { createPricesPresenter, type PricesPresenter } from "./presenters/pricesPresenter.ts";
+import {
+  createPricesPresenter,
+  type PricesPresenter,
+} from "./presenters/pricesPresenter.ts";
 
 /** Everything the application needs from the outside world. The client's
  * composition root decides what stands behind each port. */

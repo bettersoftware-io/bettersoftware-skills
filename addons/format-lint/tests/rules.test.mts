@@ -7,11 +7,11 @@ const CHECK = "biome:check";
 const PRICE = "export interface Price {\n  mid: number;\n}\n";
 
 describe("the formatter's settings", () => {
-  it("accepts a line of 100 characters and breaks one of 101", () => {
-    const fits = `export const text: string = "${"a".repeat(100 - 31)}";\n`;
-    const tooLong = `export const text: string = "${"a".repeat(101 - 31)}";\n`;
+  it("accepts a line of 80 characters and breaks one of 81", () => {
+    const fits = `export const text: string = "${"a".repeat(80 - 31)}";\n`;
+    const tooLong = `export const text: string = "${"a".repeat(81 - 31)}";\n`;
 
-    expect(fits.length - 1).toBe(100);
+    expect(fits.length - 1).toBe(80);
     expect(runScript(createProject({ "src/text.ts": fits }), CHECK).status).toBe(0);
     expect(runScript(createProject({ "src/text.ts": tooLong }), CHECK).output).toContain("src/text.ts format");
   });

@@ -42,7 +42,11 @@ interface PriceRowViewProps {
   onSelect: (symbol: string) => void;
 }
 
-function PriceRowView({ row, selected, onSelect }: PriceRowViewProps): ReactElement {
+function PriceRowView({
+  row,
+  selected,
+  onSelect,
+}: PriceRowViewProps): ReactElement {
   function selectRow(): void {
     onSelect(row.symbol);
   }

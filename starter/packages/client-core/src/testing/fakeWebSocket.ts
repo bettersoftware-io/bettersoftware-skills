@@ -37,16 +37,17 @@ export function installFakeWebSocket(): FakeWebSocket {
   const sockets: FakeSocket[] = [];
 
   function connect(url: string): SocketHandlers {
-    const handlers: SocketHandlers & { readyState: number; close: () => void } = {
-      readyState: CONNECTING,
-      onopen: null,
-      onmessage: null,
-      onclose: null,
-      close: (): void => {
-        handlers.readyState = CLOSED;
-        socket.closed = true;
-      },
-    };
+    const handlers: SocketHandlers & { readyState: number; close: () => void } =
+      {
+        readyState: CONNECTING,
+        onopen: null,
+        onmessage: null,
+        onclose: null,
+        close: (): void => {
+          handlers.readyState = CLOSED;
+          socket.closed = true;
+        },
+      };
     const socket: FakeSocket = {
       url,
       closed: false,

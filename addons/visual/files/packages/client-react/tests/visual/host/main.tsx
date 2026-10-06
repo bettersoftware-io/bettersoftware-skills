@@ -9,7 +9,10 @@ import { createRoot } from "react-dom/client";
 
 import type { App as Application } from "@app/client-core";
 import { STALE_AFTER_MS } from "@app/client-core/presenters/pricesPresenter.ts";
-import { type AppHarness, createAppHarness } from "@app/client-core/testing/appHarness.ts";
+import {
+  type AppHarness,
+  createAppHarness,
+} from "@app/client-core/testing/appHarness.ts";
 import { createViewModel, ViewModelProvider } from "@app/react-bindings";
 
 import { App } from "../../../src/ui/App.tsx";
@@ -30,7 +33,9 @@ import { ScenarioFrame } from "./ScenarioFrame.tsx";
 const NOW = new Date("2026-01-01T12:00:00Z");
 
 const name = new URLSearchParams(window.location.search).get("scenario");
-const scenario: Scenario | undefined = (scenarios as Record<string, Scenario>)[name ?? ""];
+const scenario: Scenario | undefined = (scenarios as Record<string, Scenario>)[
+  name ?? ""
+];
 const container = document.getElementById("root");
 
 if (scenario === undefined) {
@@ -47,7 +52,13 @@ if (container === null) {
 // is left alone, so rendering is not held up by the stopped clock.
 const clock = FakeTimers.install({
   now: NOW,
-  toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"],
+  toFake: [
+    "setTimeout",
+    "clearTimeout",
+    "setInterval",
+    "clearInterval",
+    "Date",
+  ],
 });
 const harness = createAppHarness();
 
@@ -63,7 +74,9 @@ function seedPrices(): void {
 
 createRoot(container).render(
   <ViewModelProvider
-    viewModel={createViewModel(selectFromTheStart(harness.app, scenario.selected))}
+    viewModel={createViewModel(
+      selectFromTheStart(harness.app, scenario.selected),
+    )}
   >
     <ScenarioFrame seed={seedPrices}>
       <App />
@@ -71,7 +84,10 @@ createRoot(container).render(
   </ViewModelProvider>,
 );
 
-function deliverAll({ deliverPrice }: AppHarness, prices: Scenario["prices"]): void {
+function deliverAll(
+  { deliverPrice }: AppHarness,
+  prices: Scenario["prices"],
+): void {
   for (const price of prices) {
     deliverPrice(price);
   }
@@ -82,7 +98,10 @@ function deliverAll({ deliverPrice }: AppHarness, prices: Scenario["prices"]): v
  * scenario's selection. The selection is set through the machine's own intent,
  * so the picture shows what a click would have produced without a click.
  */
-function selectFromTheStart(app: Application, symbol: string | undefined): Application {
+function selectFromTheStart(
+  app: Application,
+  symbol: string | undefined,
+): Application {
   if (symbol === undefined) {
     return app;
   }

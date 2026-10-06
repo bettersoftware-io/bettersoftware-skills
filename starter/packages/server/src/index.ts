@@ -10,4 +10,6 @@ const server: RunningServer = await startServer({
   prices: createPriceSimulator(),
 });
 
-console.info(`price server listening on ws://localhost:${server.port}${WS_PATH}`);
+console.info(
+  `price server listening on ws://localhost:${server.port}${WS_PATH}`,
+);

@@ -21,9 +21,11 @@ export async function startAppOnPage(): Promise<StartedApp> {
   });
 
   return {
-    heading: (): string | null => document.querySelector("h1")?.textContent ?? null,
+    heading: (): string | null =>
+      document.querySelector("h1")?.textContent ?? null,
     rowCount: (): number => document.querySelectorAll("tbody tr").length,
-    isBlank: (): boolean => document.getElementById("root")?.childElementCount === 0,
+    isBlank: (): boolean =>
+      document.getElementById("root")?.childElementCount === 0,
     stop: async (): Promise<void> => {
       await act(async () => {
         stop();

@@ -13,7 +13,9 @@ import { WS_PATH } from "@app/shared";
 describe("the client's price adapter against the real server", () => {
   it("receives a price the server's source produces, unchanged", async () => {
     const { port, produce, feedOpened } = await startBothEnds();
-    const received = firstValueFrom(port.prices().pipe(timeout(GIVE_UP_AFTER_MS)));
+    const received = firstValueFrom(
+      port.prices().pipe(timeout(GIVE_UP_AFTER_MS)),
+    );
 
     await feedOpened;
     produce({ symbol: "EURUSD", mid: 1.1 });
@@ -71,7 +73,9 @@ async function startBothEnds(): Promise<BothEnds> {
   onTestFinished(() => server.close());
 
   return {
-    port: createWsPricePort(createWsConnection(`ws://localhost:${server.port}${WS_PATH}`)),
+    port: createWsPricePort(
+      createWsConnection(`ws://localhost:${server.port}${WS_PATH}`),
+    ),
     produce: (price: Price): void => {
       source$.next(price);
     },

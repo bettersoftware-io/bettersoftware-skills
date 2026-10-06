@@ -21,7 +21,9 @@ describe("choosing what stands behind the ports", () => {
     subscription.unsubscribe();
 
     expect(received).toHaveLength(1);
-    expect(said).toHaveBeenCalledWith("[data] composed sim: no VITE_SERVER_URL");
+    expect(said).toHaveBeenCalledWith(
+      "[data] composed sim: no VITE_SERVER_URL",
+    );
   });
 
   it("connects to the server when there is one", () => {
@@ -29,11 +31,17 @@ describe("choosing what stands behind the ports", () => {
     const network = installFakeWebSocket();
     onTestFinished(network.restore);
 
-    const subscription = buildPorts("ws://example.test/ws").price.prices().subscribe();
+    const subscription = buildPorts("ws://example.test/ws")
+      .price.prices()
+      .subscribe();
     subscription.unsubscribe();
 
-    expect(network.sockets.map((socket) => socket.url)).toEqual(["ws://example.test/ws"]);
-    expect(said).toHaveBeenCalledWith("[data] composed live from ws://example.test/ws");
+    expect(network.sockets.map((socket) => socket.url)).toEqual([
+      "ws://example.test/ws",
+    ]);
+    expect(said).toHaveBeenCalledWith(
+      "[data] composed live from ws://example.test/ws",
+    );
   });
 });
 

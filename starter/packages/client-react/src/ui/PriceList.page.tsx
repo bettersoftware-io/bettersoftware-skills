@@ -32,12 +32,15 @@ export function mountPriceList(): PriceListPage {
   );
 
   function findRows(): HTMLElement[] {
-    return within(rendered.getByTestId(TESTIDS.priceList)).queryAllByTestId(TESTIDS.priceRow);
+    return within(rendered.getByTestId(TESTIDS.priceList)).queryAllByTestId(
+      TESTIDS.priceRow,
+    );
   }
 
   function findRow(symbol: string): HTMLElement {
     const row = findRows().find(
-      (candidate) => within(candidate).queryByRole("rowheader")?.textContent === symbol,
+      (candidate) =>
+        within(candidate).queryByRole("rowheader")?.textContent === symbol,
     );
 
     if (row === undefined) {
@@ -54,13 +57,19 @@ export function mountPriceList(): PriceListPage {
       });
     },
     symbols: (): string[] =>
-      findRows().map((row) => within(row).getByRole("rowheader").textContent ?? ""),
+      findRows().map(
+        (row) => within(row).getByRole("rowheader").textContent ?? "",
+      ),
     movementOf: (symbol: string): Movement =>
       within(findRow(symbol)).getByRole("cell").dataset.movement as Movement,
     selectedSymbol: (): string | null => {
-      const selected = findRows().find((row) => row.dataset.selected === "true");
+      const selected = findRows().find(
+        (row) => row.dataset.selected === "true",
+      );
 
-      return selected ? (within(selected).getByRole("rowheader").textContent ?? null) : null;
+      return selected
+        ? (within(selected).getByRole("rowheader").textContent ?? null)
+        : null;
     },
     clickRow: async (symbol: string): Promise<void> => {
       await user.click(findRow(symbol));

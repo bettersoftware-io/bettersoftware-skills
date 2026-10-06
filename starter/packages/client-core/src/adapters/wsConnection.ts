@@ -12,6 +12,8 @@ const RECONNECT_DELAY_MS = 1000;
 export function createWsConnection(url: string): WsConnection {
   return {
     messages: (): Observable<unknown> =>
-      defer(() => webSocket<unknown>(url)).pipe(retry({ delay: RECONNECT_DELAY_MS })),
+      defer(() => webSocket<unknown>(url)).pipe(
+        retry({ delay: RECONNECT_DELAY_MS }),
+      ),
   };
 }

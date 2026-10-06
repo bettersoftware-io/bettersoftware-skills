@@ -25,7 +25,10 @@ export interface RunningServer {
  * The server takes its price source as a port, like the client does, so a test
  * drives it by hand and production runs it on the simulator.
  */
-export function startServer({ port, prices }: ServerOptions): Promise<RunningServer> {
+export function startServer({
+  port,
+  prices,
+}: ServerOptions): Promise<RunningServer> {
   const server = new WebSocketServer({ port, path: WS_PATH });
   const prices$ = prices.prices().pipe(share());
 

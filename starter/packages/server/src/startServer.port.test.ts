@@ -76,8 +76,13 @@ describe("the price server", () => {
 });
 
 /** A server on a free port, fed by hand and closed when the test ends. */
-async function startTestServer(prices$: Subject<Price>): Promise<RunningServer> {
-  const server = await startServer({ port: 0, prices: { prices: () => prices$ } });
+async function startTestServer(
+  prices$: Subject<Price>,
+): Promise<RunningServer> {
+  const server = await startServer({
+    port: 0,
+    prices: { prices: () => prices$ },
+  });
 
   onTestFinished(() => server.close());
 

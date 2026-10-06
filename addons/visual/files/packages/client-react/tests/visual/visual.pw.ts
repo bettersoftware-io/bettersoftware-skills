@@ -29,7 +29,9 @@ for (const name of Object.keys(scenarios)) {
       .catch((error: unknown) => {
         throw trouble.crashes.length === 0
           ? error
-          : new Error(`the visual host threw before it was ready:\n${trouble.crashes.join("\n")}`);
+          : new Error(
+              `the visual host threw before it was ready:\n${trouble.crashes.join("\n")}`,
+            );
       });
 
     expect(
@@ -41,7 +43,10 @@ for (const name of Object.keys(scenarios)) {
       "the visual host reached past its own server; a scenario must not depend on a network",
     ).toEqual([]);
 
-    if (testInfo.config.updateSnapshots === "none" && !existsSync(locateGolden(name))) {
+    if (
+      testInfo.config.updateSnapshots === "none" &&
+      !existsSync(locateGolden(name))
+    ) {
       throw new Error(describeMissingGolden(name));
     }
 
@@ -75,7 +80,10 @@ function recordTrouble(page: Page): Trouble {
     trouble.crashes.push(error.message);
   });
   page.on("request", (request) => {
-    if (!request.url().startsWith(HOST_URL) && !request.url().startsWith("data:")) {
+    if (
+      !request.url().startsWith(HOST_URL) &&
+      !request.url().startsWith("data:")
+    ) {
       trouble.requestsElsewhere.push(request.url());
     }
   });
