@@ -9,7 +9,7 @@ because systems draw text differently. CI compares the `linux-x64` set.
 pnpm visual          # compare every scenario with this system's goldens
 pnpm visual:update   # redraw this system's goldens
 pnpm visual:jitter   # measure how much the same commit differs from itself
-pnpm visual:check    # in gate:fast: Playwright version pin, typecheck of the tier
+pnpm visual:check    # in gate:fast: typecheck of the tier
 ```
 
 `pnpm visual` is not part of `gate:full`: it needs a browser and goldens drawn
@@ -54,9 +54,9 @@ difference and can say why it is correct. If you cannot say why, stop and ask.
 - **Changing `tolerance.ts`.** Only with a measurement: run `pnpm visual:jitter`
   and write what it found beside the numbers. Both knobs matter: a zero pixel
   budget with a loose `threshold` still misses a low-contrast change.
-- **Upgrading Playwright.** Change the npm version and the image tag in both
-  workflows together (`pnpm visual:check` fails otherwise), then redraw every
-  set: a new browser draws new pixels.
+- **Upgrading Playwright.** Change the npm version and the image tag in every
+  workflow together (the `playwright-pin` gate fails otherwise), then redraw
+  every set: a new browser draws new pixels.
 - **A missing golden fails; it is never written by a plain run.** On another
   system than the committed sets, `pnpm visual` fails until that system has a
   set of its own. Say so; do not copy another system's images.

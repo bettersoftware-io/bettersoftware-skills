@@ -34,7 +34,7 @@ jobs:
     # libraries are fixed, so the same commit draws the same pixels on every
     # run. The goldens are drawn in this same image by update-visual-goldens.yml.
     # The tag must be the @playwright/test version in packages/client-react;
-    # `pnpm visual:check` (part of gate:fast) fails when they differ.
+    # the playwright-pin gate (part of gate:fast) fails when they differ.
     container: mcr.microsoft.com/playwright:v1.63.0-noble
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
