@@ -131,7 +131,7 @@ out. No behaviour changed.
 **In the visual add-on** (`addons/visual/files/packages/client-react/tests/visual/`)
 
 - `goldens.ts`: `PLATFORM` is no longer exported (used in that file only).
-- `host/main.tsx`: imports `STALE_AFTER_MS` from
+- `host/main.tsx` (since 2026-10-06 the line is in `seeding.ts`): imports `STALE_AFTER_MS` from
   `@app/client-core/presenters/pricesPresenter.ts` instead of from
   `@app/client-core`. The host was the only importer of that index line, so a
   project without the visual add-on had a dead line, and a project with it

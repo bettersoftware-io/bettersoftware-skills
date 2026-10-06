@@ -37,6 +37,7 @@ addons/<name>/
   },
   "gates": { "fast": ["pnpm perf:check"], "full": [] },
   "startingFiles": ["packages/client-react/tests/visual/scenarios.ts", "packages/client-react/tests/visual/goldens/"],
+  "movedToProject": { "packages/client-react/tests/visual/host/main.tsx": { "to": "packages/client-react/tests/visual/seeding.ts", "note": "One sentence." } },
   "hostSettings": { ".claude/settings.json": { "permissions": { "ask": ["Bash(git push *--force*)"] } } },
   "choice": { "default": "dependabot", "options": { "dependabot": "One line.", "renovate": "One line." } },
   "requiresGates": ["playwright-pin"],
@@ -102,6 +103,16 @@ addons/<name>/
   the old file is in the project every update says so, and writes the new
   starting file if the project does not have it. A setting is never left
   silently unread.
+- `movedToProject` names a file of the add-on that projects had to edit, with
+  the starting file where those edits go now (`to`) and a sentence that says
+  what belongs there (`note`). The add-on still owns the file. A project that
+  edited it is refused, as for any edited file, and the refusal says under
+  the file's name where the edits go and what `--force` will do. Under
+  `--force` the project's version is kept as
+  `tools/templates/<add-on>.replaced.<path>.txt` before the file is
+  replaced, and the summary says to move the lines over and delete the copy;
+  every later update says so again while the copy is there. A manifest whose
+  `to` is not a starting file is refused before anything is written.
 - `retiredHookCommands` names a command line an older version registered for
   a hook, with the command line `hostSettings` registers now. Without it an
   update would add the new line beside the old one, and the hook would run

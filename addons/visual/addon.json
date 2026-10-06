@@ -35,8 +35,15 @@
   },
   "startingFiles": [
     "packages/client-react/tests/visual/scenarios.ts",
+    "packages/client-react/tests/visual/seeding.ts",
     "packages/client-react/tests/visual/tolerance.ts",
     "packages/client-react/tests/visual/goldens/"
   ],
+  "movedToProject": {
+    "packages/client-react/tests/visual/host/main.tsx": {
+      "to": "packages/client-react/tests/visual/seeding.ts",
+      "note": "It holds how a scenario's data becomes app state: what the harness is built with, the machines that start with a value, and what is delivered once the UI is on screen."
+    }
+  },
   "verify": "pnpm visual"
 }

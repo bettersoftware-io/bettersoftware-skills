@@ -26,6 +26,24 @@ export interface InstallOutcome {
   kept: string[];
   /** Files in a host's own folder that the host did not let be written. Not recorded, so the next run tries again. */
   refused: string[];
+  /** Files replaced under `--force` whose content now has a place in the project's own files, each with where the project's version was kept. */
+  saved: { path: string; copy: string }[];
+}
+
+/**
+ * A file of the unit that projects used to edit, and the file of the project's
+ * own where those edits go now. See `movedToProject` in an add-on's manifest.
+ */
+export interface Handover {
+  /** The project's own file that took over what was edited. */
+  to: string;
+  /** One sentence for the person: what belongs in `to`. */
+  note: string;
+}
+
+/** Where the project's version of a file is kept when `--force` replaces it. Flat and `.txt`, like a template: no tool reads it as source. */
+export function savedCopyOf(unit: string, path: string): string {
+  return `tools/templates/${unit}.replaced.${path.replaceAll("/", "__")}.txt`;
 }
 
 interface InstalledRecord {
@@ -99,16 +117,25 @@ export function rewriteScope(files: FileSet, from: string, to: string): FileSet 
  * whatever that unit installed before. `choice` is the option of the add-on's
  * choice the project has from now on, recorded beside the files.
  */
-export function installFiles(project: string, unit: string, files: FileSet, force = false, choice?: string): InstallOutcome {
+export function installFiles(
+  project: string,
+  unit: string,
+  files: FileSet,
+  force = false,
+  choice?: string,
+  handovers: Record<string, Handover> = {},
+): InstallOutcome {
   const record = readRecord(project);
   const before = record[unit]?.files ?? {};
   const conflicts: string[] = [];
-  const outcome: InstallOutcome = { written: [], unchanged: [], removed: [], kept: [], refused: [] };
+  /** Files the project changed that `--force` is about to replace. */
+  const edited: string[] = [];
+  const outcome: InstallOutcome = { written: [], unchanged: [], removed: [], kept: [], refused: [], saved: [] };
 
   // Both lists of paths are checked before anything is touched. The record is
   // a file in the project, so it is input like any other: a path in it that
   // leaves the project must never reach `rmSync`.
-  for (const path of [...files.keys(), ...Object.keys(before), RECORD]) {
+  for (const path of [...files.keys(), ...Object.keys(before), RECORD, ...Object.keys(handovers).map((path) => savedCopyOf(unit, path))]) {
     assertInside(project, path);
   }
 
@@ -124,8 +151,11 @@ export function installFiles(project: string, unit: string, files: FileSet, forc
 
     if (current === hash(content)) {
       outcome.unchanged.push(path);
-    } else if (current === before[path] || force) {
+    } else if (current === before[path]) {
       outcome.written.push(path);
+    } else if (force) {
+      outcome.written.push(path);
+      edited.push(path);
     } else {
       conflicts.push(path);
     }
@@ -135,10 +165,19 @@ export function installFiles(project: string, unit: string, files: FileSet, forc
     throw new InstallError(
       [
         `${conflicts.length} file(s) in the project differ from what was installed and would be overwritten:`,
-        ...conflicts.map((path) => `  ${path}`),
+        ...conflicts.flatMap((path) => [`  ${path}`, ...describeHandover(unit, path, handovers[path])]),
         "Nothing was changed. Move your edits out of these files, or pass --force to replace them.",
       ].join("\n"),
     );
+  }
+
+  // Before anything is replaced: the project's version of a file whose edits
+  // have a new home is kept, so `--force` costs no work and needs no git.
+  for (const path of edited.filter((candidate) => handovers[candidate] !== undefined)) {
+    const copy = savedCopyOf(unit, path);
+
+    writeProjectFile(project, copy, readFileSync(join(project, path)));
+    outcome.saved.push({ path, copy });
   }
 
   for (const path of Object.keys(before)) {
@@ -184,6 +223,19 @@ export function installFiles(project: string, unit: string, files: FileSet, forc
   writeRecord(project, record);
 
   return outcome;
+}
+
+/** What a refusal says under a file whose edits have a place in the project's own files. Nothing for any other file. */
+function describeHandover(unit: string, path: string, handover: Handover | undefined): string[] {
+  if (handover === undefined) {
+    return [];
+  }
+
+  return [
+    `      What a project changes in this file now goes in ${handover.to}, which is the project's own: no update replaces it. ${handover.note}`,
+    `      Run this again with --force. It replaces this file, keeps your version as ${savedCopyOf(unit, path)},`,
+    `      and writes ${handover.to} if the project has none. Then move your lines from the copy into ${handover.to}, and delete the copy.`,
+  ];
 }
 
 /**

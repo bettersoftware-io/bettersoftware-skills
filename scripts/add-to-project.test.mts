@@ -1360,6 +1360,147 @@ describe("a starting file that a later version of an add-on is the first to ship
   });
 });
 
+describe("a file of the add-on whose edits now go in a file of the project's own", () => {
+  const HOST = "packages/web/tests/host.ts";
+  const SEEDING = "packages/web/tests/seeding.ts";
+  const COPY = "tools/templates/demo.replaced.packages__web__tests__host.ts.txt";
+
+  it("refuses an edited one as it does any file, says where the edits go and what --force will do, and changes nothing", () => {
+    const { repository, project } = createWorldWithEditedHost();
+
+    let message = "";
+
+    try {
+      addToProject({ project, unit: "demo", repository });
+    } catch (error) {
+      message = (error as Error).message;
+    }
+
+    expect(message.split("\n")).toEqual([
+      "1 file(s) in the project differ from what was installed and would be overwritten:",
+      `  ${HOST}`,
+      `      What a project changes in this file now goes in ${SEEDING}, which is the project's own: no update replaces it. It holds the seeding.`,
+      `      Run this again with --force. It replaces this file, keeps your version as ${COPY},`,
+      `      and writes ${SEEDING} if the project has none. Then move your lines from the copy into ${SEEDING}, and delete the copy.`,
+      "Nothing was changed. Move your edits out of these files, or pass --force to replace them.",
+    ]);
+    expect(read(project, HOST)).toBe("// the host, with the project's own lines\n");
+    expect(existsSync(join(project, SEEDING))).toBe(false);
+    expect(existsSync(join(project, COPY))).toBe(false);
+  });
+
+  it("says nothing more than before under a file whose edits have no such place", () => {
+    const { repository, project } = createWorldWithEditedHost();
+    write(project, "tools/demo/check.mts", "// edited in the project\n");
+    write(repository, "addons/demo/files/tools/demo/check.mts", "// the add-on's check, version 2\n");
+
+    expect(() => addToProject({ project, unit: "demo", repository })).toThrow(/would be overwritten:\n {2}packages\/web\/tests\/host\.ts\n {6}What a project.*\n.*\n.*delete the copy\.\n {2}tools\/demo\/check\.mts\nNothing was changed/);
+  });
+
+  it("when forced, keeps the project's version beside the templates, writes the project's new file, and says to move the lines", () => {
+    const { repository, project } = createWorldWithEditedHost();
+
+    const result = addToProject({ project, unit: "demo", repository, force: true });
+
+    expect(read(project, HOST)).toBe("// the host, generic\n");
+    expect(read(project, COPY)).toBe("// the host, with the project's own lines\n");
+    expect(read(project, SEEDING)).toBe("// the seeding, as shipped\n");
+    expect(result.created).toEqual([SEEDING]);
+    expect(result.notes).toEqual([
+      `${HOST} was replaced, and it had changes of this project's. Your version is kept as ${COPY}. Move what you changed into ${SEEDING}, then delete the copy. It holds the seeding.`,
+    ]);
+    // The copy is the project's to delete: no record holds it, so no later update removes or replaces it.
+    expect(Object.keys(readJson(project, "tools/installed.json").demo.files)).not.toContain(COPY);
+  });
+
+  it("goes on saying so while the copy is there, writes nothing on a second run, and says nothing once the copy is deleted", () => {
+    const { repository, project } = createWorldWithEditedHost();
+    addToProject({ project, unit: "demo", repository, force: true });
+    write(project, SEEDING, "// the seeding, with the project's own lines\n");
+
+    const second = addToProject({ project, unit: "demo", repository });
+
+    expect(second.files.written).toEqual([]);
+    expect(second.created).toEqual([]);
+    expect(second.notes).toEqual([
+      `${HOST} was replaced by an earlier update. Your version is kept as ${COPY}. Move what you changed into ${SEEDING}, then delete the copy. It holds the seeding.`,
+    ]);
+    expect(read(project, SEEDING)).toBe("// the seeding, with the project's own lines\n");
+
+    rmSync(join(project, COPY));
+
+    expect(addToProject({ project, unit: "demo", repository }).notes).toEqual([]);
+  });
+
+  it.each([
+    ["a file that is not a starting file", { "packages/web/tests/host.ts": { to: "tools/demo/check.mts", note: "." } }, /tools\/demo\/check\.mts is not one of its starting files/],
+    ["from a file the add-on does not own", { "packages/web/tests/scenarios.ts": { to: "packages/web/tests/seeding.ts", note: "." } }, /scenarios\.ts is not a file the add-on owns/],
+  ])("refuses a manifest that sends the edits to %s, before anything is written", (_, movedToProject, message) => {
+    const { repository, project } = createWorldWithEditedHost();
+    const manifest = readJson(repository, "addons/demo/addon.json");
+    const recordBefore = read(project, "tools/installed.json");
+
+    write(repository, "addons/demo/addon.json", JSON.stringify({ ...manifest, movedToProject }));
+
+    expect(() => addToProject({ project, unit: "demo", repository, force: true })).toThrow(message);
+    expect(read(project, "packages/web/tests/host.ts")).toBe("// the host, with the project's own lines\n");
+    expect(read(project, "tools/installed.json")).toBe(recordBefore);
+  });
+
+  it("keeps no copy of a file the project never changed, forced or not", () => {
+    const { repository, project } = createWorldWithEditedHost();
+    write(project, HOST, "// the host, with a scenario's state in it\n");
+
+    const result = addToProject({ project, unit: "demo", repository, force: true });
+
+    expect(result.files.saved).toEqual([]);
+    expect(result.notes).toEqual([]);
+    expect(existsSync(join(project, COPY))).toBe(false);
+  });
+
+  it("keeps a copy only of the file whose edits moved, not of every file --force replaces", () => {
+    const { repository, project } = createWorldWithEditedHost();
+    write(project, "tools/demo/check.mts", "// edited in the project\n");
+    write(repository, "addons/demo/files/tools/demo/check.mts", "// the add-on's check, version 2\n");
+
+    const result = addToProject({ project, unit: "demo", repository, force: true });
+
+    expect(result.files.saved).toEqual([{ path: HOST, copy: COPY }]);
+    expect(readdirSync(join(project, "tools/templates")).filter((name) => name.includes(".replaced."))).toEqual([COPY.slice("tools/templates/".length)]);
+  });
+});
+
+/**
+ * A project that took the demo add-on when its host held the seeding, and
+ * edited the host; and the add-on as it is now, with the seeding in a starting
+ * file of its own.
+ */
+function createWorldWithEditedHost(): { repository: string; project: string } {
+  const world = createWorldWithKit();
+  const { repository, project } = world;
+  const manifest = readJson(repository, "addons/demo/addon.json");
+
+  write(repository, "addons/demo/addon.json", JSON.stringify({ ...manifest, startingFiles: ["packages/web/tests/scenarios.ts"] }));
+  write(repository, "addons/demo/files/packages/web/tests/scenarios.ts", "// scenarios, as shipped\n");
+  write(repository, "addons/demo/files/packages/web/tests/host.ts", "// the host, with a scenario's state in it\n");
+  addToProject({ project, unit: "demo", repository });
+  write(project, "packages/web/tests/host.ts", "// the host, with the project's own lines\n");
+
+  write(
+    repository,
+    "addons/demo/addon.json",
+    JSON.stringify({
+      ...manifest,
+      startingFiles: ["packages/web/tests/scenarios.ts", "packages/web/tests/seeding.ts"],
+      movedToProject: { "packages/web/tests/host.ts": { to: "packages/web/tests/seeding.ts", note: "It holds the seeding." } },
+    }),
+  );
+  write(repository, "addons/demo/files/packages/web/tests/host.ts", "// the host, generic\n");
+  write(repository, "addons/demo/files/packages/web/tests/seeding.ts", "// the seeding, as shipped\n");
+
+  return world;
+}
+
 /** Gives the demo add-on a text starting file it did not have before. */
 function withPolicyFile(repository: string): void {
   const manifest = readJson(repository, "addons/demo/addon.json");

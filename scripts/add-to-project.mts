@@ -33,6 +33,7 @@ import { type Declaration, declarePackages } from "./lib/architecture.mts";
 import { type Json, mergeSettings, parseSettings, refuseRetired, type RetiredCommands, SettingsError } from "./lib/host-settings.mts";
 import {
   assertInside,
+  type Handover,
   type InstallOutcome,
   InstallError,
   installedChoice,
@@ -42,6 +43,7 @@ import {
   readFileSet,
   replaceProjectFile,
   rewriteScope,
+  savedCopyOf,
   writeProjectFile,
 } from "./lib/install.mts";
 import { describeOwnedChange, findOwnedChanges, type OwnedChange, readTemplates, type Template } from "./lib/templates.mts";
@@ -176,6 +178,15 @@ interface AddonManifest {
    * update must not leave a setting silently unread.
    */
   retiredFiles?: Record<string, { replacedBy?: string; note: string }>;
+  /**
+   * Files of the add-on that projects had to edit, keyed by path, each with
+   * the starting file where those edits go now (`to`) and a sentence that
+   * says what belongs there (`note`). The add-on still owns the file. A
+   * project that edited it is refused as for any edited file, and the refusal
+   * says where the edits go; under `--force` the project's version is kept
+   * beside the templates, and the summary says to move it over.
+   */
+  movedToProject?: Record<string, Handover>;
   /** True for an add-on a new project should take unless it has a reason not to. */
   recommended?: boolean;
   /**
@@ -313,7 +324,18 @@ function addAddon(destination: string, project: string, asked: string, force: bo
     assertInside(destination, path);
   }
 
-  const outcome = installFiles(destination, unit, files, force, chosen);
+  const handovers = manifest.movedToProject ?? {};
+
+  // A place the installer would never write is no place to send a person's lines.
+  for (const [path, { to }] of Object.entries(handovers)) {
+    if (!starting.has(to) || !files.has(path)) {
+      throw new InstallError(
+        `the add-on "${manifest.name}" cannot be installed: movedToProject sends the edits of ${path} to ${to}, and ${!files.has(path) ? `${path} is not a file the add-on owns` : `${to} is not one of its starting files`}`,
+      );
+    }
+  }
+
+  const outcome = installFiles(destination, unit, files, force, chosen, handovers);
   const created: string[] = [];
   const choiceRemoved: string[] = [];
   const choiceNotes: string[] = [];
@@ -392,7 +414,22 @@ function addAddon(destination: string, project: string, asked: string, force: bo
     writeProjectFile(destination, ARCHITECTURE_CONFIG, architecturePlan.text);
   }
 
+  // The project's version of a file that was replaced, for as long as it is
+  // there: this run's, and one an earlier run kept that nobody moved yet.
+  const kept = Object.entries(handovers).flatMap(([path, { to, note }]) => {
+    const copy = savedCopyOf(unit, path);
+
+    if (!existsSync(join(destination, copy))) {
+      return [];
+    }
+
+    const when = outcome.saved.some((saved) => saved.path === path) ? "was replaced, and it had changes of this project's" : "was replaced by an earlier update";
+
+    return [`${path} ${when}. Your version is kept as ${copy}. Move what you changed into ${to}, then delete the copy. ${note}`];
+  });
+
   const notes = [
+    ...kept,
     ...choiceNotes,
     ...architecturePlan.notes,
     ...settingsPlan.unmerged,
