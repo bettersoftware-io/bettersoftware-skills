@@ -437,6 +437,35 @@ it adds nothing at runtime. The `types-only` gate fails on each
 marked `type`, and each `export * from`. Tests are left out. With no such
 package the gate reports `SKIP`.
 
+### A file git ignores is judged by nothing
+
+A file git ignores is not part of the project: nobody else has it, and CI
+never sees it. A finding in one fails on one machine and passes everywhere
+else. In the demo project a Claude Code plugin's working folder
+(`.remember/`, which ignores itself with a `.gitignore` of its own) held a
+timestamp file ending in `.ts`, and the typed lint failed on it.
+
+So the gates' file walker and the lint config ask git what it ignores
+(`git ls-files --others --ignored --exclude-standard --directory`, as the
+stop hook does) and leave those files out: in a full run, in the editor
+hook's run, and in `architectureLint()`'s first block, which is how
+`pnpm lint` and the `strict-lint` add-on's typed run get it.
+
+Git is asked, and no `.gitignore` is read here, because the answer has more
+sources than the root file. ESLint's own `includeIgnoreFile` (from
+`eslint/config`; the one in `@eslint/compat` 2.1.1 is deprecated in its
+favour) converts the files it is given. With `gitignoreResolution` it
+resolves a nested file's patterns from that file's folder, but it does not
+find nested files, and it knows nothing of `.git/info/exclude` or a
+person's global list. Git knows all four.
+
+- A committed file is never ignored, whatever a pattern says.
+- A new file that nothing ignores is judged: untracked is not ignored.
+- Outside a git repository git cannot say, nothing is left out, and every
+  check runs as before. The closed list of generated folders
+  (`node_modules`, `dist`, `coverage`, …) does not depend on git.
+- The lint asks about the folder it is run in, which is the project root.
+
 ### A gate that judged nothing has not passed
 
 Four cases are reported instead of being read as clean:

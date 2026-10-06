@@ -1,7 +1,12 @@
+import { spawnSync } from "node:child_process";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { checkTypes, formatResult } from "../files/tools/strict-lint/check-types.mts";
-import { createPackageJson, createProject, createTsconfig, REAL_TOOL_TIMEOUT, writeFiles } from "./support.mts";
+import { createPackageJson, createProject, createTsconfig, REAL_TOOL_TIMEOUT, REPOSITORY, writeFiles } from "./support.mts";
+
+const HAS_GIT = spawnSync("git", ["--version"]).status === 0;
 
 // These tests run the real ESLint with the shipped configs, in a project of
 // one package. They are slow for unit tests (about a second each).
@@ -65,6 +70,35 @@ describe("what the rules are kept away from", { timeout: REAL_TOOL_TIMEOUT }, ()
       expect(formatResult(checkTypes(project))).toBe("PASS lint:types — 3 file(s) linted with type information");
     },
   );
+
+  // `.remember/` is a plugin's working folder on one machine. It ignores
+  // itself with a `.gitignore` of its own, and one of its files ends in `.ts`.
+  it.skipIf(!HAS_GIT)("does not judge a file git ignores, by a .gitignore in the file's own folder, and still judges one that is only new", () => {
+    const project = createPackage();
+
+    writeFiles(project, {
+      // The project's own lint config, as the starter writes it: the kit's block is where git is asked.
+      "eslint.config.mts": `import { architectureLint } from ${JSON.stringify(join(REPOSITORY, "kit/eslint.config.mts"))};\n\nexport default [...architectureLint({ packages: {} })];\n`,
+      ".remember/.gitignore": "*\n",
+      ".remember/tmp/last-ndc.ts": "1\n",
+      "scratch/new.ts": "1\n",
+    });
+    spawnSync("git", ["init", "--quiet"], { cwd: project });
+
+    expect(checkTypes(project).findings).toEqual([{ file: "scratch/new.ts", line: 0, column: 0, rule: "parse", message: "no tsconfig.json includes this file" }]);
+  });
+
+  it("judges that file like any other in a folder that is no repository: nothing is ignored there", () => {
+    const project = createPackage();
+
+    writeFiles(project, {
+      "eslint.config.mts": `import { architectureLint } from ${JSON.stringify(join(REPOSITORY, "kit/eslint.config.mts"))};\n\nexport default [...architectureLint({ packages: {} })];\n`,
+      ".remember/.gitignore": "*\n",
+      ".remember/tmp/last-ndc.ts": "1\n",
+    });
+
+    expect(checkTypes(project).findings.map(({ file, message }) => `${file} ${message}`)).toEqual([".remember/tmp/last-ndc.ts no tsconfig.json includes this file"]);
+  });
 
   it("still judges a package's own folder called tools", () => {
     const project = createPackage({ "tools/probe.ts": FLOATING }, ["src", "tools"]);

@@ -225,6 +225,13 @@ the tests here and by the local runs above.
   folder) fails with "no tsconfig.json includes this file" until it is added.
   At the project root typescript-eslint's default allows eight files to be
   read with `tsconfig.tooling.json`; a ninth `.mts` file there was not tried.
+- **A file git ignores is not judged, when the project's kit is from
+  2026-10-06 or later.** The run spreads the project's own ESLint config
+  first, and the kit's block there asks git what it ignores
+  ([the kit's README](../../kit/README.md)). With an older kit a file in a
+  folder that ignores itself (`.remember/tmp/x.ts`) fails with "no
+  tsconfig.json includes this file"; update the kit. No entry for such a
+  folder is needed in `tools/strict-lint/eslint.config.mts`.
 - **The check is run from the project root.** The config takes
   `process.cwd()` as the place `tsconfig.tooling.json` is. An editor's ESLint
   uses the project's `eslint.config.mts`, not this one, so the typed rules do

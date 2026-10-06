@@ -1,5 +1,6 @@
 // Small file helpers shared by the gates. Node built-ins only.
 
+import { spawnSync } from "node:child_process";
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,13 +38,22 @@ export const TEST_SCAFFOLDING_SOURCE =
   "(\\.(test|spec|page|testHelpers)\\.[cm]?[jt]sx?$|/__tests__/|/__testUtils__/|/testing/)";
 const TEST_SCAFFOLDING = new RegExp(TEST_SCAFFOLDING_SOURCE);
 
-/** Every source file under `directory`, as paths from `root`. Missing folder → none. */
+/**
+ * Every source file under `directory`, as paths from `root`. Missing folder →
+ * none. A file git ignores is left out, like a generated one: see
+ * `listGitIgnored`.
+ */
 export function listSourceFiles(root: string, directory: string): string[] {
   const found: string[] = [];
+  const ignored = ignoredUnder(root);
 
   function walk(relative: string): void {
     for (const entry of readdirSync(join(root, relative), { withFileTypes: true })) {
       const path = relative === "" ? entry.name : `${relative}/${entry.name}`;
+
+      if (isAmong(ignored, path)) {
+        continue;
+      }
 
       if (entry.isDirectory()) {
         if (!SKIPPED_DIRECTORIES.has(entry.name)) {
@@ -60,6 +70,71 @@ export function listSourceFiles(root: string, directory: string): string[] {
   }
 
   return found.sort();
+}
+
+/**
+ * What git ignores under `root`, as git lists it: a file by its path, and a
+ * folder with a `/` at its end. A folder ignored from outside it is listed
+ * once, with nothing of what it holds. Undefined when git cannot say: it is
+ * not installed, or `root` is in no repository.
+ *
+ * A file git ignores is not part of the project. Nobody else has it and CI
+ * never sees it, so a finding in it fails here and passes there: a local
+ * tool's working folder once failed the lint with a file that only that
+ * machine had. Git is asked, and no `.gitignore` is read here, because the
+ * answer has more sources than the root file: a `.gitignore` in any folder
+ * (that tool's folder ignored itself with one), `.git/info/exclude`, and the
+ * person's own global list.
+ *
+ * A file that is committed is never in this list, whatever a pattern says:
+ * git does not ignore what it tracks.
+ */
+export function listGitIgnored(root: string): string[] | undefined {
+  // `--directory` names an ignored folder once and does not walk it, so this never reads node_modules.
+  const listed = spawnSync("git", ["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z"], {
+    cwd: root,
+    encoding: "utf8",
+    maxBuffer: 256 * 1024 * 1024,
+  });
+
+  return listed.status === 0 ? listed.stdout.split("\0").filter(Boolean) : undefined;
+}
+
+/** Asked once for each root in a run: every gate lists files, and the answer does not change under them. */
+const IGNORED = new Map<string, string[]>();
+
+function ignoredUnder(root: string): string[] {
+  let ignored = IGNORED.get(root);
+
+  if (ignored === undefined) {
+    // Outside a repository nothing is ignored, and every file is judged.
+    ignored = listGitIgnored(root) ?? [];
+    IGNORED.set(root, ignored);
+  }
+
+  return ignored;
+}
+
+/** True when git ignores `path` (from `root`), or a folder it is in. Always false outside a repository. */
+export function isGitIgnored(root: string, path: string): boolean {
+  return isAmong(ignoredUnder(root), path);
+}
+
+function isAmong(ignored: string[], path: string): boolean {
+  return ignored.some((entry) => (entry.endsWith("/") ? `${path}/`.startsWith(entry) : entry === path));
+}
+
+/**
+ * `listGitIgnored`, as patterns for a tool that takes globs (ESLint's
+ * `ignores`): a folder with everything under it, a file by its path, and every
+ * character a glob would read as a pattern taken literally.
+ */
+export function gitIgnoredGlobs(root: string): string[] {
+  return (listGitIgnored(root) ?? []).map((entry) => {
+    const literal = entry.replace(/[\\*?[\]{}()!+@]/g, "\\$&");
+
+    return entry.endsWith("/") ? `${literal}**` : literal;
+  });
 }
 
 /**

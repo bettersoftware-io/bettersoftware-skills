@@ -34,6 +34,7 @@ import { noRenderFunctions } from "./eslint-rules/no-render-functions.mts";
 import { oneImportPerModule } from "./eslint-rules/one-import-per-module.mts";
 import { pageObjectsOwnTheirComponent } from "./eslint-rules/page-objects-own-their-component.mts";
 import { type ArchitectureConfig, CONFIG_FILES, type PackageDeclaration, type Role } from "./gates/lib/config.mts";
+import { gitIgnoredGlobs } from "./gates/lib/files.mts";
 import { type LintDependency, REACT_HOOKS } from "./lint-dependencies.mts";
 
 export const architecturePlugin: TSESLint.FlatConfig.Plugin = {
@@ -238,7 +239,11 @@ function sourceOf(
  * @param config The project's layers. Read from `architecture.config.mts` in
  *   the current folder when not given.
  */
-export function architectureLint(config: ArchitectureConfig | undefined = readDeclaredLayers()): TSESLint.FlatConfig.ConfigArray {
+export function architectureLint(
+  config: ArchitectureConfig | undefined = readDeclaredLayers(),
+  /** The folder the lint is run in. Given in a test. */
+  root: string = process.cwd(),
+): TSESLint.FlatConfig.ConfigArray {
   const clientMarkup = sourceOf(config, ["client"], "tsx");
   const clientSource = sourceOf(config, ["client"], "{ts,tsx}");
   const compiledSource = sourceOf(config, ["client"], "{ts,tsx}", ({ reactCompiler }) => reactCompiler === true);
@@ -256,6 +261,11 @@ export function architectureLint(config: ArchitectureConfig | undefined = readDe
         "**/reports/**",
         "**/.turbo/**",
         "**/__screenshots__/**",
+        // What git ignores is not the project's either: nobody else has the
+        // file. Git is asked, so a `.gitignore` in any folder counts, and
+        // outside a repository this adds nothing. ESLint reads these from the
+        // folder it is run in, which is the project root.
+        ...gitIgnoredGlobs(root),
       ],
     },
     {

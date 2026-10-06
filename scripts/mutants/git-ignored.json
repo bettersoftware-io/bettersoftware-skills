@@ -1,0 +1,100 @@
+[
+  {
+    "name": "ignored: git is asked with its standard sources (a folder's own .gitignore, the exclude list)",
+    "file": "kit/gates/lib/files.mts",
+    "find": "[\"ls-files\", \"--others\", \"--ignored\", \"--exclude-standard\", \"--directory\", \"-z\"]",
+    "replace": "[\"ls-files\", \"--others\", \"--ignored\", \"--exclude-from=.gitignore\", \"--directory\", \"-z\"]",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"is listed whichever file says so\""
+  },
+  {
+    "name": "ignored: a folder ignored from outside is not walked",
+    "file": "kit/gates/lib/files.mts",
+    "find": "[\"ls-files\", \"--others\", \"--ignored\", \"--exclude-standard\", \"--directory\", \"-z\"]",
+    "replace": "[\"ls-files\", \"--others\", \"--ignored\", \"--exclude-standard\", \"-z\"]",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"is listed whichever file says so\""
+  },
+  {
+    "name": "ignored: the walker leaves such a file out",
+    "file": "kit/gates/lib/files.mts",
+    "find": "      if (isAmong(ignored, path)) {\n        continue;\n      }\n",
+    "replace": "",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"is left out by the gates' file walker\""
+  },
+  {
+    "name": "ignored: a folder that only begins like an ignored one is walked",
+    "file": "kit/gates/lib/files.mts",
+    "find": "(entry.endsWith(\"/\") ? `${path}/`.startsWith(entry) : entry === path)",
+    "replace": "(entry.endsWith(\"/\") ? path.startsWith(entry.slice(0, -1)) : entry === path)",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"is told from a name that only begins the same way\""
+  },
+  {
+    "name": "ignored: a file that only begins like an ignored one is listed",
+    "file": "kit/gates/lib/files.mts",
+    "find": "(entry.endsWith(\"/\") ? `${path}/`.startsWith(entry) : entry === path)",
+    "replace": "(entry.endsWith(\"/\") ? `${path}/`.startsWith(entry) : path.startsWith(entry))",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"is told from a name that only begins the same way\""
+  },
+  {
+    "name": "ignored: a full run of the gates judges no such file",
+    "file": "kit/gates/lib/files.mts",
+    "find": "    ignored = listGitIgnored(root) ?? [];",
+    "replace": "    ignored = [];",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"is judged by no gate\""
+  },
+  {
+    "name": "ignored: the editor hook's run judges no such file",
+    "file": "kit/gates/run.mts",
+    "find": " && !isGitIgnored(project.root, file));",
+    "replace": ");",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"is not judged when the editor hook names it either\""
+  },
+  {
+    "name": "ignored: a name a glob would read as a pattern is taken literally",
+    "file": "kit/gates/lib/files.mts",
+    "find": "    const literal = entry.replace(/[\\\\*?[\\]{}()!+@]/g, \"\\\\$&\");",
+    "replace": "    const literal = entry;",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"becomes patterns that mean those paths and no others\""
+  },
+  {
+    "name": "ignored: a folder's pattern covers what is under it",
+    "file": "kit/gates/lib/files.mts",
+    "find": "    return entry.endsWith(\"/\") ? `${literal}**` : literal;",
+    "replace": "    return literal.replace(/\\/$/, \"\");",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"becomes patterns that mean those paths and no others\""
+  },
+  {
+    "name": "ignored: the kit's lint config ignores what git ignores",
+    "file": "kit/eslint.config.mts",
+    "find": "        ...gitIgnoredGlobs(root),\n",
+    "replace": "",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"is not linted\""
+  },
+  {
+    "name": "ignored: git is asked about the folder the lint is run in",
+    "file": "kit/eslint.config.mts",
+    "find": "  root: string = process.cwd(),\n): TSESLint.FlatConfig.ConfigArray {",
+    "replace": "  root: string = import.meta.dirname,\n): TSESLint.FlatConfig.ConfigArray {",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"does not judge a file git ignores\""
+  },
+  {
+    "name": "ignored: the typed lint judges no such file (the kit's block is where it comes from)",
+    "file": "kit/eslint.config.mts",
+    "find": "        ...gitIgnoredGlobs(root),\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"does not judge a file git ignores\""
+  },
+  {
+    "name": "ignored: outside a repository git's failure is no list",
+    "file": "kit/gates/lib/files.mts",
+    "find": "  return listed.status === 0 ? listed.stdout.split(\"\\0\").filter(Boolean) : undefined;",
+    "replace": "  return (listed.stdout ?? \"\").split(\"\\0\").filter(Boolean);",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"has nothing git ignores\""
+  },
+  {
+    "name": "ignored: outside a repository the lint config is still built",
+    "file": "kit/gates/lib/files.mts",
+    "find": "  return (listGitIgnored(root) ?? []).map((entry) => {",
+    "replace": "  return (listGitIgnored(root) as string[]).map((entry) => {",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"is linted as before\""
+  }
+]

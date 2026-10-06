@@ -21,7 +21,7 @@ import {
   portContractsSkipReason,
 } from "./lib/contracts.mts";
 import { checkDependencies } from "./lib/depcruise.mts";
-import { isMainModule } from "./lib/files.mts";
+import { isGitIgnored, isMainModule } from "./lib/files.mts";
 import { checkInstructionPaths, instructionsSkipReason } from "./lib/instructions.mts";
 import { checkLanguage, languageSkipReason } from "./lib/language.mts";
 import { checkNodeFloor, nodeFloorSkipReason } from "./lib/node-floor.mts";
@@ -54,7 +54,8 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
   if (files) {
     const relativeFiles = files
       .map((file) => relative(project.root, resolve(project.root, file)))
-      .filter((file) => !file.startsWith("..") && existsSync(join(project.root, file)));
+      // A file git ignores is judged by no gate, here as in a full run.
+      .filter((file) => !file.startsWith("..") && existsSync(join(project.root, file)) && !isGitIgnored(project.root, file));
 
     // Each of these reads the one file and, at most, the declaration: cheap
     // enough to run after every edit. A skip here is one the declaration
