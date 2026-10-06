@@ -1,7 +1,7 @@
 // The app's real global stylesheet, loaded the way src/main.tsx loads it. A
 // copy of its rules here would drift, and the goldens would be of a page that
 // does not exist.
-import "../../../src/index.css";
+import "#/index.css";
 import "./host.css";
 
 import FakeTimers from "@sinonjs/fake-timers";
@@ -15,7 +15,8 @@ import {
 } from "@app/client-core/testing/appHarness.ts";
 import { createViewModel, ViewModelProvider } from "@app/react-bindings";
 
-import { App } from "../../../src/ui/App.tsx";
+import { App } from "#/ui/App.tsx";
+
 import { type Scenario, scenarios } from "../scenarios.ts";
 import { ScenarioFrame } from "./ScenarioFrame.tsx";
 

@@ -113,6 +113,13 @@ No JavaScript source files. Scripts and tool configs are `.mts`, which Node runs
 directly. A file a tool can only load as JavaScript is listed in
 `architecture.config.mts` under `javascriptAllowed`, with the reason.
 
+## Node
+
+The oldest Node this runs on is declared once, as `devEngines.runtime` in the
+root `package.json`. Never add `engines.node` to any `package.json`: a host's
+build (`vercel build`) reads it and refuses a range above the Node it offers,
+so the deploy fails with every check green. The `node-floor` gate holds both.
+
 ## How code is written
 
 `pnpm lint` enforces these. `pnpm lint --fix` repairs the ones marked (fix).
@@ -142,6 +149,20 @@ directly. A file a tool can only load as JavaScript is listed in
 - No `style={{ … }}` in a component: styling goes in a stylesheet, by class.
 - `packages/react-bindings` uses no `useMemo`, `useCallback` or `memo`. Logic
   that needs one belongs in the core.
+
+## Imports inside a package
+
+An import of a file in the same package is relative and climbs one folder at
+most, as in `../entities/price.ts`. Anything deeper is written from the
+package's `src` with the `#/` alias: `#/entities/price.ts`. Every package
+declares it (`"imports": { "#/*": "./src/*" }` in its `package.json`), and
+Node, Vite, Vitest and `tsc` all read it from there. A new package declares it
+too.
+
+Skip it in a `*.config.ts` file that reaches `tools/`: the alias cannot point
+outside its package. The gates follow an alias to the file it names, so a
+forbidden import is still found. The `format-lint` add-on fails a deeper
+relative import; without it this is a convention.
 
 ## Reviewing a change
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { Price } from "../../entities/price.ts";
+import type { Price } from "#/entities/price.ts";
+
 import type { PricePort } from "../pricePort.ts";
 
 /** What an adapter's test supplies so the contract can drive it. */

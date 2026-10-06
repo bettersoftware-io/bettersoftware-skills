@@ -14,7 +14,7 @@ cd <project> && pnpm install && pnpm visual
 | Part | Where | What it does |
 |---|---|---|
 | Scenario list | `packages/client-react/tests/visual/scenarios.ts` | A name and the seeded state, as typed data. Four to start: `empty`, `rows-up-and-down`, `row-selected`, `row-stale` |
-| Visual host | `tests/visual/host/` | A second Vite root. It renders `App` from `src/ui` over the app harness from `client-core`, with the app's own `index.css`. Prices are delivered by hand; time is a clock the page owns |
+| Visual host | `tests/visual/host/` | A second Vite root. It renders `App` from `src/ui` over the app harness from `client-core`, with the app's own `index.css`. It imports both through the client's `#/` alias, so the client's `package.json` must declare `"imports": { "#/*": "./src/*" }`, as the starter's does. Prices are delivered by hand; time is a clock the page owns |
 | Spec | `tests/visual/visual.pw.ts` | One Playwright test per scenario, plus one that fails on a golden no scenario owns |
 | Goldens | `tests/visual/goldens/<platform>/` | One PNG per scenario, per system (`darwin-arm64`, `linux-x64`) |
 | Tolerance | `tests/visual/tolerance.ts` | Both knobs, in one place, with what was measured |
