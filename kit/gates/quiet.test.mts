@@ -238,8 +238,25 @@ describe("splitting a chain into stages that each get a shell of their own", () 
 
     expect(inProject("installed-tool")).toBe(true);
     expect(inProject("./scripts/run.sh")).toBe(true);
-    expect(inProject("./scripts/not-executable.sh")).toBe(false);
+    expect(inProject("scripts/run.sh")).toBe(true);
+    expect(inProject(join(root, "scripts/run.sh"))).toBe(true);
     expect(isProgram("installed-tool")).toBe(false);
+  });
+
+  // The shell is not asked about a path. bash and zsh say it back only for a
+  // file they can run; dash says it back for anything that exists.
+  it("reads a path the same under every shell: a file that cannot be run, a folder and a path to nothing are no program", () => {
+    const root = createProject({}, { "scripts/run.sh": "#!/bin/sh\n", "scripts/not-executable.sh": "#!/bin/sh\n" });
+
+    chmodSync(join(root, "scripts/run.sh"), 0o755);
+
+    const inProject = createProgramFinder(root);
+
+    expect(inProject("./scripts/not-executable.sh")).toBe(false);
+    expect(inProject("./scripts")).toBe(false);
+    expect(inProject("./scripts/")).toBe(false);
+    expect(inProject("./scripts/none.sh")).toBe(false);
+    expect(inProject("./scripts/run.sh")).toBe(true);
   });
 
   it("does not take a file named after a thing the shell does itself for a program: the shell would not run the file", () => {
@@ -684,6 +701,9 @@ describe("the quiet plan, run in order, against what pnpm runs", () => {
 // the first three then exited 0 where pnpm exits 1, and the stop hook
 // remembered a red tree as green.
 describe("the quiet gate and pnpm, for a script whose parts share a shell", () => {
+  /** Whether `/bin/sh`, which runs a script for pnpm and for the quiet runner, keeps the last argument in `$_`. */
+  const SHELL_KEEPS_LAST_ARGUMENT = spawnSync("/bin/sh", ["-c", ': 7 && echo "$_"'], { encoding: "utf8" }).stdout.trim() === "7";
+
   const exitWith = (code: string): string => `node exit.mjs ${code}`;
   const files = {
     "check.mjs": "process.exit(0);\n",
@@ -703,7 +723,8 @@ describe("the quiet gate and pnpm, for a script whose parts share a shell", () =
     ["evaluates an assignment", { gate: 'eval X=1 && test "$X" != 1' }, 1],
     ["takes away a variable pnpm set", { gate: "unset npm_lifecycle_event && node env.mjs npm_lifecycle_event gate 8" }, 0],
     ["replaces the shell, so nothing after it runs", { gate: `exec ${exitWith("0")} && ${exitWith("9")}` }, 0],
-    ["passes the last argument on", { gate: `${exitWith("0")} 7 && node exit.mjs $_` }, 7],
+    // `$_` is the last argument in bash and zsh. dash and ksh do not set it, and `exit.mjs` is then given whatever it held before.
+    ["passes the last argument on", { gate: `${exitWith("0")} 7 && node exit.mjs $_` }, SHELL_KEEPS_LAST_ARGUMENT ? 7 : undefined],
     ["turns on exit-on-error first", { gate: `set -e && ${exitWith("0")} && ${exitWith("4")}` }, 4],
     ["ends in || true", { gate: `${exitWith("5")} && ${exitWith("0")} || true` }, 0],
     ["negates its first part", { gate: `! ${exitWith("0")} && ${exitWith("9")}` }, 1],
@@ -723,7 +744,12 @@ describe("the quiet gate and pnpm, for a script whose parts share a shell", () =
     const quiet = runCommand(root, "gate");
 
     // What pnpm does is the fact; the number beside each case only shows that the case is the one it is named for.
-    expect(loud.status, loud.stderr).toBe(expected);
+    // It is left out where the shell decides it: the two runs are then only compared with each other.
+    if (expected !== undefined) {
+      expect(loud.status, loud.stderr).toBe(expected);
+    }
+
+    expect(loud.status).not.toBeNull();
     expect(quiet.status, quiet.stdout).toBe(loud.status);
   }, 60_000);
 });

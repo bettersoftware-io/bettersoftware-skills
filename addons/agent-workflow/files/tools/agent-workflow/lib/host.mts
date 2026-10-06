@@ -4,23 +4,31 @@
 
 export const HOOK_SCRIPT = "tools/agent-workflow/hooks/split-outward-commands.mts";
 
-/** The project's setting: what the hook may approve. Data, never code. */
-export const CONFIG_FILE = "tools/agent-workflow.config.json";
+/**
+ * Where a project kept the setting of a feature this add-on no longer has.
+ * Nothing reads either file. The same paths are in the manifest, under
+ * `retiredFiles`, where the installer reads them.
+ */
+export const RETIRED_FILES = ["tools/agent-workflow.config.json", "tools/agent-workflow.config.mts"];
 
-/** Where the setting was until it became data. The hook no longer reads it. */
-export const RETIRED_CONFIG_FILE = "tools/agent-workflow.config.mts";
-
-/** Given to the hook only by a host that takes an approval from a hook. The same text is in the hook itself. */
-export const APPROVING_HOST = "--host=claude-code";
+/** A start-up argument an older registration of the hook carries. The hook ignores it. */
+export const RETIRED_ARGUMENT = "--host=claude-code";
 
 export const CLAUDE_SETTINGS = ".claude/settings.json";
+/** A person's own settings for the project. They win over the project's, and can switch every hook off. */
+export const CLAUDE_LOCAL_SETTINGS = ".claude/settings.local.json";
 export const CODEX_HOOKS = ".codex/hooks.json";
 
+/** The command line the add-on registers the hook with, in each host's file. The same text is in the manifest. */
+export const HOOK_COMMANDS: Record<string, string> = {
+  [CLAUDE_SETTINGS]: `node "$CLAUDE_PROJECT_DIR/${HOOK_SCRIPT}"`,
+  [CODEX_HOOKS]: `node ${HOOK_SCRIPT}`,
+};
+
 /**
- * Always ask. The add-on ships no `allow` rule: what runs without a prompt
- * is decided by the hook, from the exact shape of the command. These rules
- * are the backstop behind it, for a project that adds an `allow` rule of its
- * own: a rule here wins over any `allow`, and over the hook's approval.
+ * Always ask. The add-on ships no `allow` rule, and its hook allows nothing.
+ * These rules are the backstop for a project that adds an `allow` rule of its
+ * own: a rule here wins over any `allow`.
  */
 export const ASK_RULES = [
   "Bash(git push *--force*)",
@@ -39,18 +47,16 @@ export const ASK_RULES = [
 ];
 
 /**
- * Always ask before an editing tool changes the hook or its setting. An
- * `Edit` rule is the one Claude Code reads for every built-in tool that edits
- * a file; a leading `/` is the project's root. A shell command that writes
- * the same files (`sed -i`, a redirection, `git checkout`) is not an editing
- * tool, and no rule here sees it.
+ * Always ask before an editing tool changes the hook or the files beside it.
+ * The hook is what refuses a chain, so a change to it is a person's to make.
+ * An `Edit` rule is the one Claude Code reads for every built-in tool that
+ * edits a file; a leading `/` is the project's root. A shell command that
+ * writes the same files (`sed -i`, a redirection, `git checkout`) is not an
+ * editing tool, and no rule here sees it.
  */
-export const EDIT_ASK_RULES = ["Edit(/tools/agent-workflow/**)", "Edit(/tools/agent-workflow.config.json)"];
+export const EDIT_ASK_RULES = ["Edit(/tools/agent-workflow/**)"];
 
-/** How long Claude Code gives the hook, in seconds. A merge is checked with two reads of GitHub, ten seconds each at most. */
-export const HOOK_SECONDS = 30;
-
-/** An `allow` rule with a `*` for one of the steps the hook approves by shape: it approves more than the shape. */
+/** An `allow` rule with a `*` for a push, a pull request opened or a merge: a `*` also matches a second branch, another flag, a `$(…)`. */
 export const WIDE_ALLOW = /^Bash\((?:git push|gh pr create|gh pr merge)\b.*\*.*\)$/;
 
 /** Slash commands that work only with another add-on in the project. */

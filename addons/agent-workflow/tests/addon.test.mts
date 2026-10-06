@@ -5,18 +5,9 @@ import { describe, expect, it } from "vitest";
 
 import { addToProject } from "../../../scripts/add-to-project.mts";
 import { changelog } from "../files/tools/agent-workflow/changelog.mts";
-import {
-  APPROVING_HOST,
-  ASK_RULES,
-  CLAUDE_SETTINGS,
-  CODEX_HOOKS,
-  COMMAND_NEEDS,
-  CONFIG_FILE,
-  EDIT_ASK_RULES,
-  HOOK_SCRIPT,
-  HOOK_SECONDS,
-  RETIRED_CONFIG_FILE,
-} from "../files/tools/agent-workflow/lib/host.mts";
+import { groupRuns, hostOf } from "../files/tools/agent-workflow/lib/hook-registration.mts";
+import { ASK_RULES, CLAUDE_SETTINGS, CODEX_HOOKS, COMMAND_NEEDS, EDIT_ASK_RULES, HOOK_COMMANDS, HOOK_SCRIPT, RETIRED_ARGUMENT, RETIRED_FILES } from "../files/tools/agent-workflow/lib/host.mts";
+import { ONCE_ALLOWED, OLD_SETTING_ON } from "./shapes.mts";
 import { ADDON, createFolder, git, readJson, REPOSITORY, writeFile } from "./support.mts";
 
 interface HookGroup {
@@ -35,7 +26,8 @@ interface Manifest {
   packageJson: Record<string, { scripts?: Record<string, string>; devDependencies?: Record<string, string> }>;
   gates: { fast: string[]; full: string[] };
   startingFiles: string[];
-  retiredFiles: Record<string, { replacedBy: string; note: string }>;
+  retiredFiles: Record<string, { replacedBy?: string; note: string }>;
+  retiredHookCommands: Record<string, string>;
   hostSettings: Record<string, HostSettings>;
   verify: string;
 }
@@ -45,6 +37,13 @@ const FILES = readdirSync(join(ADDON, "files"), { recursive: true, encoding: "ut
 const WORKFLOW = readFileSync(join(ADDON, "files/.github/workflows/weekly-tag.yml"), "utf8");
 const COMMANDS = Object.keys(COMMAND_NEEDS);
 const SECTION = readFileSync(join(ADDON, "AGENTS.section.md"), "utf8");
+const CLAUDE_HOOK = `node "$CLAUDE_PROJECT_DIR/${HOOK_SCRIPT}"`;
+/** The rule that version had about its setting file. A merge takes nothing out, so it stays. */
+const OLD_SETTING_RULE = "Edit(/tools/agent-workflow.config.json)";
+/** For a test that starts the hook once per command of a table. */
+const SPAWNS_TIMEOUT = 120_000;
+/** How the version before this one had Claude Code start the hook. */
+const OLD_CLAUDE_HOOK = `${CLAUDE_HOOK} ${RETIRED_ARGUMENT}`;
 
 describe("the add-on's manifest", () => {
   it("is offered, not recommended", () => {
@@ -70,26 +69,38 @@ describe("the add-on's manifest", () => {
     expect(MANIFEST.gates).toEqual({ fast: [], full: [] });
   });
 
-  it("leaves CHANGELOG.md and the setting file to the project once they are written", () => {
-    expect(MANIFEST.startingFiles).toEqual(["CHANGELOG.md", CONFIG_FILE]);
-    expect(existsSync(join(ADDON, "files", CONFIG_FILE))).toBe(true);
+  it("leaves CHANGELOG.md to the project once it is written, and ships no setting", () => {
+    expect(MANIFEST.startingFiles).toEqual(["CHANGELOG.md"]);
+    expect(FILES.filter((file) => /config/.test(file))).toEqual([]);
   });
 
-  it("ships the setting as data, with every approval off", () => {
-    expect(CONFIG_FILE.endsWith(".json")).toBe(true);
-    expect(readJson(join(ADDON, "files"), CONFIG_FILE)).toEqual({ approvePushAndCreate: false, approveMerge: false });
-    expect(FILES).not.toContain(RETIRED_CONFIG_FILE);
+  it("names both setting files it had before, with nothing in their place, and says to delete them", () => {
+    expect(Object.keys(MANIFEST.retiredFiles)).toEqual(RETIRED_FILES);
+
+    for (const path of RETIRED_FILES) {
+      expect(MANIFEST.retiredFiles[path]?.replacedBy).toBeUndefined();
+      expect(MANIFEST.retiredFiles[path]?.note).toContain("The hook no longer lets anything run without one, whatever this file says");
+      expect(MANIFEST.retiredFiles[path]?.note).toContain("Delete the file.");
+      expect(FILES).not.toContain(path);
+    }
   });
 
-  it("names the setting file it had before, and the one that took its place", () => {
-    expect(Object.keys(MANIFEST.retiredFiles)).toEqual([RETIRED_CONFIG_FILE]);
-    expect(MANIFEST.retiredFiles[RETIRED_CONFIG_FILE]?.replacedBy).toBe(CONFIG_FILE);
-    expect(MANIFEST.retiredFiles[RETIRED_CONFIG_FILE]?.note).toContain("approves nothing until approvePushAndCreate or approveMerge is set to true");
+  it("names the command line it registered for Claude Code before, and the one it registers now", () => {
+    expect(MANIFEST.retiredHookCommands).toEqual({ [`${CLAUDE_HOOK} ${RETIRED_ARGUMENT}`]: CLAUDE_HOOK });
   });
 
   it("ships TypeScript and nothing else that runs", () => {
     expect(FILES.filter((file) => /\.(js|mjs|cjs|jsx|py|sh|bash)$/.test(file))).toEqual([]);
     expect(FILES.filter((file) => file.endsWith(".mts")).length).toBeGreaterThan(5);
+  });
+
+  it("registers the hook with the command lines the check looks for, each as an entry the host would run", () => {
+    for (const path of [CLAUDE_SETTINGS, CODEX_HOOKS]) {
+      const [group] = MANIFEST.hostSettings[path]?.hooks?.PreToolUse ?? [];
+
+      expect(group?.hooks.map((hook) => hook.command)).toEqual([HOOK_COMMANDS[path]]);
+      expect(groupRuns(group, HOOK_COMMANDS[path] as string, "Bash", hostOf(path))).toBe(true);
+    }
   });
 
   it("asks each host for the same entries the project's own check looks for", () => {
@@ -99,12 +110,13 @@ describe("the add-on's manifest", () => {
     expect(Object.keys(MANIFEST.hostSettings)).toEqual([CLAUDE_SETTINGS, CODEX_HOOKS]);
     expect(claude?.permissions).toEqual({ ask: [...ASK_RULES, ...EDIT_ASK_RULES] });
     expect(claude?.hooks).toEqual({
-      PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: `node "$CLAUDE_PROJECT_DIR/${HOOK_SCRIPT}" ${APPROVING_HOST}`, timeout: HOOK_SECONDS }] }],
+      PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: `node "$CLAUDE_PROJECT_DIR/${HOOK_SCRIPT}"`, timeout: 5 }] }],
     });
     expect(Object.keys(codex ?? {})).toEqual(["hooks"]);
     expect(codex?.hooks?.PreToolUse).toHaveLength(1);
     expect(codex?.hooks?.PreToolUse?.[0]?.matcher).toBe("Bash");
     expect(codex?.hooks?.PreToolUse?.[0]?.hooks[0]?.command).toBe(`node ${HOOK_SCRIPT}`);
+    expect(JSON.stringify(MANIFEST.hostSettings)).not.toContain(RETIRED_ARGUMENT);
     expect(existsSync(join(ADDON, "files", HOOK_SCRIPT))).toBe(true);
   });
 });
@@ -114,7 +126,7 @@ describe("the add-on's manifest", () => {
 // is not the host's own code, so what it proves is that the rules say what
 // they are meant to say, not that a given version of the host reads them so.
 describe("the permission rules, read the way the host documents them", () => {
-  it("are ask rules only: what runs without a prompt is the hook's to decide, by exact shape", () => {
+  it("are ask rules only: the add-on lets nothing run without a prompt", () => {
     expect(MANIFEST.hostSettings[CLAUDE_SETTINGS]?.permissions).toEqual({ ask: [...ASK_RULES, ...EDIT_ASK_RULES] });
     expect(JSON.stringify(MANIFEST.hostSettings)).not.toContain('"allow"');
     expect(JSON.stringify(MANIFEST.hostSettings)).not.toContain('"deny"');
@@ -312,13 +324,9 @@ describe("the section for AGENTS.md", () => {
     }
   });
 
-  it("says where approval is turned on, that it starts off, and names no pattern rule as what approves", () => {
-    expect(SECTION).toContain(`\`${CONFIG_FILE}\``);
-    expect(SECTION).toContain("approvePushAndCreate");
-    expect(SECTION).toContain("approveMerge");
-    expect(SECTION).toContain("Both are off unless the project turned them on");
-    expect(SECTION).not.toContain("approveExactShapes");
-    expect(SECTION).not.toMatch(/worktree-\*|pr merge \*|pr create \*/);
+  it("says every outward step asks, and names no setting, no argument and no pattern rule that would let one run", () => {
+    expect(SECTION).toContain("The hook never lets a command run without a prompt.");
+    expect(SECTION).not.toMatch(/agent-workflow\.config|--host=|worktree-\*|pr merge \*|pr create \*/);
   });
 });
 
@@ -401,7 +409,7 @@ describe("the add-on in a project that has the kit", () => {
     });
     expect(final.hooks?.PreToolUse?.map((group) => group.hooks[0]?.command)).toEqual([
       "node tools/own/guard.mts",
-      `node "$CLAUDE_PROJECT_DIR/${HOOK_SCRIPT}" ${APPROVING_HOST}`,
+      CLAUDE_HOOK,
     ]);
     expect(final.hooks?.Stop).toEqual(own.hooks.Stop);
   });
@@ -430,9 +438,8 @@ describe("the add-on in a project that has the kit", () => {
     const verify = spawnSync(process.execPath, script.replace(/^node /, "").split(" "), { cwd: project, encoding: "utf8" });
 
     expect(MANIFEST.verify).toBe("pnpm agent-workflow:check");
-    expect(verify.stdout).toContain("PASS hook: refuses an outward step joined to others, says nothing about a push to main, and never approves without --host=claude-code");
-    expect(verify.stdout).toContain("NOTE approval: off. tools/agent-workflow.config.json sets neither approvePushAndCreate nor approveMerge to true");
-    expect(verify.stdout).toContain("PASS Claude Code: an editing tool asks before it changes the hook or its setting");
+    expect(verify.stdout).toContain("PASS hook: refuses an outward step joined to others, and says nothing about a push alone, whatever it is started with");
+    expect(verify.stdout).not.toMatch(/NOTE (?:setting|Claude Code|Codex)/);
     expect(verify.stdout).toContain("PASS Claude Code: all 13 ask rules are in");
     expect(verify.stdout).toContain("PASS Codex: .codex/hooks.json runs the hook before each shell command");
     expect(verify.stdout).not.toContain("FAIL");
@@ -455,90 +462,121 @@ describe("the add-on in a project that has the kit", () => {
     expect(verify.stdout).toContain("FAIL Codex: .codex/hooks.json does not register");
   });
 
-  it("says in its proof that approval is on, and asks about the sample, once the project turns it on in a repository", () => {
-    const project = createProjectWithKit();
+  it("leaves a project that had the old setting and the old registration right: one hook, started as it is now, the rest of its entry kept", () => {
+    const project = createProjectAsBefore();
+    const before = readJson<HostSettings>(project, CLAUDE_SETTINGS);
+
+    const updated = addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
+    const after = readJson<HostSettings>(project, CLAUDE_SETTINGS);
+
+    expect(after.hooks?.PreToolUse).toEqual([{ matcher: "Bash", hooks: [{ type: "command", command: CLAUDE_HOOK, timeout: 30 }] }]);
+    expect({ ...after, hooks: { ...after.hooks, PreToolUse: before.hooks?.PreToolUse } }).toEqual(before);
+    expect(after.permissions?.ask).toEqual([...ASK_RULES, ...EDIT_ASK_RULES, OLD_SETTING_RULE]);
+    expect(updated.settingsChanges).toEqual([`${CLAUDE_SETTINGS}: hooks.PreToolUse: ${OLD_CLAUDE_HOOK} is now ${CLAUDE_HOOK}`]);
+    expect(updated.created).toEqual([]);
+    expect(updated.unmerged).toEqual([]);
+    expect(updated.notes).toEqual(RETIRED_FILES.map((path) => `${path} is no longer read, and nothing took its place. ${MANIFEST.retiredFiles[path]?.note}`));
+    expect(readJson(project, RETIRED_FILES[0] as string)).toEqual(OLD_SETTING_ON);
+    // The files of the removed feature went with the update: only what the add-on ships now is left.
+    expect(readdirSync(join(project, "tools/agent-workflow/lib")).sort()).toEqual(readdirSync(join(ADDON, "files/tools/agent-workflow/lib")).sort());
+  });
+
+  it("passes its proof in such a project, and notes the setting files that are left", () => {
+    const project = createProjectAsBefore();
 
     addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
-    writeFile(project, CONFIG_FILE, '{ "approvePushAndCreate": true, "approveMerge": true }\n');
 
     const verify = spawnSync(process.execPath, ["tools/agent-workflow/check.mts"], { cwd: project, encoding: "utf8" });
 
-    expect(verify.stdout).toContain("NOTE approval: on, by the project's choice in tools/agent-workflow.config.json.");
-    expect(verify.stdout).toContain("Branch protection on the remote is then what stands between an instruction injected into the agent and the default branch");
+    expect(verify.stdout).toContain(`NOTE setting: ${RETIRED_FILES[0]} is no longer read`);
+    expect(verify.stdout).toContain(`NOTE setting: ${RETIRED_FILES[1]} is no longer read`);
+    expect(verify.stdout).toContain("PASS Claude Code: an editing tool asks before it changes the hook");
+    expect(verify.stdout).not.toContain(RETIRED_ARGUMENT);
+    expect(verify.stdout).not.toContain("registers the hook");
     expect(verify.stdout).not.toContain("FAIL");
     expect(verify.status).toBe(0);
   });
 
-  it("says in its proof that approval is not possible yet, in a project that is no repository", () => {
-    const project = createProjectWithKit();
-
-    addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
-    writeFile(project, CONFIG_FILE, '{ "approvePushAndCreate": true }\n');
-    rmSync(join(project, ".git"), { recursive: true });
-
+  it("notes the old argument in its proof before the update, and still passes: the hook ignores it", () => {
+    const project = createProjectAsBefore();
     const verify = spawnSync(process.execPath, ["tools/agent-workflow/check.mts"], { cwd: project, encoding: "utf8" });
 
-    expect(verify.stdout).toContain("NOTE approval: not possible yet.");
-    expect(verify.stdout).not.toContain("FAIL");
+    expect(verify.stdout).toContain(`NOTE Claude Code: ${CLAUDE_SETTINGS} starts the hook with ${RETIRED_ARGUMENT}`);
     expect(verify.status).toBe(0);
   });
 
-  it("keeps the project's setting when it is added again, and its proof then says what the project chose", () => {
-    const project = createProjectWithKit();
-    const chosen = '{ "approvePushAndCreate": true, "approveMerge": false }\n';
+  it("answers as it should when started by the old registration, in that project, with the old setting on", () => {
+    const project = createProjectAsBefore();
+    const startHook = (command: string) =>
+      spawnSync("/bin/sh", ["-c", OLD_CLAUDE_HOOK], {
+        cwd: project,
+        env: { ...process.env, CLAUDE_PROJECT_DIR: project },
+        input: JSON.stringify({ tool_name: "Bash", tool_input: { command }, cwd: project, permission_mode: "default" }),
+        encoding: "utf8",
+      });
 
-    addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
-    writeFile(project, CONFIG_FILE, chosen);
+    for (const command of ONCE_ALLOWED) {
+      expect(startHook(command), command).toMatchObject({ status: 0, stdout: "", stderr: "" });
+    }
 
-    const again = addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
+    expect(startHook("git commit -m wip && git push -u origin worktree-a").stdout).toContain('"permissionDecision":"deny"');
+  }, SPAWNS_TIMEOUT);
 
-    expect(readFileSync(join(project, CONFIG_FILE), "utf8")).toBe(chosen);
-    expect(again.created).toEqual([]);
-    expect(again.notes).toEqual([]);
-  });
+  it("rewrites the old registration where it stands, and takes nothing out, in a project that has the new one in a group beside it", () => {
+    const project = createProjectAsBefore();
+    const settings = readJson<HostSettings>(project, CLAUDE_SETTINGS);
+    const beside = { matcher: "Edit", hooks: [{ type: "command", command: CLAUDE_HOOK, timeout: 5 }] };
 
-  it("does not leave the old setting file silently unread: it writes the new one, with nothing approved, and says so", () => {
-    const project = createProjectWithKit();
-    const old = "export const approveExactShapes: boolean = true;\n";
-
-    // A project that took the add-on while its setting was a .mts file: the add-on is on record, the new file is not there.
-    addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
-    rmSync(join(project, CONFIG_FILE));
-    writeFile(project, RETIRED_CONFIG_FILE, old);
+    settings.hooks?.PreToolUse?.unshift(beside);
+    writeFile(project, CLAUDE_SETTINGS, JSON.stringify(settings));
 
     const updated = addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
 
-    expect(updated.created).toEqual([CONFIG_FILE]);
-    expect(readJson(project, CONFIG_FILE)).toEqual({ approvePushAndCreate: false, approveMerge: false });
-    expect(readFileSync(join(project, RETIRED_CONFIG_FILE), "utf8")).toBe(old);
-    expect(updated.notes).toEqual([
-      `${RETIRED_CONFIG_FILE} is no longer read: ${CONFIG_FILE} took its place, and was written as the add-on ships it. ${MANIFEST.retiredFiles[RETIRED_CONFIG_FILE]?.note}`,
-    ]);
-
-    const verify = spawnSync(process.execPath, ["tools/agent-workflow/check.mts"], { cwd: project, encoding: "utf8" });
-
-    expect(verify.stdout).toContain("NOTE approval: off.");
-    expect(verify.stdout).toContain(`NOTE setting: ${RETIRED_CONFIG_FILE} is no longer read`);
+    expect(readJson<HostSettings>(project, CLAUDE_SETTINGS).hooks?.PreToolUse).toEqual([beside, { matcher: "Bash", hooks: [{ type: "command", command: CLAUDE_HOOK, timeout: 30 }] }]);
+    expect(updated.settingsChanges).toEqual([`${CLAUDE_SETTINGS}: hooks.PreToolUse: ${OLD_CLAUDE_HOOK} is now ${CLAUDE_HOOK}`]);
+    expect(addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" }).settingsChanges).toEqual([]);
   });
 
-  it("says so again on each update while the old file is there, without writing over the new one, and stops once it is deleted", () => {
+  it("adds its Bash group in a project whose only copy of the hook is under a matcher that runs for no shell command, and its proof says why", () => {
     const project = createProjectWithKit();
-    const chosen = '{ "approvePushAndCreate": true }\n';
 
     addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
-    writeFile(project, CONFIG_FILE, chosen);
-    writeFile(project, RETIRED_CONFIG_FILE, "export const approveExactShapes = true;\n");
 
-    const again = addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
+    const settings = readJson<HostSettings>(project, CLAUDE_SETTINGS);
+    const moved = [{ matcher: "Nothing", hooks: [{ type: "command", command: CLAUDE_HOOK, timeout: 5 }] }];
 
-    expect(again.created).toEqual([]);
-    expect(readFileSync(join(project, CONFIG_FILE), "utf8")).toBe(chosen);
-    expect(again.notes).toHaveLength(1);
-    expect(again.notes[0]).toMatch(/^tools\/agent-workflow\.config\.mts is no longer read: tools\/agent-workflow\.config\.json took its place\. The hook now approves nothing until/);
+    writeFile(project, CLAUDE_SETTINGS, JSON.stringify({ ...settings, hooks: { ...settings.hooks, PreToolUse: moved } }));
 
-    rmSync(join(project, RETIRED_CONFIG_FILE));
+    const proof = spawnSync(process.execPath, ["tools/agent-workflow/check.mts"], { cwd: project, encoding: "utf8" });
 
-    expect(addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" }).notes).toEqual([]);
+    expect(proof.status).toBe(1);
+    expect(proof.stdout).toContain(`FAIL Claude Code: ${CLAUDE_SETTINGS} names ${HOOK_SCRIPT} under hooks.PreToolUse, but not as a hook the host is known to run before a shell command.`);
+
+    const updated = addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
+
+    expect(updated.settingsChanges).toEqual([`${CLAUDE_SETTINGS}: hooks.PreToolUse: ${CLAUDE_HOOK}`]);
+    expect(readJson<HostSettings>(project, CLAUDE_SETTINGS).hooks?.PreToolUse).toEqual([...moved, ...(MANIFEST.hostSettings[CLAUDE_SETTINGS]?.hooks?.PreToolUse ?? [])]);
+    expect(spawnSync(process.execPath, ["tools/agent-workflow/check.mts"], { cwd: project, encoding: "utf8" }).status).toBe(0);
+  });
+
+  it("says a setting file is left on each update until it is deleted, and changes the settings once", () => {
+    const project = createProjectAsBefore();
+    const update = () => addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
+
+    expect(update().notes).toHaveLength(2);
+
+    const again = update();
+
+    expect(again.notes).toHaveLength(2);
+    expect(again.settingsChanges).toEqual([]);
+
+    rmSync(join(project, RETIRED_FILES[1] as string));
+
+    expect(update().notes).toHaveLength(1);
+
+    rmSync(join(project, RETIRED_FILES[0] as string));
+
+    expect(update().notes).toEqual([]);
   });
 
   it("exits 3, and lists what was not merged, when the project's settings hold a value of another kind where its rules go", () => {
@@ -555,8 +593,10 @@ describe("the add-on in a project that has the kit", () => {
     expect(run.stdout).not.toContain("Still to do by hand:");
     expect(run.stdout).toContain(`merged   ${CLAUDE_SETTINGS}: hooks.PreToolUse:`);
 
-    // The project's own check fails on the same project: the rules are not there.
-    writeFile(project, CONFIG_FILE, '{ "approvePushAndCreate": true }\n');
+    // The project's own check passes while nothing allows a push by pattern, and fails once a rule does: the rules that back it are not there.
+    expect(spawnSync(process.execPath, ["tools/agent-workflow/check.mts"], { cwd: project, encoding: "utf8" }).status).toBe(0);
+
+    writeFile(project, CLAUDE_SETTINGS, JSON.stringify({ ...readJson<HostSettings>(project, CLAUDE_SETTINGS), permissions: { ask: "Bash(x)", allow: ["Bash(git push *)"] } }));
 
     expect(spawnSync(process.execPath, ["tools/agent-workflow/check.mts"], { cwd: project, encoding: "utf8" }).status).toBe(1);
   });
@@ -573,7 +613,7 @@ describe("the add-on in a project that has the kit", () => {
     const project = createProjectWithKit();
     const result = addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
 
-    expect(result.created).toEqual(["CHANGELOG.md", CONFIG_FILE]);
+    expect(result.created).toEqual(["CHANGELOG.md"]);
     expect(result.files.written).toEqual(expect.arrayContaining([".github/workflows/weekly-tag.yml", ".claude/commands/workflow/changelog.md", ".agents/skills/workflow-changelog/SKILL.md", HOOK_SCRIPT]));
 
     writeFile(project, "CHANGELOG.md", "# Changelog\n\n## 2026-W40 — the project's own entry\n");
@@ -609,6 +649,34 @@ function scriptsOf(manifest: string): string[] {
   return Object.values(packageJson).flatMap((patch) => Object.keys(patch.scripts ?? {}));
 }
 
+/**
+ * A project as the version before this one left it, with everything it had
+ * turned on: Claude Code's settings start the hook with the old argument and
+ * a timeout of 30 and hold the rule about edits of the setting, and both
+ * setting files are there.
+ */
+function createProjectAsBefore(): string {
+  const project = createProjectWithKit();
+
+  addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
+
+  const settings = readJson<HostSettings>(project, CLAUDE_SETTINGS);
+  const hook = settings.hooks?.PreToolUse?.[0]?.hooks[0];
+
+  if (hook === undefined || settings.permissions?.ask === undefined) {
+    throw new Error("the add-on did not register its hook");
+  }
+
+  hook.command = OLD_CLAUDE_HOOK;
+  hook.timeout = 30;
+  settings.permissions.ask.push(OLD_SETTING_RULE);
+  writeFile(project, CLAUDE_SETTINGS, `${JSON.stringify(settings, null, 2)}\n`);
+  writeFile(project, RETIRED_FILES[0] as string, `${JSON.stringify(OLD_SETTING_ON)}\n`);
+  writeFile(project, RETIRED_FILES[1] as string, "export const on: boolean = true;\n");
+
+  return project;
+}
+
 /** A small project with the real kit in it, as `create-project.mts` leaves one. */
 function createProjectWithKit(): string {
   const project = createFolder({
@@ -618,7 +686,6 @@ function createProjectWithKit(): string {
   });
 
   addToProject({ project, unit: "kit", repository: REPOSITORY });
-  // As after `git init`: the hook approves only in a checkout of the project's own repository.
   git(project, "init", "--quiet");
 
   return project;

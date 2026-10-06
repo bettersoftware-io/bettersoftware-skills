@@ -51,9 +51,14 @@
 // the `PATH` (`pnpm`, `node`, what `node_modules/.bin` holds). The shell is
 // asked (`command -v`); no list of its builtins is kept here, so a word this
 // does not know is never taken for harmless. `cd`, `export`, `set`, `.`,
-// `eval`, `exec`, a bare `NAME=value`, `!`, `{`, `time`, a function: none is
-// a file on the `PATH`, and the script runs whole. So does one that reads
-// what only the shell of the whole chain has: `$?`, `$_`, `$!`, `${…}`.
+// `eval`, `exec`, a bare `NAME=value`, `!`, `{`, a function: none is a file
+// on the `PATH`, and the script runs whole. So does one that reads what only
+// the shell of the whole chain has: `$?`, `$_`, `$!`, `${…}`.
+//
+// The shell asked is `/bin/sh`, the one the stages run in, so the answer is
+// the one that shell acts on: `time` is a word of bash's own and a file to
+// dash. A word with a slash is a path, which no shell runs itself: the file
+// is looked at instead, since shells do not agree on what to say about one.
 //
 // Told to stop (SIGINT, SIGTERM), it never waits on the stage: the stage's
 // process group gets SIGTERM, then SIGKILL, and the run ends within seconds
@@ -68,7 +73,7 @@
 // that is killed loses nothing.
 
 import { spawn, spawnSync } from "node:child_process";
-import { closeSync, constants as fileConstants, existsSync, mkdirSync, openSync, readFileSync, writeSync } from "node:fs";
+import { accessSync, closeSync, constants as fileConstants, existsSync, mkdirSync, openSync, readFileSync, statSync, writeSync } from "node:fs";
 import { constants } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
 
@@ -186,6 +191,11 @@ export function splitStages(script: string, isProgram: IsProgram): string[] {
  * definition, for anything the shell would run itself. Each word is asked
  * once. Where there is no such shell (Windows), nothing is a program, and
  * every script runs whole.
+ *
+ * A word with a slash names a file, which no shell runs itself, so the file
+ * is looked at and the shell is not asked: shells answer differently there.
+ * bash says the word back only for a file it can run; dash says it back for
+ * anything that exists, a folder included; ksh gives the whole path.
  */
 export function createProgramFinder(root: string): IsProgram {
   const known = new Map<string, boolean>();
@@ -195,16 +205,32 @@ export function createProgramFinder(root: string): IsProgram {
     let found = known.get(word);
 
     if (found === undefined) {
-      const asked = process.platform === "win32" ? undefined : spawnSync("/bin/sh", ["-c", 'command -v -- "$1"', "sh", word], { cwd: root, encoding: "utf8", env: { ...process.env, PATH: path } });
-      const answer = asked?.status === 0 ? asked.stdout.trim() : "";
+      if (process.platform === "win32") {
+        found = false;
+      } else if (word.includes("/")) {
+        found = isRunnableFile(resolve(root, word));
+      } else {
+        const asked = spawnSync("/bin/sh", ["-c", 'command -v -- "$1"', "sh", word], { cwd: root, encoding: "utf8", env: { ...process.env, PATH: path } });
 
-      // A word with a slash names a file itself, and the shell says it back when it can run it.
-      found = answer.startsWith("/") || (word.includes("/") && answer === word);
+        found = asked.status === 0 && asked.stdout.trim().startsWith("/");
+      }
+
       known.set(word, found);
     }
 
     return found;
   };
+}
+
+/** Whether the path is a file this process may run. A folder is not, though it has the same permission bit. */
+function isRunnableFile(file: string): boolean {
+  try {
+    accessSync(file, fileConstants.X_OK);
+
+    return statSync(file).isFile();
+  } catch {
+    return false;
+  }
 }
 
 /**

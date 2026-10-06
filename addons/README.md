@@ -79,11 +79,16 @@ addons/<name>/
   permission rule. The key is the file's path. Those files belong to the
   project, so the entries are merged in and the file is never written over:
   a key the project has keeps its value, a list gains the entries it lacks,
-  a hook whose command is already registered is not added again, and
-  nothing is removed. A second run changes nothing, and does not rewrite the
+  a hook the host would already run where the add-on needs it is not added
+  again (its group's matcher covers the add-on's as that host reads a
+  matcher, and its entry is a plain command hook with exactly that command
+  line: `scripts/lib/hook-registration.mts`), and
+  nothing is removed (but see `retiredHookCommands`). A second run changes nothing, and does not rewrite the
   file. A file that the host keeps read-only is left alone, and the script
   says what is left to do. The merge cannot tell an entry the project removed
   from one that was never there: a later run adds it back.
+  A file that sets `disableAllHooks` runs no hook at all. The merge leaves
+  that value, lists it under "Not merged", and exits 3.
   **What could not be merged is never silent.** A file that is not JSON, and
   a place where the project's file holds a value of another kind than the
   add-on needs (`"permissions": null`, `"ask": "Bash(x)"`,
@@ -92,10 +97,33 @@ addons/<name>/
   `add-to-project.mts` exits 3: the add-on's files are in, and the add-on is
   not whole.
 - `retiredFiles` names a file an older version of the add-on had the project
-  own and no longer reads, with the starting file that took its place
-  (`replacedBy`) and a sentence for the person (`note`). While the old file is
-  in the project every update says so, and writes the new starting file if
-  the project does not have it. A setting is never left silently unread.
+  own and no longer reads, with a sentence for the person (`note`) and, when
+  there is one, the starting file that took its place (`replacedBy`). While
+  the old file is in the project every update says so, and writes the new
+  starting file if the project does not have it. A setting is never left
+  silently unread.
+- `retiredHookCommands` names a command line an older version registered for
+  a hook, with the command line `hostSettings` registers now. Without it an
+  update would add the new line beside the old one, and the hook would run
+  twice. It is the one place where the merge changes what a project has, so
+  it is bound on every side:
+  - The value must be a command line this manifest registers under `hooks`
+    in `hostSettings`, and the key must not be one. A manifest that breaks
+    either is refused before anything is written. So the field cannot put a
+    command into a project that the add-on does not already register, and
+    cannot take out a hook it still wants.
+  - A project's command is rewritten only when it is the key letter for
+    letter, in a file and under an event where the manifest registers the
+    value. It is rewritten where it stands. Only the command changes: the
+    entry's timeout, its group, the group's matcher and the other hooks of
+    the group stay. No group is ever taken out.
+  - One thing is taken out: when the rewrite leaves the same entry twice in
+    one group, equal in every field, the later one goes.
+  - A command that only begins like the new line is left alone, the new line
+    is added beside it, and the summary names it under "Still to do by hand".
+  - The settings file is replaced in one step (a new file takes its place),
+    so no reader sees it without the hook, and a failed write leaves it as it
+    was. A file its owner made read-only is not replaced.
 - `firstRun` is a command to run once after installing, before `verify`. It
   is for an add-on whose verdict depends on something the installer changes:
   `format-lint` asks for its fixer, because a package scope of another length
