@@ -15,9 +15,12 @@ directly by stripping the types, which needs Node 22.18 or later, and
 
 | Part | What it checks | Needs |
 |---|---|---|
-| `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction, the paths the agent instructions name, the task cache, every package's scripts, the one app harness, test ids, types-only packages | Node; `dependency-cruiser` for the dependency gate |
+| `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction, the paths the agent instructions name, the task cache, every package's scripts, where the Node floor is declared, the one app harness, test ids, types-only packages | Node; `dependency-cruiser` for the dependency gate |
 | `eslint.config.mts` + `eslint-rules/` | Thirteen AST lint rules of its own (naming, reading order, fixtures, page objects, no real sleeps in tests, one import per module), and the settings of ESLint's rules that go with them: function declarations, blank lines, named object types, no CommonJS, React's hook rules | `eslint`, `typescript-eslint`, `eslint-plugin-react-hooks` |
 | `gates/quiet.mts` | Nothing of its own: it runs a gate script of the project and prints only the stage that failed | Node |
+| `check-react-policies.mts` | Every package that imports React is under the lint rules for its role, and a client's `reactCompiler` matches its build | `eslint` |
+| `check-compiler.mts` | The React Compiler still memoizes each function a client lists as relying on it | `@babel/core` and `babel-plugin-react-compiler` in the client |
+| `ci/enable-corepack.mts` | Nothing: it gives a workflow the pnpm that `packageManager` pins, on a Node that no longer ships Corepack | `npm`, which ships with Node |
 | `hooks/after-edit.mts` | Runs the per-file gates on the file an agent just wrote | Claude Code or Codex |
 | `hooks/before-stop.mts` | Refuses to let an agent finish while `gate:full` is red, on any tree that has not already passed it | Claude Code or Codex; git |
 
@@ -35,7 +38,8 @@ A project declares its layers once, in `architecture.config.mts`
 | `dependencies` | An import points outward; the domain, or a package that asked, uses a Node built-in; the core imports a UI framework; a presenter or a state machine imports an adapter; production code imports test scaffolding; a confined library is imported outside its packages; the UI imports the composition root or an adapter; anything imports an integration package; there is a cycle |
 | `agent-docs` | `AGENTS.md` or `CLAUDE.md` names a file or folder that does not exist |
 | `task-cache` | A cached task in `turbo.json` has a key that leaves out the packages a package imports; a package's tsconfig extends a file outside the package that is not a global dependency; a package with tests that need a port caches its `test` task |
-| `package-scripts` | A workspace package has no `typecheck` script, or no `test` (or `test:…`) script and no listed reason |
+| `package-scripts` | A workspace package has no `typecheck` script, or no `test` (or `test:…`) script and no listed reason; a script, the root's or a package's, runs `eslint` without `--max-warnings 0` |
+| `node-floor` | A `package.json`, the root's or a package's, has `engines.node`; the root's has no `devEngines.runtime` that names `node` with a version and `"onFail": "error"` |
 | `app-harness` | A test calls the function that builds the whole application, anywhere but the one harness file |
 | `test-ids` | A test id is written as a string literal, in a component, a selector or a query, outside the client's test-ids file |
 | `types-only` | A package declared `typesOnly` exports a runtime value |
@@ -193,6 +197,59 @@ packagesWithoutTests: {
 },
 ```
 
+### The Node floor is not in `engines.node`
+
+The tooling is TypeScript that Node runs directly, so it needs a recent Node.
+Written as `"engines": { "node": ">=26" }` that floor passes every check and
+fails the first deploy: a host's build (`vercel build`, for one) reads the
+field, accepts only the Node lines it offers, and stops before the build
+starts. No step in CI runs that build. In the source project it failed a real
+deploy.
+
+So the floor is `devEngines.runtime` in the root `package.json`:
+
+```json
+"devEngines": { "runtime": { "name": "node", "version": ">=26", "onFail": "error" } }
+```
+
+A host does not read it. pnpm does, and refuses to install on an older Node,
+which it never did for `engines.node`. The `node-floor` gate fails on
+`engines.node` in any `package.json` of the workspace, and on a root that does
+not declare the floor this way. With no `package.json` at the root it reports
+`SKIP`.
+
+Skip the gate's advice only where `engines.node` is a promise to people who
+install the package: a library published to npm. Nothing here is published.
+
+### pnpm in CI, on a Node without Corepack
+
+Node 25 and later no longer ship Corepack, so `corepack enable` is not there
+to run. `ci/enable-corepack.mts` installs it first:
+
+```yaml
+- name: Enable Corepack
+  run: node tools/arch/ci/enable-corepack.mts
+```
+
+It runs `npm ci` on `ci/corepack/package-lock.json`, which pins one version
+with a sha512 hash, in the runner's temporary folder, and puts the `pnpm` shim
+on the path of the later steps. An `npm install -g corepack` would do the same
+with a version no lockfile holds, which the workflow security lint and OpenSSF
+Scorecard both report. The step comes after the checkout, since the script is
+in the repository, and the workflow sets `COREPACK_ENABLE_DOWNLOAD_PROMPT` to
+`"0"`.
+
+A newer Corepack arrives with a newer kit. A dependency bot does not see the
+pin unless it is told to read `tools/arch/ci/corepack`.
+
+### A lint warning fails
+
+ESLint exits 0 on a warning. A rule at "warn", set by the project or by a
+preset it takes in, then reports on every run and stops nothing. The
+`package-scripts` gate fails on a script that runs `eslint` without
+`--max-warnings 0`, in the root `package.json` and in each package's. A script
+that passes `--fix` is left alone: a fixer gives no verdict.
+
 ### Test scaffolding stays in tests
 
 A `testing/` folder, a page object (`*.page.*`), a `*.testHelpers.*` file, a
@@ -334,6 +391,7 @@ The block holds three kinds of rule. Each has its reason beside it in
 | | `no-restricted-syntax` on the whole file | Every `.js`, `.mjs`, `.cjs`, `.jsx` and `.cts` file. The exemptions are `javascriptAllowed` in the architecture config |
 | By role | `eslint-plugin-react-hooks` (its `recommended-latest` rules, all as errors); no `style={{…}}` | The `src` of a `client` package |
 | | No `useMemo`, `useCallback`, `memo` or default React import | The `src` of a `bindings` package, tests left out |
+| | The same four, for another reason: the React Compiler memoizes | The `src` of a `client` package that declares `reactCompiler: true`, tests and page objects left out |
 
 ### Rules that follow a role
 
@@ -345,6 +403,79 @@ applied, and a JavaScript file has no exemption.
 
 The hook rules are held to a client because a function named `useCase` in any
 other package would be read as a hook.
+
+### The React Compiler, and the two checks that hold it
+
+A client whose build runs the React Compiler says so:
+
+```ts
+"packages/client-react": {
+  role: "client",
+  reactCompiler: true,
+  compilerTracked: [
+    { file: "src/ui/PriceList.tsx", fn: "PriceRowView" },
+    { file: "src/ui/Chart.tsx", fn: "Chart", values: ["path"] },
+  ],
+},
+```
+
+With that, the lint bans `useMemo`, `useCallback`, `memo` and the default
+React import in the client's source: the compiler memoizes, and a hand-written
+memo is noise whose dependency list can drift. A client without the
+declaration is not banned from anything, since nothing would memoize in its
+place. The bindings are banned either way, for their own reason: a memo there
+means logic has moved into the bridge.
+
+The compiler skips what it cannot compile and says nothing, and a rule set by
+role can be missing for a package with every run green. Two scripts check
+both. Neither is part of `gates/run.mts`: one needs ESLint, the other the
+client's own Babel, and each runs in the project root.
+
+```json
+"check:react-policies": "node tools/arch/check-react-policies.mts",
+"check:compiler": "node tools/arch/check-compiler.mts"
+```
+
+**`check-react-policies.mts`** finds every package whose production source
+imports `react`, and fails when:
+
+- the package is neither a client nor the bindings, so it gets none of React's
+  lint rules. A package that is meant to have none is listed with the reason:
+  `reactWithoutPolicies: { "packages/icons": "generated, never edited by hand" }`;
+- a client declares `reactCompiler: true` and its `vite.config.ts` does not run
+  the compiler, or runs it and does not declare it;
+- ESLint, asked about a real file of the package, does not resolve the rule at
+  error: the hook rules and the inline-style ban for a client, the memoization
+  ban for the bindings and for a client with the compiler. ESLint keeps one
+  set of options per rule, so a later block in the project's own config that
+  sets `no-restricted-imports` or `no-restricted-syntax` replaces the kit's.
+
+**`check-compiler.mts`** compiles each file under `compilerTracked` with the
+compiler the client installs, and fails when the function is not compiled,
+when it memoizes fewer values than `minMemoValues` (default 1), or when a
+value named in `values` is computed on every render. Use `values` for a value
+that used to be a `useMemo` or a `useCallback`: a function can compile and
+still leave one value out of every cache.
+
+Both print `SKIP` when there is nothing to judge (no package imports React; no
+client declares the compiler, or none tracks a function), and exit 2 when they
+cannot run (no ESLint config; the compiler is not installed in the client).
+
+Limits:
+
+- A component that takes its hooks out of a value, as with
+  `const { usePrices } = useViewModel()`, is never compiled: the compiler
+  needs each hook to be the same function on every render. Such a component
+  stays thin and hands props to components that take only props.
+- `check-react-policies.mts` reads the compiler from the text of
+  `vite.config.ts` (a call of `reactCompilerPreset`, or the plugin's name in
+  a string). A build configured some other way is reported as not running it.
+- It asks ESLint about one production file per package, and one `.tsx`. A
+  rule switched off for a single other file is not seen.
+- `check-compiler.mts` reads the compiled text. A value compiled to a
+  `function name(…)` declaration is reported as a shape it cannot classify,
+  never as memoized.
+- Tests are not compiled, so no test runs the compiled components.
 
 ### A dependency the project does not have
 
@@ -414,7 +545,7 @@ The stop hook runs the project's `gate:full` script, the one CI runs, so
 `gate:full` is held to `gate:fast`.
 
 ```json
-"gate:fast": "node tools/arch/gates/run.mts && eslint . && pnpm typecheck",
+"gate:fast": "node tools/arch/gates/run.mts && eslint --max-warnings 0 . && pnpm typecheck",
 "gate:full": "pnpm gate:fast && pnpm test && pnpm build"
 ```
 
@@ -558,4 +689,5 @@ pnpm test
 ```
 
 The gate and hook tests run against five fixture projects in `gates/fixtures/`
-(`clean`, `broken`, `dormant`, `javascript`, `no-workspace`).
+(`clean`, `broken`, `dormant`, `javascript`, `no-workspace`). The two React
+checks run against two more, `react-clean` and `react-broken`.

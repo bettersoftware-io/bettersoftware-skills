@@ -1,6 +1,39 @@
+# Installed and built
 node_modules/
 dist/
-.turbo/
-coverage/
-.DS_Store
 *.tsbuildinfo
+.pnpm-store/
+
+# Caches
+.turbo/
+.vite/
+.vitest/
+.eslintcache
+
+# Reports of a run
+coverage/
+reports/
+playwright-report/
+test-results/
+
+# Local settings and secrets. A template named `.env.example` is committed.
+.env
+.env.local
+.env.*.local
+
+# Editors and the operating system
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+.DS_Store
+
+# Hosting CLI, written by `vercel link`
+.vercel/
+
+# Agent hosts: settings of this machine only
+.claude/settings.local.json
+
+# Logs
+*.log

@@ -72,6 +72,7 @@ name.
 | `style/useImportType`, `style/useExportType` | error | A statement that names only types is spelled `import type`. The starter sets `verbatimModuleSyntax`, where `import { type A }` stays behind as a runtime import of the module |
 | `style/useBlockStatements` | error | Every branch body is a block: a second statement is a one-line diff, and there is no dangling `else` |
 | `style/noDefaultExport` | error | A default export has no name of its own, so each importer picks one, and an editor cannot find it. Off for `**/*.config.*` and `**/*.d.ts`, where the tool that reads the file requires one |
+| `style/noRestrictedImports` on `../../**` | error | An import climbs at most one folder. Anything deeper is written from the package's `src` with its `#/` alias (`#/entities/price.ts`), so it reads the same from any file and does not break when the file moves. Off for `**/*.config.*`: a config file reaches the tooling in `tools/`, outside its package, where no alias of the package can point |
 | `style/useComponentExportOnlyModules` | error | Fast Refresh works only for a module that exports nothing but components. Off in test code (see below) |
 | `correctness/useUniqueElementIds` | error | A literal `id` in a component is repeated when the component is rendered twice. Use `useId` |
 | `correctness/useImportExtensions` | error | The starter's server is run by Node from source, and Node resolves no import without its extension. Vitest resolves either form, so nothing else would catch a stray |
@@ -84,7 +85,6 @@ name.
 
 | In the source | Why it is not here |
 |---|---|
-| `style/noRestrictedImports` on `../../**` | The source pairs it with a `#/` import alias. The starter has no alias, and has three honest `../../` imports (two `vitest.config.ts` reach `tools/arch/testing`, one contract reaches `entities/`). Adding it means adding an alias to every package first |
 | `sortBareImports` | It moves `import "./a.css"` lines. The order of imports that are there for their effect is behaviour (the cascade), and the visual add-on's host loads two stylesheets in a set order. With it off Biome never moves such a line (tested) |
 | `playwright`, `project`, `turborepo`, `types` domains | Measured on 2.5.14 with a file that breaks their rules (a floating promise, `indexOf(…) === 0`, `page.waitForTimeout`, `page.pause`, a missing `await`): nothing was reported with them on, at any level. `turborepo` has one rule, which is set by name above. `project`'s rule (`noPrivateImports`) was not tried with a violation |
 | `useImportExtensions` with `forceJsExtensions` for four packages | That is for libraries compiled by `tsc`. The starter compiles nothing, so the rule is on everywhere and the extension is `.ts` |

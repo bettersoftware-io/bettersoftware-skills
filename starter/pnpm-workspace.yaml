@@ -1,2 +1,41 @@
 packages:
   - packages/*
+
+# A release younger than this many minutes is not installed (1440 is a day).
+# A release that turns out to be malicious is usually found and removed within
+# that time. It is pnpm's own default, written here so the policy is seen and
+# stays if the default changes. A package that must be newer goes under
+# `minimumReleaseAgeExclude`, with the reason beside it.
+minimumReleaseAge: 1440
+
+# pnpm runs no dependency's install script unless the package is set to true
+# here, and an install fails on one that is not listed. esbuild's script
+# checks the binary it downloaded for this machine. Nothing here depends on
+# esbuild today: it is listed because it is the first one a project meets (a
+# tool that bundles with it, such as tsx). Add another package only when the
+# install asks for it and you have read what its script does.
+allowBuilds:
+  esbuild: true
+
+# An advisory with no fix yet is the one case for `auditConfig.ignoreGhsas`,
+# and a fix the direct dependency has not taken up is the one for `overrides`.
+# Each entry carries three things in its comment: the reason, the reach, and
+# the condition for dropping it. Without them nobody can tell later whether
+# the entry is still needed. An override is scoped to the vulnerable range, so
+# a package already on a safe version keeps its choice.
+#
+# auditConfig:
+#   ignoreGhsas:
+#     # GHSA-xxxx-xxxx-xxxx (HIGH, <package> <= 1.4.0): no patched release
+#     # exists; 1.4.0 is the latest.
+#     # Reach: <which package pulls it in>, build tooling only, never the
+#     # server and never a browser bundle.
+#     # Drop when: <package> publishes a release above 1.4.0. Then delete
+#     # this entry and add a scoped override below.
+#     - GHSA-xxxx-xxxx-xxxx
+#
+# overrides:
+#   # GHSA-yyyy-yyyy-yyyy (HIGH, <package> < 2.1.7).
+#   # Reach: <direct dependency> > <package>, in the server at run time.
+#   # Drop when: <direct dependency> asks for >= 2.1.7 itself.
+#   "<package>@<2.1.7": ^2.1.7

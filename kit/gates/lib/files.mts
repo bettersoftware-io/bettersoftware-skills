@@ -1,7 +1,7 @@
 // Small file helpers shared by the gates. Node built-ins only.
 
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
-import { join } from "node:path";
+import { join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Folders that hold only installed or generated files. This is a closed list on
@@ -119,6 +119,63 @@ export function lineAt(text: string, index: number): number {
 
 export function isInside(path: string, directory: string): boolean {
   return path === directory || path.startsWith(`${directory}/`);
+}
+
+type SubpathTarget = string | { [condition: string]: SubpathTarget } | null;
+
+/**
+ * Where a `#…` import lands, as a path from `root`: read from the `imports`
+ * of the package's own package.json, the way Node and the bundlers read it.
+ * Undefined when the package declares no alias that matches. A gate that reads
+ * import paths as text needs this, or a forbidden import written through the
+ * alias would pass it.
+ */
+export function resolveSubpathImport(root: string, packagePath: string, specifier: string): string | undefined {
+  const manifest = join(root, packagePath, "package.json");
+
+  if (!specifier.startsWith("#") || !existsSync(manifest)) {
+    return undefined;
+  }
+
+  const { imports = {} } = JSON.parse(readFileSync(manifest, "utf8")) as { imports?: Record<string, SubpathTarget> };
+
+  for (const [key, declared] of Object.entries(imports)) {
+    const target = firstPath(declared);
+    const [before, after] = key.split("*");
+
+    if (target === undefined || before === undefined) {
+      continue;
+    }
+
+    if (after === undefined) {
+      if (key === specifier) {
+        return normalize(join(packagePath, target));
+      }
+    } else if (specifier.startsWith(before) && specifier.endsWith(after) && specifier.length >= key.length) {
+      const matched = specifier.slice(before.length, specifier.length - after.length);
+
+      return normalize(join(packagePath, target.replace("*", matched)));
+    }
+  }
+
+  return undefined;
+}
+
+/** A target is a path, or paths by condition (`import`, `default`): the first path found is taken. */
+function firstPath(target: SubpathTarget): string | undefined {
+  if (typeof target === "string" || target === null) {
+    return target ?? undefined;
+  }
+
+  for (const nested of Object.values(target)) {
+    const path = firstPath(nested);
+
+    if (path !== undefined) {
+      return path;
+    }
+  }
+
+  return undefined;
 }
 
 /** Matches a file name against `name` or a `*.suffix` pattern. */

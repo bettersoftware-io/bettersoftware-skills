@@ -15,6 +15,7 @@ const LAYERS: ArchitectureConfig = {
     "packages/domain": { role: "domain" },
     "packages/react-bindings": { role: "bindings" },
     "packages/client-react": { role: "client" },
+    "packages/client-web": { role: "client", reactCompiler: true },
   },
   javascriptAllowed: { "stylelint.config.mjs": "stylelint's config loader cannot read .mts" },
 };
@@ -24,6 +25,7 @@ const PLUGIN_X = { name: "eslint-plugin-x", version: "^1.0.0", neededFor: "The r
 const DOMAIN = "packages/domain/src/thing.ts";
 const COMPONENT = "packages/client-react/src/ui/Thing.tsx";
 const BINDINGS = "packages/react-bindings/src/useThing.ts";
+const COMPILED = "packages/client-web/src/ui/Thing.tsx";
 
 interface RuleCase {
   /** Unique: the test is selected by it. */
@@ -75,6 +77,34 @@ describe("where a rule applies", () => {
 
     expect(await findingsOf(source, "packages/react-bindings/src/useThing.test.tsx", "no-restricted-imports")).toEqual([]);
     expect(await findingsOf(source, COMPONENT, "no-restricted-imports")).toEqual([]);
+  });
+
+  it("scope: only a client that declares the compiler is held to its memoization ban", async () => {
+    const source = `import { useCallback } from "react";\n\nexport const probe = useCallback;\n`;
+
+    const every = `import React, { memo, useCallback, useMemo, useState } from "react";\n\nexport const probe = [React, memo, useCallback, useMemo, useState];\n`;
+
+    expect(await findingsOf(source, COMPILED, "no-restricted-imports", /React Compiler/)).not.toEqual([]);
+    expect(await findingsOf(every, COMPILED, "no-restricted-imports", /React Compiler/)).toHaveLength(4);
+    expect(await findingsOf(source, COMPONENT, "no-restricted-imports")).toEqual([]);
+    expect(await findingsOf(source, DOMAIN, "no-restricted-imports")).toEqual([]);
+  });
+
+  it("scope: a compiled client's test and page object may memoize, since nothing compiles them", async () => {
+    const source = `import { memo } from "react";\n\nexport const probe = memo;\n`;
+
+    expect(await findingsOf(source, "packages/client-web/src/ui/Thing.test.tsx", "no-restricted-imports")).toEqual([]);
+    expect(await findingsOf(source, "packages/client-web/src/ui/Thing.page.tsx", "no-restricted-imports")).toEqual([]);
+    expect(await findingsOf(source, "packages/client-web/src/app/start.ts", "no-restricted-imports")).not.toEqual([]);
+  });
+
+  it("scope: the bindings and a compiled client are each told their own reason", async () => {
+    const source = `import { useMemo } from "react";\n\nexport const probe = useMemo;\n`;
+
+    expect(await findingsOf(source, BINDINGS, "no-restricted-imports", /memo-free by design/)).toHaveLength(1);
+    expect(await findingsOf(source, BINDINGS, "no-restricted-imports", /React Compiler/)).toEqual([]);
+    expect(await findingsOf(source, COMPILED, "no-restricted-imports", /React Compiler memoizes at build time/)).toHaveLength(1);
+    expect(await findingsOf(source, COMPILED, "no-restricted-imports", /memo-free by design/)).toEqual([]);
   });
 
   it("scope: a JavaScript file the project lists as allowed is not reported", async () => {
@@ -415,6 +445,22 @@ function createRuleCases(): RuleCase[] {
       file: BINDINGS,
       bad: `import React from "react";\n\nexport function useThing(): number {\n  return React.useState(1)[0];\n}\n`,
       good: `import { useState } from "react";\n\nexport function useThing(): number {\n  return useState(1)[0];\n}\n`,
+    },
+    {
+      name: "compiled client: no manual memoization",
+      rule: "no-restricted-imports",
+      message: /React Compiler/,
+      file: COMPILED,
+      bad: `import { useMemo } from "react";\n\nexport function Thing(props: ThingProps) {\n  const doubled = useMemo(() => {\n    return props.count * 2;\n  }, [props.count]);\n\n  return <p>{doubled}</p>;\n}\n\ninterface ThingProps {\n  count: number;\n}\n`,
+      good: `export function Thing(props: ThingProps) {\n  const doubled = props.count * 2;\n\n  return <p>{doubled}</p>;\n}\n\ninterface ThingProps {\n  count: number;\n}\n`,
+    },
+    {
+      name: "compiled client: no memo wrapper, no useCallback, no default or namespace React import",
+      rule: "no-restricted-imports",
+      message: /React Compiler/,
+      file: COMPILED,
+      bad: `import React, { memo, useCallback } from "react";\n\nexport const probe = [React, memo, useCallback];\n`,
+      good: `import { useState } from "react";\n\nexport const probe = [useState];\n`,
     },
     {
       name: "one-import-per-module: a type rides in the value's statement",

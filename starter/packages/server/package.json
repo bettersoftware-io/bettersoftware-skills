@@ -5,6 +5,9 @@
   "exports": {
     "./*": "./src/*"
   },
+  "imports": {
+    "#/*": "./src/*"
+  },
   "scripts": {
     "dev": "node --watch src/index.ts",
     "start": "node src/index.ts",

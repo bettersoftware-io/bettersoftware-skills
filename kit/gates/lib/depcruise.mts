@@ -273,6 +273,18 @@ function findDormantRules(report: CruiseReport, workspace: WorkspacePackage[]): 
 
   for (const module of modules) {
     for (const dependency of module.dependencies ?? []) {
+      // An alias of the package itself (`#/adapters/x.ts`) is read from the
+      // "imports" of its package.json. One that leads nowhere is an edge no
+      // rule sees, the same as a workspace import that misses the source.
+      if (dependency.module.startsWith("#") && dependency.couldNotResolve && !seen.has(`${module.source} ${dependency.module}`)) {
+        seen.add(`${module.source} ${dependency.module}`);
+        findings.push({
+          gate: GATE,
+          file: module.source,
+          message: `The import "${dependency.module}" did not resolve. Rules about where it lands cannot see this edge, so a clean result here would mean nothing. A "#…" import is read from the "imports" of the package's own package.json: check the path, and that the package declares "imports": { "#/*": "./src/*" }.`,
+        });
+      }
+
       const owner = workspace.find(({ name }) => dependency.module === name || dependency.module.startsWith(`${name}/`));
 
       if (!owner) {

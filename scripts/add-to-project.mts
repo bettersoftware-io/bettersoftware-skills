@@ -40,6 +40,20 @@ const STARTER_SCOPE = "@app";
 export const KIT = "kit";
 
 /** What setting up the kit may create or edit, beyond the kit's own files. */
+/** The kit's checks that `gates/run.mts` does not run: each is a script the project calls. */
+const KIT_CHECKS = [
+  {
+    name: "check:react-policies",
+    script: "tools/arch/check-react-policies.mts",
+    holds: "every package that imports React is under the lint rules for its role",
+  },
+  {
+    name: "check:compiler",
+    script: "tools/arch/check-compiler.mts",
+    holds: "the React Compiler still memoizes what a client lists as relying on it",
+  },
+];
+
 const KIT_SETUP_FILES = ["architecture.config.mts", ".claude/settings.json", ".codex/hooks.json", "package.json"];
 
 /**
@@ -379,6 +393,16 @@ function setUpKit(project: string, repository: string): Pick<AddResult, "created
 
   if (manifest.scripts?.["gate:fast"] === undefined) {
     notes.push('add a "gate:fast" script that runs the gates, lint and typecheck: the stop hook runs it, and so should CI');
+  }
+
+  // A check that is a script of its own runs only where a script calls it,
+  // and a project that updates its kit gets the file and no script.
+  for (const { name, script, holds } of KIT_CHECKS) {
+    if (!Object.values(manifest.scripts ?? {}).some((command) => command.includes(script))) {
+      notes.push(
+        `add "${name}": "node ${script}" to the scripts, and \`pnpm ${name}\` to gate:fast: it checks that ${holds}, and reports a skip where there is nothing to judge`,
+      );
+    }
   }
 
   if (manifest.devDependencies?.["dependency-cruiser"] === undefined) {

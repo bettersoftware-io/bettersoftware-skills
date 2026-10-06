@@ -3,8 +3,12 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.6.0",
-  "engines": {
-    "node": ">=24"
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": ">=26",
+      "onFail": "error"
+    }
   },
   "scripts": {
     "dev": "pnpm --filter @app/client-react dev",
@@ -13,9 +17,11 @@
     "build": "turbo run build",
     "typecheck": "turbo run typecheck && tsc --noEmit -p tsconfig.tooling.json",
     "test": "turbo run test",
-    "lint": "eslint --flag unstable_native_nodejs_ts_config .",
+    "lint": "eslint --flag unstable_native_nodejs_ts_config --max-warnings 0 .",
     "gates": "node tools/arch/gates/run.mts",
-    "gate:fast": "pnpm gates && pnpm lint && pnpm typecheck",
+    "check:react-policies": "node tools/arch/check-react-policies.mts",
+    "check:compiler": "node tools/arch/check-compiler.mts",
+    "gate:fast": "pnpm gates && pnpm check:react-policies && pnpm check:compiler && pnpm lint && pnpm typecheck",
     "gate:full": "pnpm gate:fast && pnpm test && pnpm build",
     "gate:fast:quiet": "node tools/arch/gates/quiet.mts gate:fast",
     "gate:full:quiet": "node tools/arch/gates/quiet.mts gate:full"

@@ -87,6 +87,8 @@ describe("the lint rules the base sets", () => {
     ["lint/style/noDefaultExport", { "src/a.ts": "export default function one(): number {\n  return 1;\n}\n" }],
     ["lint/nursery/useExplicitType", { "src/a.ts": "export function one() {\n  return 1;\n}\n" }],
     ["lint/correctness/useImportExtensions", { "src/price.ts": PRICE, "src/a.ts": 'export type { Price } from "./price";\n' }],
+    ["lint/style/noRestrictedImports", { "src/entities/price.ts": PRICE, "src/ports/contracts/a.ts": 'export type { Price } from "../../entities/price.ts";\n' }],
+    ["lint/style/noRestrictedImports", { "src/price.ts": PRICE, "tests/visual/host/a.ts": 'export type { Price } from "../../../src/price.ts";\n' }],
     ["lint/suspicious/noUndeclaredEnvVars", { "src/a.ts": "export const port: string | undefined = process.env.NOT_DECLARED;\n" }],
     ["lint/suspicious/noLeakedRender", { "src/Count.tsx": 'import type { ReactElement } from "react";\n\nexport function Count({ count }: { count: number }): ReactElement {\n  return <p>{count && <b>some</b>}</p>;\n}\n' }],
     ["lint/correctness/useUniqueElementIds", { "src/Field.tsx": 'import type { ReactElement } from "react";\n\nexport function Field(): ReactElement {\n  return <input id="name" />;\n}\n' }],
@@ -99,6 +101,24 @@ describe("the lint rules the base sets", () => {
 
     expect(run.output).toContain(` ${rule} `);
     expect(run.status).toBe(1);
+  });
+
+  it("accepts an import that climbs one folder, and one written from src with the #/ alias", () => {
+    const files = {
+      "src/entities/price.ts": PRICE,
+      "src/ports/a.ts": 'export type { Price } from "../entities/price.ts";\n',
+      "src/ports/contracts/b.ts": 'export type { Price } from "#/entities/price.ts";\n',
+    };
+    const run = runScript(createProject(files), CHECK);
+
+    expect(run.output).not.toContain("Found");
+    expect(run.status).toBe(0);
+  });
+
+  it("says where a deep import is written from instead", () => {
+    const files = { "src/entities/price.ts": PRICE, "src/ports/contracts/a.ts": 'export type { Price } from "../../entities/price.ts";\n' };
+
+    expect(runScript(createProject(files), CHECK).output).toContain("with its #/ alias: #/entities/price.ts");
   });
 
   it("accepts an environment variable that turbo.json declares", () => {
@@ -144,6 +164,21 @@ describe("the exceptions the base makes", () => {
     expect(run.output).not.toContain("Found");
     expect(run.status).toBe(0);
   });
+
+  it.each(["packages/app/vitest.config.ts", "packages/app/tests/host/vite.config.mts"])(
+    "allows a config file to reach the tooling outside its package, which no alias can: %s",
+    (path) => {
+      const files = {
+        "tooling/skip.mts": "export const skipped: string[] = [];\n",
+        [path]: `import { skipped } from "${"../".repeat(path.split("/").length - 1)}tooling/skip.mts";\n\nexport default { skipped };\n`,
+      };
+      const run = runScript(createProject(files), CHECK);
+
+      expect(files[path]).toContain('from "../../');
+      expect(run.output).not.toContain("Found");
+      expect(run.status).toBe(0);
+    },
+  );
 
   it("reads a tsconfig with a comment and a trailing comma", () => {
     const project = createProject({ "tsconfig.base.json": '{\n  // why\n  "compilerOptions": {\n    "strict": true,\n  },\n}\n' });

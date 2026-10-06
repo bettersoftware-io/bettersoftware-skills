@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 
-import { createWsPrice } from "../adapters/wsPrice.ts";
+import { createWsPrice } from "#/adapters/wsPrice.ts";
 import { createAppHarness } from "../testing/appHarness.ts";
 import { createPricesPresenter } from "./pricesPresenter.ts";
 

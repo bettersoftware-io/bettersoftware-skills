@@ -80,6 +80,20 @@ describe("what knip leaves alone", { timeout: REAL_TOOL_TIMEOUT }, () => {
     expect(formatResult(checkDead(project))).toContain(CLEAN);
   });
 
+  it("does not report the compiler the kit loads from the client package, which the root does not list", () => {
+    const project = createWorkspace();
+    const loaded =
+      'import { createRequire } from "node:module";\n\nconst require = createRequire(import.meta.url);\n\nexport const loaded: unknown[] = [require("@babel/core"), require.resolve("babel-plugin-react-compiler")];\n';
+
+    writeFiles(project, { "tools/arch/check-compiler.mts": loaded });
+
+    expect(formatResult(checkDead(project))).toContain(CLEAN);
+
+    writeFiles(project, { "tools/arch/check-compiler.mts": loaded.replace("@babel/core", "@babel/parser") });
+
+    expect(formatResult(checkDead(project))).toContain("@babel/parser");
+  });
+
   it("reads the stylelint rules the repo-hygiene add-on keeps under tools/, and counts the rule set they extend as used", () => {
     const project = createWorkspace();
 

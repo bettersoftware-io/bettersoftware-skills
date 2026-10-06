@@ -67,7 +67,18 @@
         "useImportType": "error",
         "useExportType": "error",
         "useBlockStatements": "error",
-        "noDefaultExport": "error"
+        "noDefaultExport": "error",
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "patterns": [
+              {
+                "group": ["../../**"],
+                "message": "An import climbs at most one folder (\"../\"). Write anything deeper from the package's src folder, with its #/ alias: #/entities/price.ts."
+              }
+            ]
+          }
+        }
       },
       "suspicious": {
         "noLeakedRender": "error",
@@ -114,6 +125,16 @@
         "rules": {
           "style": {
             "noDefaultExport": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/*.config.*"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": "off"
           }
         }
       }

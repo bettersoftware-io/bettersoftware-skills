@@ -7,6 +7,9 @@
     "test": "vitest run"
   },
   "exports": "./src/index.ts",
+  "imports": {
+    "#/*": "./src/*"
+  },
   "dependencies": {
     "rxjs": "^7.8",
     "lodash": "^4"

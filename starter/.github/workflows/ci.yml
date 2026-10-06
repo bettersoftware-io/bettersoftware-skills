@@ -4,9 +4,21 @@ on:
   pull_request:
   push:
     branches: [main]
+  # By hand, for a branch whose push did not start a run.
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+# On a pull request a newer push replaces a run that is still going. On main
+# every commit is checked: a cancelled run would leave a commit unverified.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # pnpm comes from Corepack; without this its first run can stop to ask.
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
 
 jobs:
   checks:
@@ -19,11 +31,30 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24
+          node-version: 26
 
+      # Node 25 and later ship without Corepack. This installs it from a
+      # lockfile, so its version is pinned like every other. After checkout: the
+      # script is in the repository.
       - name: Enable Corepack (provisions the pnpm pinned by the packageManager field)
-        run: corepack enable
+        run: node tools/arch/ci/enable-corepack.mts
 
+      - name: Find the pnpm store
+        run: echo "STORE_PATH=$(pnpm store path)" >> "$GITHUB_ENV"
+
+      # The store holds each package once, by the hash of its content. A run
+      # with the same lockfile downloads nothing; one with a changed lockfile
+      # starts from the newest store and downloads the difference.
+      - name: Cache the pnpm store
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-${{ runner.os }}-
+
+      # Fails on a lockfile that is out of date, on a release younger than
+      # `minimumReleaseAge`, and on an install script that is not listed under
+      # `allowBuilds` (both in pnpm-workspace.yaml).
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 

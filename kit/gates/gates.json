@@ -7,6 +7,7 @@
   "agent-docs": ["instructionFiles"],
   "task-cache": ["tasksThatReadNothingUpstream"],
   "package-scripts": ["packagesWithoutTests"],
+  "node-floor": [],
   "app-harness": ["compose", "appHarness"],
   "test-ids": ["testIds"],
   "types-only": ["typesOnly"]

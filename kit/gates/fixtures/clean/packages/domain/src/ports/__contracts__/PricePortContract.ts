@@ -1,6 +1,6 @@
 import { describe } from "vitest";
 
-import type { PricePort } from "../pricePort.ts";
+import type { PricePort } from "#/ports/pricePort.ts";
 
 // A contract is handed the implementation. It never writes
 // import { createPriceSimulator } from "../../simulators/priceSimulator.ts".

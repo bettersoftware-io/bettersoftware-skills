@@ -1,0 +1,9 @@
+{
+  "name": "@fx/client-unlinted",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  }
+}

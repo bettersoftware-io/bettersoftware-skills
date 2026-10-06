@@ -81,15 +81,15 @@ Here one line covers every package, so a new package needs no edit.
 | Root: `entry` is `architecture.config.mts` and `tools/**/*.mts` | The kit loads `architecture.config.mts` by name. Every script under `tools/` is an entry, so nothing in `tools/` is reported and what those scripts import counts as used |
 | Root: the stylelint config is `tools/repo-hygiene/stylelint.json` | The repo-hygiene add-on keeps its rules there, and they extend `stylelint-config-standard` |
 | Root: `ignoreDependencies` names `dependency-cruiser`, `@manypkg/cli`, `stylelint`, `syncpack` | Each is run as a program by a script in `tools/` that names it in a string (the kit's dependencies gate, repo-hygiene's checks). knip follows imports and `package.json` scripts, not that |
+| Root: `ignoreDependencies` also names `@babel/core` and `babel-plugin-react-compiler` | The kit's `check-compiler.mts` loads both from the client package, to judge with the compiler the build runs. knip reads that as an import by the root, which does not list them |
 | Root: `ignoreBinaries` names `playwright` | The visual add-on's root scripts run `pnpm --dir packages/client-react exec playwright`. knip reads them as run at the root, where Playwright is not a dependency. Found with visual and without performance, which happens to add `playwright` at the root |
 | `--no-config-hints` on the command | The config names files and dependencies of add-ons a project may not have. knip's hints about those would be printed on every run |
 
 Nothing is ignored by kind. No `ignore`, no `exclude`, no `ignoreExportsUsedInFile`.
 
 Not carried over from the source: its `ignore` of `.remember/**` and
-`docs/design/**`, `ignoreBinaries` for its own install script, the Babel
-entries of `ignoreDependencies`, and the per-package entry lists. They describe
-that repository.
+`docs/design/**`, `ignoreBinaries` for its own install script, and the
+per-package entry lists. They describe that repository.
 
 What counts as used, as observed with knip 6.39.0:
 

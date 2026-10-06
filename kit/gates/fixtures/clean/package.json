@@ -1,0 +1,16 @@
+{
+  "name": "fx",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint --flag unstable_native_nodejs_ts_config --max-warnings 0 .",
+    "lint:fix": "eslint --fix ."
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": ">=26",
+      "onFail": "error"
+    }
+  }
+}

@@ -154,6 +154,31 @@ describe("adding the kit", () => {
     ]);
   });
 
+  it("names each check of the kit that no script of the project runs, with the script to add", () => {
+    const { repository, project } = createWorld();
+    const manifest = readJson(project, "package.json");
+    manifest.devDependencies = { "dependency-cruiser": "^18.0.0", "eslint-plugin-react-hooks": "^7.1.1" };
+    manifest.scripts = { gates: "node tools/arch/gates/run.mts", "gate:fast": "pnpm gates && pnpm lint" };
+    write(project, "package.json", `${JSON.stringify(manifest, null, 2)}\n`);
+    write(project, "eslint.config.mts", "export default [];\n");
+    write(project, "architecture.config.mts", "// the project's own config\n");
+
+    expect(addToProject({ project, unit: "kit", repository }).notes).toEqual([
+      expect.stringContaining('add "check:react-policies": "node tools/arch/check-react-policies.mts"'),
+      expect.stringContaining('add "check:compiler": "node tools/arch/check-compiler.mts" to the scripts, and `pnpm check:compiler` to gate:fast'),
+    ]);
+
+    // Run from inside another script counts: what matters is that something runs it.
+    manifest.scripts["gate:fast"] = "pnpm gates && node tools/arch/check-compiler.mts";
+    write(project, "package.json", `${JSON.stringify(manifest, null, 2)}\n`);
+
+    const result = addToProject({ project, unit: "kit", repository });
+
+    expect(result.notes).toEqual([
+      'add "check:react-policies": "node tools/arch/check-react-policies.mts" to the scripts, and `pnpm check:react-policies` to gate:fast: it checks that every package that imports React is under the lint rules for its role, and reports a skip where there is nothing to judge',
+    ]);
+  });
+
   it("has nothing left to say once the project is set up", () => {
     const { repository, project } = createWorld();
     const manifest = readJson(project, "package.json");
@@ -879,7 +904,15 @@ function createWorld(): { repository: string; project: string } {
     project,
     "package.json",
     `${JSON.stringify(
-      { name: "project", scripts: { "gate:fast": "pnpm gates && pnpm lint", "gate:full": "pnpm gate:fast && pnpm test" } },
+      {
+        name: "project",
+        scripts: {
+          "check:react-policies": "node tools/arch/check-react-policies.mts",
+          "check:compiler": "node tools/arch/check-compiler.mts",
+          "gate:fast": "pnpm gates && pnpm lint",
+          "gate:full": "pnpm gate:fast && pnpm test",
+        },
+      },
       null,
       2,
     )}\n`,
