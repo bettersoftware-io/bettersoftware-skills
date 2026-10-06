@@ -1,0 +1,184 @@
+[
+  {
+    "name": "check-server: the shipped config passes",
+    "file": "addons/visual/files/packages/client-react/tests/visual/playwright.config.ts",
+    "find": "command: \"node_modules/.bin/vite --config",
+    "replace": "command: \"pnpm exec vite --config",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"starts vite by its own path\""
+  },
+  {
+    "name": "check-server: fails: command: \\\"pnpm exec vite --config",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "(?:\\S*\\/)?pnpm(?:\\s|$)/",
+    "replace": "(?:\\S*\\/)?pnpmx(?:\\s|$)/",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"fails: command: \\\"pnpm exec vite --config\""
+  },
+  {
+    "name": "check-server: fails: command: \\\"pnpm run dev",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "(?:\\S*\\/)?pnpm(?:\\s|$)/",
+    "replace": "(?:\\S*\\/)?pnpmx(?:\\s|$)/",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"fails: command: \\\"pnpm run dev\""
+  },
+  {
+    "name": "check-server: fails: command: \\\"pnpm --filter",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "(?:\\S*\\/)?pnpm(?:\\s|$)/",
+    "replace": "(?:\\S*\\/)?pnpmx(?:\\s|$)/",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"fails: command: \\\"pnpm --filter\""
+  },
+  {
+    "name": "check-server: fails: command: \\\"pnpm dev",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "(?:\\S*\\/)?pnpm(?:\\s|$)/",
+    "replace": "(?:\\S*\\/)?pnpmx(?:\\s|$)/",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"fails: command: \\\"pnpm dev\""
+  },
+  {
+    "name": "check-server: single quotes",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "|'((?:[^'\\\\]|\\\\.)*)'",
+    "replace": "",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"fails: command: 'pnpm exec vite'\""
+  },
+  {
+    "name": "check-server: a template string",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "|`((?:[^`\\\\]|\\\\.)*)`",
+    "replace": "",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"pnpm exec vite --port\""
+  },
+  {
+    "name": "check-server: through corepack",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "(?:corepack\\s+)?(?:\\S*\\/)?pnpm",
+    "replace": "(?:\\S*\\/)?pnpm",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"fails: command: \\\"corepack pnpm\""
+  },
+  {
+    "name": "check-server: by a path",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "(?:\\S*\\/)?pnpm(?:\\s|$)/",
+    "replace": "pnpm(?:\\s|$)/",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"fails: command: \\\"node_modules/.bin/pnpm\""
+  },
+  {
+    "name": "check-server: behind a setting",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "(?:[A-Za-z_][A-Za-z0-9_]*=\\S*\\s+)*",
+    "replace": "",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"fails: command: \\\"NODE_ENV=test\""
+  },
+  {
+    "name": "check-server: after another command",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "(?:^|&&|\\|\\||;|\\|)\\s*(?:[A-Za-z_]",
+    "replace": "(?:^)\\s*(?:[A-Za-z_]",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"fails: command: \\\"cd ../..\""
+  },
+  {
+    "name": "check-server: the value on the next line",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "/\\bcommand:\\s*(?:\"",
+    "replace": "/\\bcommand: *(?:\"",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"fails: command: \\n\""
+  },
+  {
+    "name": "check-server: names the file and the line",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "text.slice(0, match.index).split(\"\\n\").length}`",
+    "replace": "text.slice(0, match.index).split(\"\\n\").length + 1}`",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"names the file and the line of the command\""
+  },
+  {
+    "name": "check-server: judges every server of a config",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "/\\bcommand:\\s*(?:\"((?:[^\"\\\\]|\\\\.)*)\"|'((?:[^'\\\\]|\\\\.)*)'|`((?:[^`\\\\]|\\\\.)*)`|(\\S))/g",
+    "replace": "/\\bcommand:\\s*(?:\"((?:[^\"\\\\]|\\\\.)*)\"|'((?:[^'\\\\]|\\\\.)*)'|`((?:[^`\\\\]|\\\\.)*)`|(\\S))/",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"judges every server of a config\""
+  },
+  {
+    "name": "check-server: passes: command: \\\"node_modules/.bin/vite --config",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "if (THROUGH_PNPM.test(command)) {",
+    "replace": "if (THROUGH_PNPM.test(command) || command.includes(\"vite --config\")) {",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"passes: command: \\\"node_modules/.bin/vite --config\""
+  },
+  {
+    "name": "check-server: passes: command: \\\"node server.mts",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "if (THROUGH_PNPM.test(command)) {",
+    "replace": "if (THROUGH_PNPM.test(command) || command.startsWith(\"node ser\")) {",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"passes: command: \\\"node server.mts\""
+  },
+  {
+    "name": "check-server: passes: command: \\\"node_modules/.bin/vite --mode pnpm",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "(?:^|&&|\\|\\||;|\\|)\\s*(?:[A-Za-z_]",
+    "replace": "(?:^|&&|\\|\\||;|\\||\\s)\\s*(?:[A-Za-z_]",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"passes: command: \\\"node_modules/.bin/vite --mode pnpm\""
+  },
+  {
+    "name": "check-server: passes: command: \\\"pnpm-serve",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "pnpm(?:\\s|$)/",
+    "replace": "pnpm/",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"passes: command: \\\"pnpm-serve\""
+  },
+  {
+    "name": "check-server: passes: command: \\\"node tools/serve.mts",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "(?:^|&&|\\|\\||;|\\|)\\s*(?:[A-Za-z_]",
+    "replace": "(?:^|&&|\\|\\||;|\\||\\s)\\s*(?:[A-Za-z_]",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"passes: command: \\\"node tools/serve.mts\""
+  },
+  {
+    "name": "check-server: SKIP when no config starts a server",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "if (commands === 0) {",
+    "replace": "if (commands < 0) {",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"says SKIP, not PASS, when no config starts a server\""
+  },
+  {
+    "name": "check-server: SKIP with no config at all",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "if (commands === 0) {",
+    "replace": "if (commands < 0) {",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"says SKIP when the project has no Playwright config\""
+  },
+  {
+    "name": "check-server: a command that is not a string",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "      if (command === undefined) {",
+    "replace": "      if (command === null) {",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"command is not a string it can read\""
+  },
+  {
+    "name": "check-server: a webServer with no command",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "if (found.length === 0) {",
+    "replace": "if (found.length < 0) {",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"has a webServer and no command at all\""
+  },
+  {
+    "name": "check-server: which files are configs",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "SKIPPED_FOLDERS.has(entry.name) || path === INSTALLED_TOOLING ? []",
+    "replace": "SKIPPED_FOLDERS.has(entry.name) ? []",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"finds them by name anywhere in the project\""
+  },
+  {
+    "name": "check-server: the script exits with the verdict",
+    "file": "addons/visual/files/tools/visual/check-server.mts",
+    "find": "process.exit(verdict.exitCode);",
+    "replace": "process.exit(0);",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"judges the project it is installed in\""
+  },
+  {
+    "name": "check-server: in gate:fast",
+    "file": "addons/visual/addon.json",
+    "find": "      \"pnpm visual:check\",\n      \"pnpm visual:check:server\"\n",
+    "replace": "      \"pnpm visual:check\"\n",
+    "test": "pnpm vitest run addons/visual/tests/check-server.test.mts -t \"runs the check in gate:fast\""
+  }
+]

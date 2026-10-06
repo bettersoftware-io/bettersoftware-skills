@@ -22,6 +22,7 @@ cd <project> && pnpm install && pnpm visual
 | `pnpm visual:update` | root script | Redraw this system's goldens |
 | `pnpm visual:jitter` | `tools/visual/jitter.mts` | Capture the same commit N times and report the largest difference: the noise floor |
 | `pnpm visual:check` | `tools/visual/check-pin.mts` + typecheck | Joins `gate:fast` |
+| `pnpm visual:check:server` | `tools/visual/check-server.mts` | Fails a Playwright config that starts its server through pnpm. Joins `gate:fast` |
 | CI | `.github/workflows/visual.yml`, `update-visual-goldens.yml` | Compare on pull requests and on main; redraw the Linux set by hand |
 | Job summary | `tools/visual/summary.mts` | Names the scenarios that failed and what to do |
 
@@ -41,6 +42,27 @@ system that runs it, and the contract keeps such checks out of `gate:fast` and
   tag in every workflow. A mismatch means CI draws with another browser build.
 - It typechecks `tests/visual/`. The package's own `tsconfig.json` covers `src`
   only, and an add-on may not edit it.
+
+`pnpm visual:check:server` joins `gate:fast` too. It reads every
+`playwright*.config.ts` in the project and fails one whose
+`webServer.command` starts with pnpm (`pnpm exec vite …`, `pnpm run dev`,
+`pnpm --filter …`, also behind `corepack`, a path, `NAME=value` or `&&`).
+
+Playwright stops the process it started. Through pnpm that process is the
+wrapper, and since pnpm 12.6 the server it started lives on with no parent:
+every test passes, and the run never ends. Measured here on 2026-10-06, pnpm
+12.6.0, in a project with every add-on: with `pnpm exec vite` as the command
+the five tests passed in three seconds and the run was still there 45
+seconds later, with vite's parent process 1; it finished the moment that
+vite was stopped by hand. In CI such a run holds the job until its time
+limit. The config this add-on ships already starts
+`node_modules/.bin/vite` from the package's folder, and the check keeps it
+that way: the two root scripts `visual` and `visual:update` still go through
+`pnpm exec playwright`, which is not a server and ends by itself.
+
+It is a script of its own, and not part of `visual:check`, because an add-on
+may not change a script a project already has. It says `SKIP` when no config
+starts a server, and exits 2 when a command is not a string it can read.
 
 ## How the frame is pinned
 
@@ -121,6 +143,8 @@ with the add-on installed by `add-to-project.mts`:
 | The host asks for another address | fails, names the address |
 | `pnpm visual:jitter --runs 5` | 0 differing pixels, exit 0 |
 | Scope rewrite | the installer rewrites `@app/` in the add-on's files; they ran as `@demo/` |
+| `webServer.command` changed to `pnpm exec vite …` (2026-10-06, pnpm 12.6.0) | the five tests pass, then the run does not end: still there after 45 s, vite's parent is process 1. `pnpm visual:check:server` exits 1 and names the file and line |
+| The shipped command (2026-10-06) | `pnpm visual` ends by itself: 5 passed. `PASS web-server` |
 
 On GitHub, in [bettersoftware-io/skills-demo](https://github.com/bettersoftware-io/skills-demo)
 (2026-10-05, [the record](../../docs/github-run-2026-10-05.md)):
@@ -131,11 +155,22 @@ On GitHub, in [bettersoftware-io/skills-demo](https://github.com/bettersoftware-
 | `Update visual goldens`, five runs on one commit | five artifacts, byte-identical |
 | `Visual goldens` with that set committed | passes |
 
-The add-on's own scripts have 46 tests in `tests/`
-(`pnpm vitest run addons/visual` from this repository's root). Each was shown
-able to fail: 46 mutants, 46 killed.
+The add-on's own scripts have 72 tests in `tests/`
+(`pnpm vitest run addons/visual` from this repository's root). The first 46
+were each shown able to fail: 46 mutants, 46 killed. The 26 of
+`check-server.test.mts` have `tests/mutants.json`: 26 of 26 killed. Its first
+run had one survivor, a row that passed for a reason other than the one it
+named; writing a mutant for it showed that pnpm called by a path
+(`node_modules/.bin/pnpm exec vite`) was not caught, and it now is.
 
 ## Limits
+
+- **The server check reads the config as text.** It finds `command:` and the
+  string after it. A command built in a variable is "could not run" (exit
+  2), not a pass. It judges pnpm only: the fault was measured with pnpm, and
+  a project made from the starter uses nothing else. A server started
+  through another wrapper (`npx`, a shell script that calls pnpm) is not
+  caught.
 
 - **A machine nobody measured may draw a pixel differently.** With both knobs
   at 0 that fails a test with nothing changed. `tolerance.ts` says what to do:
