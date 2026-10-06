@@ -33,13 +33,18 @@ on 2026-10-05, on pushes to main and on a pull request
   README lists the setting; `gh api -X PUT repos/<owner>/<repo>/vulnerability-alerts`
   switches it on.
 - **skills-demo is behind this repository.** It has no `strict-lint`, no
-  `agent-workflow`, none of the gates and lint rules added since 2026-10-05,
+  `agent-workflow`, no `e2e`, none of the gates and lint rules added since 2026-10-05,
   Node 24 in its workflows and `engines.node` in its package.json.
 - **Not run on GitHub yet:** Node 26 through `setup-node`, the pinned Corepack
   script (inside the Playwright container jobs too), the pnpm store cache, and
   the weekly tag workflow of `agent-workflow`.
 - **No job creates a project with several add-ons at once.** CI adds each one
-  alone. All eight together pass `gate:full` locally.
+  alone. All nine together pass `gate:full` locally.
+- **Nothing here has run on Linux outside GitHub's CI,** and nothing through
+  a real `docker build`. The Dockerfile check was compared with BuildKit's own
+  parser, built from source; the `e2e` workflow and its container have not run.
+- **Renovate has only been through its validator.** No repository with the
+  app installed has used the shipped config.
 - **No run where the coverage gate fails has been seen.** The report is meant
   to publish then too.
 - **The motion audit had nothing to judge.** The starter has no animation, so
@@ -89,14 +94,17 @@ on 2026-10-05, on pushes to main and on a pull request
 ## Known limits
 
 - **The `agent-workflow` hook has not run in a live session of either host.**
-  Its pre-approval of a push, a pull request and a merge ships off. What it
-  relies on is taken from the documentation: that Claude Code's `ask` and
-  `deny` rules win over a hook's approval, the `Edit(/path)` rule form, the
-  permission modes, and that the working directory it is sent follows a `cd`.
-  The merge check has not been run against GitHub. Two security reviews found
-  real escapes in earlier forms (a heredoc body run by bash 3.2; a push sent
-  to `main` by git's own configuration); the add-on's README has the account
-  and the limits that remain.
+  It refuses a push or pull request step joined to other commands, and
+  approves nothing: pre-approval was built, reviewed four times, escaped each
+  time, and removed (the add-on's README says how). What it relies on is from
+  the documentation: the reply a host reads, how a host matches a hook to the
+  shell tool, and that a hook that crashes or times out does not block.
+- **Whether that hook is registered is judged by a reading of each host's
+  matcher rules** (`hook-registration.mts`, in the installer and in the
+  add-on's check). A security review of the last commit named that file for a
+  possible difference from the hosts, with no detail; not followed up. The
+  cost of a wrong "registered" is a joined command that gets one prompt, not
+  an unprompted push: the host's own permission rules are untouched.
 - **The stop hook judges the checkout the session stops in.** A session that
   changed two checkouts is held to one. That `cwd` in the payload follows the
   agent into a worktree is from the documentation.

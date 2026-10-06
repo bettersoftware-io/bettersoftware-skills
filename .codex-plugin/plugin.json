@@ -1,6 +1,6 @@
 {
   "name": "bettersoftware-skills",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Clean architecture with a streaming UI for TypeScript monorepos: a tested starter project, deterministic architecture gates, and a review of what no gate can check.",
   "author": {
     "name": "bettersoftware-io",
