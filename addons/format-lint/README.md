@@ -62,12 +62,23 @@ taken out of the third-party group by a negation; that puts `react` before
 `@app/*`. Inside a group Biome sorts by distance (`../` before `./`), then by
 name.
 
+`sortBareImports` is on, as in the source: an import that is there for its
+effect (`import "./index.css"`) is sorted into its group like any other.
+Without it such a line stays where it was written and splits the list in
+two, and each half is sorted alone. With it the order of two stylesheets is
+the sorter's: one reached through the `#/` alias comes before one beside the
+file, and two in one group go by name. So no rule may depend on which of two
+imported stylesheets comes first. Where one must, the second is `@import`ed
+by the first, or the line carries a `biome-ignore` with the reason.
+
 **Lint**
 
 | Rule | Level | Reason |
 |---|---|---|
 | `preset: recommended` | as shipped | Biome's own set |
 | `react` and `test` domains | recommended | The hook rules, `key` rules, focused tests, exports in tests. Set by name so they do not depend on what Biome finds in a `package.json` |
+| `project` domain | recommended | Adds one rule in 2.5.14, `correctness/noPrivateImports`: a name marked `@private` in its JSDoc is imported only from its own folder and below, one marked `@package` only from its own package. A re-export (`export { x } from`) is not caught |
+| `playwright`, `turborepo` and `types` domains | recommended | They add no rule in 2.5.14 (measured, see below). They are named so that a rule a later Biome moves into one of them reaches the project with the update that brings that Biome |
 | `style/noNonNullAssertion` | error | `!` switches the type checker off without a trace. Check the value and throw instead. Shipped as a warning |
 | `style/useImportType`, `style/useExportType` | error | A statement that names only types is spelled `import type`. The starter sets `verbatimModuleSyntax`, where `import { type A }` stays behind as a runtime import of the module |
 | `style/useBlockStatements` | error | Every branch body is a block: a second statement is a one-line diff, and there is no dangling `else` |
@@ -85,13 +96,42 @@ name.
 
 | In the source | Why it is not here |
 |---|---|
-| `sortBareImports` | It moves `import "./a.css"` lines. The order of imports that are there for their effect is behaviour (the cascade), and the visual add-on's host loads two stylesheets in a set order. With it off Biome never moves such a line (tested) |
-| `playwright`, `project`, `turborepo`, `types` domains | Measured on 2.5.14 with a file that breaks their rules (a floating promise, `indexOf(…) === 0`, `page.waitForTimeout`, `page.pause`, a missing `await`): nothing was reported with them on, at any level. `turborepo` has one rule, which is set by name above. `project`'s rule (`noPrivateImports`) was not tried with a violation |
 | `useImportExtensions` with `forceJsExtensions` for four packages | That is for libraries compiled by `tsc`. The starter compiles nothing, so the rule is on everywhere and the extension is `.ts` |
 | Exclusions for `docs/design`, `docs/showcase`, `docs/presentations`, `*.json5`, `*.png`, `__screenshots__`, `pnpm-lock.yaml` | The first four are that repository's own. Biome does not read images or YAML, and the checks pass with PNG goldens and the lockfile present |
 | Default exports allowed in `cucumber.mts`, `.dependency-cruiser.mts`, Expo routes | The starter has none of them |
 | The three a11y and CSS overrides for one chart and one stylesheet | They are exceptions for that repository's files |
 | The source's `lint` and `check` scripts | `biome:check` does what both do, and the name `lint` is taken |
+
+Different here, and why:
+
+| Setting | In the source | Here |
+|---|---|---|
+| `$schema` | The schema on biomejs.dev, for 2.5.13 | The schema file of the installed package, so it is the pinned version's and needs no network |
+| The workspace group in `organizeImports` | `@rtc/**` | `@app/**`, which the installer rewrites to the project's scope |
+| The message of `noRestrictedImports` | Names that repository's `#tests/` alias and its build step | Names the `#/` alias and gives an example |
+| `correctness/useImportExtensions` | On for four packages, asking for `.js` | On everywhere, asking for the real extension (row above) |
+
+Every other setting and rule is the same in both files. A script compared the
+two, key by key, on 2026-10-06.
+
+### The four domains, measured
+
+In a project made with every add-on (97 files Biome reads), 2.5.14, macOS
+arm64, three runs each. The base without them takes 0.35 to 0.41 s.
+
+| Domain | `recommended`: findings, time | What it turns on | `all`: findings |
+|---|---|---|---|
+| `playwright` | 0, 0.36 to 0.39 s | Nothing. Its thirteen rules are all in `nursery`, which no level of a domain turns on. A file with `page.waitForTimeout`, `page.pause`, an unawaited `page.goto` and `{ force: true }` passes at both levels | 0 |
+| `project` | 0, 0.34 to 0.39 s | `noPrivateImports` | 39: 23 `noUndeclaredDependencies` (a package imports `vitest`, which the starter installs once, at the root), 5 `noUnresolvedImports` (among them "react has no export named StrictMode"), 11 `noDeprecatedImports` (an rxjs operator with one deprecated overload). All false here. `noImportCycles` and `noPrivateImports`: 0 |
+| `turborepo` | 0, 0.42 to 0.44 s | Nothing new. Its one rule, `noUndeclaredEnvVars`, is set by name above | 0 |
+| `types` | 0, 0.38 to 0.43 s | Nothing. A promise nothing waits for passes: `noFloatingPromises` is in `nursery` | 2 warnings, both `noUnnecessaryConditions` on a `useRef(false)` that is read after it was set elsewhere. Both false |
+
+All four at once: 0 findings, 0.35 to 0.45 s. The time is within the noise of
+the base, so the scan the `project` and `types` rules need costs nothing that
+can be seen at this size. `all` is not used for any of them: every finding it
+gave was false. The earlier version of this add-on left the four out because
+a file that broke their rules was not reported; that was true for three of
+them and not tried for `project`.
 
 Added here, not in the source:
 
@@ -104,6 +144,12 @@ Added here, not in the source:
   is never hot-reloaded.
 
 ## What changed in the starter and the other add-ons
+
+For `sortBareImports`: `import "./index.css"` in the starter's
+`packages/client-react/src/main.tsx` moved below the import of `startApp`,
+and in the visual add-on's host the two stylesheets moved into their groups
+(`#/index.css` with the aliases, `./host.css` last). The app's stylesheet
+still loads before the host's, and `pnpm visual` passes on the same goldens.
 
 So that a new project passes with no manual step, the starter was run through
 `pnpm biome:fix` and the rest was fixed by hand. `pnpm gate:full` passes in
@@ -135,7 +181,7 @@ setting changed for it.
 
 ## How it was tested
 
-`pnpm vitest run addons/format-lint`: 68 tests in two files. They run the real
+`pnpm vitest run addons/format-lint`: 77 tests in two files. They run the real
 Biome, through the scripts in `addon.json`, in a fresh folder that holds the
 two shipped config files.
 
@@ -145,8 +191,9 @@ two shipped config files.
   Biome is kept away from; a project with no `.gitignore` is told so and does
   not pass; the starter, and the starter with each other add-on's files, are
   clean.
-- `tests/rules.test.mts`: each formatter setting, the import groups, each
-  lint rule in the table with a file that breaks it, each exception.
+- `tests/rules.test.mts`: each formatter setting, the import groups, where an
+  import for its effect is sorted, each lint rule in the table with a file
+  that breaks it, the six domains by name, each exception.
 
 Every test was turned red by a mutant of its own and restored: 69 mutants in
 67 tests with `mutation-check.mts`, all killed, each test command first seen
@@ -171,6 +218,13 @@ End to end, in projects made by `scripts/create-project.mts --scope @check`:
 | The same unformatted file under `tools/` | exit 0 |
 | `pnpm gate:full` with the unformatted file | exit 1, at `biome:check` |
 | Scopes `@a`, `@bettersoftware-io`, `@a-very-long-organisation-name` (the scope changes line lengths and the import group) | check passes |
+
+On 2026-10-06, for `sortBareImports` and the four domains: the six tests they
+added or changed were each turned red by a mutant (`tests/mutants.json`, 6 of
+6 killed). In a project with every add-on and the scope
+`@ci-organisation-with-a-long-name`: `pnpm biome:fix` (97 files, 5 fixed, all
+of them lines the longer scope rewraps), `pnpm gate:full` and `pnpm visual`
+pass. The add-on alone, by the steps of this repository's CI job: passes.
 
 Not tested: the check on GitHub's runner, and on Windows or Linux at all.
 Biome ships a binary per platform; only the macOS arm64 one ran.

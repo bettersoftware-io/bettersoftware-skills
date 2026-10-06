@@ -1,0 +1,44 @@
+[
+  {
+    "name": "imports: an import for its effect is sorted",
+    "file": "addons/format-lint/files/tools/format-lint/biome.base.json",
+    "find": "\"sortBareImports\": true",
+    "replace": "\"sortBareImports\": false",
+    "test": "pnpm vitest run addons/format-lint/tests/rules.test.mts -t \"sorts an import that is there for its effect\""
+  },
+  {
+    "name": "imports: a stylesheet through the alias goes with the aliases",
+    "file": "addons/format-lint/files/tools/format-lint/biome.base.json",
+    "find": "              \":ALIAS:\",\n",
+    "replace": "              [\":ALIAS:\", \"!:STYLE:\"],\n",
+    "test": "pnpm vitest run addons/format-lint/tests/rules.test.mts -t \"puts a stylesheet reached through the #/ alias\""
+  },
+  {
+    "name": "domains: project turns on noPrivateImports",
+    "file": "addons/format-lint/files/tools/format-lint/biome.base.json",
+    "find": "\"project\": \"recommended\"",
+    "replace": "\"project\": \"none\"",
+    "test": "pnpm vitest run addons/format-lint/tests/rules.test.mts -t \"fails on lint/correctness/noPrivateImports\""
+  },
+  {
+    "name": "domains: every domain is named",
+    "file": "addons/format-lint/files/tools/format-lint/biome.base.json",
+    "find": ",\n      \"types\": \"recommended\"",
+    "replace": "",
+    "test": "pnpm vitest run addons/format-lint/tests/rules.test.mts -t \"names every domain itself\""
+  },
+  {
+    "name": "starter: its entry file has its imports in the sorted order",
+    "file": "starter/packages/client-react/src/main.tsx",
+    "find": "import { startApp } from \"./app/startApp.tsx\";\n\nimport \"./index.css\";",
+    "replace": "import \"./index.css\";\n\nimport { startApp } from \"./app/startApp.tsx\";",
+    "test": "pnpm vitest run addons/format-lint/tests/addon.test.mts -t \"finds nothing in a project made from the starter\""
+  },
+  {
+    "name": "visual host: its stylesheets are in their groups",
+    "file": "addons/visual/files/packages/client-react/tests/visual/host/main.tsx",
+    "find": "import \"#/index.css\";\nimport { App } from \"#/ui/App.tsx\";",
+    "replace": "import { App } from \"#/ui/App.tsx\";\nimport \"#/index.css\";",
+    "test": "pnpm vitest run addons/format-lint/tests/addon.test.mts -t \"finds nothing in what the visual add-on\""
+  }
+]

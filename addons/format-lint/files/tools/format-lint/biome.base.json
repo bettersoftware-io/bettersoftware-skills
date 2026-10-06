@@ -31,6 +31,7 @@
         "organizeImports": {
           "level": "on",
           "options": {
+            "sortBareImports": true,
             "groups": [
               ":NODE:",
               ":BLANK_LINE:",
@@ -53,7 +54,11 @@
     "enabled": true,
     "domains": {
       "react": "recommended",
-      "test": "recommended"
+      "test": "recommended",
+      "playwright": "recommended",
+      "project": "recommended",
+      "turborepo": "recommended",
+      "types": "recommended"
     },
     "rules": {
       "preset": "recommended",

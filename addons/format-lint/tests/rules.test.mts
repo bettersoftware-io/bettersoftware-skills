@@ -1,6 +1,8 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { createProject, runScript } from "./support.mts";
+import { ADDON, BASE_CONFIG, createProject, runScript } from "./support.mts";
 
 const CHECK = "biome:check";
 
@@ -69,9 +71,25 @@ describe("the order of imports", () => {
     expect(run.status).toBe(1);
   });
 
-  it("does not move an import that is there for its effect", () => {
-    const stylesFirst = 'import "./reset.css";\nimport "./app.css";\n\nimport { start } from "./start.ts";\n\nstart();\n';
-    const run = runScript(createProject({ "src/main.ts": stylesFirst, "src/start.ts": "export function start(): void {}\n" }), CHECK);
+  it("sorts an import that is there for its effect like any other: after the code's imports, in name order", () => {
+    const start = "export function start(): void {}\n";
+    const sorted = 'import { start } from "./start.ts";\n\nimport "./app.css";\nimport "./reset.css";\n\nstart();\n';
+    const asWritten = 'import "./reset.css";\nimport "./app.css";\n\nimport { start } from "./start.ts";\n\nstart();\n';
+    const accepted = runScript(createProject({ "src/main.ts": sorted, "src/start.ts": start }), CHECK);
+    const refused = runScript(createProject({ "src/main.ts": asWritten, "src/start.ts": start }), CHECK);
+
+    expect(accepted.output).not.toContain("Found");
+    expect(accepted.status).toBe(0);
+    expect(refused.output).toContain("src/main.ts:1:1 assist/source/organizeImports");
+    expect(refused.status).toBe(1);
+  });
+
+  it("puts a stylesheet reached through the #/ alias with the aliases, so before one beside the file", () => {
+    const files = {
+      "src/ui/App.ts": "export const app: number = 1;\n",
+      "tests/host/main.ts": 'import "#/index.css";\nimport { app } from "#/ui/App.ts";\n\nimport "./host.css";\n\nexport const shown: number = app;\n',
+    };
+    const run = runScript(createProject(files), CHECK);
 
     expect(run.output).not.toContain("Found");
     expect(run.status).toBe(0);
@@ -89,6 +107,10 @@ describe("the lint rules the base sets", () => {
     ["lint/correctness/useImportExtensions", { "src/price.ts": PRICE, "src/a.ts": 'export type { Price } from "./price";\n' }],
     ["lint/style/noRestrictedImports", { "src/entities/price.ts": PRICE, "src/ports/contracts/a.ts": 'export type { Price } from "../../entities/price.ts";\n' }],
     ["lint/style/noRestrictedImports", { "src/price.ts": PRICE, "tests/visual/host/a.ts": 'export type { Price } from "../../../src/price.ts";\n' }],
+    [
+      "lint/correctness/noPrivateImports",
+      { "src/inner/secret.ts": "/** @private */\nexport const hidden: number = 1;\n", "src/a.ts": 'import { hidden } from "./inner/secret.ts";\n\nexport const shown: number = hidden;\n' },
+    ],
     ["lint/suspicious/noUndeclaredEnvVars", { "src/a.ts": "export const port: string | undefined = process.env.NOT_DECLARED;\n" }],
     ["lint/suspicious/noLeakedRender", { "src/Count.tsx": 'import type { ReactElement } from "react";\n\nexport function Count({ count }: { count: number }): ReactElement {\n  return <p>{count && <b>some</b>}</p>;\n}\n' }],
     ["lint/correctness/useUniqueElementIds", { "src/Field.tsx": 'import type { ReactElement } from "react";\n\nexport function Field(): ReactElement {\n  return <input id="name" />;\n}\n' }],
@@ -148,6 +170,19 @@ describe("the rule sets the base turns on", () => {
     const run = runScript(createProject({ "src/a.test.ts": 'export const shared: number = 1;\n\nit("runs", () => {});\n' }), CHECK);
 
     expect(run.output).toContain(" lint/suspicious/noExportsInTest ");
+  });
+
+  it("names every domain itself, so none depends on what Biome finds in a package.json", () => {
+    const base = JSON.parse(readFileSync(join(ADDON, "files", BASE_CONFIG), "utf8")) as { linter: { domains: Record<string, string> } };
+
+    expect(base.linter.domains).toEqual({
+      react: "recommended",
+      test: "recommended",
+      playwright: "recommended",
+      project: "recommended",
+      turborepo: "recommended",
+      types: "recommended",
+    });
   });
 
   it("lints CSS", () => {
