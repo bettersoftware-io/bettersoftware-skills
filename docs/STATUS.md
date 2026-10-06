@@ -128,8 +128,11 @@ on 2026-10-05, on pushes to main and on a pull request
   with the starter's. Each is cut at thirty lines.
 - **The lint reads only where it is told the code is.** A new folder of code
   at the project root is not linted until it is named under `codeFolders`
-  in `architecture.config.mts`. Nothing fails to say so; `AGENTS.md` and the
-  kit's README do.
+  in `architecture.config.mts`. The `structure` gate fails on a visible one
+  that holds source and is not named. A dot-folder is passed over by both;
+  the `dependencies` gate stops a package from importing out of one.
+- **A project with a root folder of scripts gets a new `structure` finding
+  on its next kit update**, until it names the folder.
 - **Only ESLint was given that list.** Biome still reads every root folder
   outside its own exclusions and leaves out what `.gitignore` names; the CSS
   lint and the doc-link check walk the project and drop what git ignores

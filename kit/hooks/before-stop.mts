@@ -61,7 +61,7 @@ import { createHash } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import { isMainModule, isPlainPath } from "../gates/lib/files.mts";
+import { isMainModule, isPlainPath, listSourceFiles } from "../gates/lib/files.mts";
 
 /** Tried in order: the gate CI runs, then the fast one for a project that has no other. */
 const SCRIPTS = ["gate:full", "gate:fast"];
@@ -299,7 +299,18 @@ function hashWorkingTree(root: string): string | undefined {
   }
 }
 
-function hashFiles(root: string): string | undefined {
+/**
+ * Every path the hash is taken over, in name order. Undefined when git
+ * cannot list the files.
+ *
+ * Three lists, joined. What git does not ignore, and the environment files
+ * it does, as before. And every source file the gates' own walker reads, by
+ * that walker: the gates judge a source file whether git ignores it or not,
+ * so a file that git ignores must be in the hash too, or it could be edited
+ * after a green run and the old verdict would stand. The third list only
+ * ever adds: no rule of git's takes a path out of the hash.
+ */
+export function listHashedPaths(root: string): string[] | undefined {
   const judged = listFiles(root, ["--cached", "--others", "--exclude-standard"]);
   // `--directory` names an ignored folder once and does not walk it, so this never reads node_modules.
   const ignored = listFiles(root, ["--others", "--ignored", "--exclude-standard", "--directory"]);
@@ -308,9 +319,19 @@ function hashFiles(root: string): string | undefined {
     return undefined;
   }
 
+  return [...new Set([...judged, ...ignored.filter((entry) => ENVIRONMENT_FILE.test(entry)), ...listSourceFiles(root, "")])].sort();
+}
+
+function hashFiles(root: string): string | undefined {
+  const paths = listHashedPaths(root);
+
+  if (paths === undefined) {
+    return undefined;
+  }
+
   const hash = createHash("sha256").update(`${process.version} ${process.platform} ${process.arch}\0${realpathSync(root)}\0`);
 
-  for (const path of [...judged, ...ignored.filter((entry) => ENVIRONMENT_FILE.test(entry))].sort()) {
+  for (const path of paths) {
     const file = lstatSync(join(root, path), { throwIfNoEntry: false });
 
     hash.update(`${path}\0`);

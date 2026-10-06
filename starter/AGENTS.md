@@ -73,7 +73,8 @@ the gates read; a package that is not listed there fails.
   it under `codeFolders` in `architecture.config.mts`, and include its files
   in a `tsconfig.json`. The lint reads the packages, `tools/`, the folders
   named there and the files at the root; any other root folder it never
-  opens, so code in one is not linted until the folder is named.
+  opens. The `structure` gate fails on a visible root folder that holds
+  source and is not named; a file in a package may not import one.
 
 Four rules about imports:
 

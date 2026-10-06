@@ -33,7 +33,7 @@ import { noRealSleepsInTests } from "./eslint-rules/no-real-sleeps-in-tests.mts"
 import { noRenderFunctions } from "./eslint-rules/no-render-functions.mts";
 import { oneImportPerModule } from "./eslint-rules/one-import-per-module.mts";
 import { pageObjectsOwnTheirComponent } from "./eslint-rules/page-objects-own-their-component.mts";
-import { type ArchitectureConfig, CONFIG_FILES, type PackageDeclaration, type Role } from "./gates/lib/config.mts";
+import { type ArchitectureConfig, CONFIG_FILES, discoverWorkspace, type PackageDeclaration, type Role } from "./gates/lib/config.mts";
 import { type LintDependency, REACT_HOOKS } from "./lint-dependencies.mts";
 
 export const architecturePlugin: TSESLint.FlatConfig.Plugin = {
@@ -242,6 +242,20 @@ function sourceOf(
 const TOOLING = "tools";
 
 /**
+ * The places the project's code is, as paths from the root: the packages the
+ * architecture config declares (the same declaration the gates read), every
+ * workspace package on disk (one that is not declared is a finding of the
+ * structure gate, and is still linted), `tools/`, and the folders named under
+ * `codeFolders`. The files at the root itself are code too.
+ *
+ * One function, so that what the lint reads and what the structure gate
+ * calls a declared place cannot come apart.
+ */
+export function codeFoldersOf(config: Pick<ArchitectureConfig, "packages" | "codeFolders">, root: string): string[] {
+  return [...new Set([TOOLING, ...Object.keys(config.packages), ...discoverWorkspace(root).map(({ path }) => path), ...(config.codeFolders ?? [])].map(stripSlashes))].sort();
+}
+
+/**
  * A pattern for each folder at the project root that the lint does not open.
  *
  * The lint is told where the project's code IS: the declared packages (by
@@ -264,8 +278,8 @@ export function foldersOutsideTheCode(config: ArchitectureConfig | undefined, ro
     return [];
   }
 
-  const firstPart = (path: string): string => stripSlashes(path).split("/")[0] as string;
-  const code = new Set([TOOLING, ...Object.keys(config.packages).map(firstPart), ...(config.codeFolders ?? []).map(firstPart)]);
+  const firstPart = (path: string): string => path.split("/")[0] as string;
+  const code = new Set(codeFoldersOf(config, root).map(firstPart));
 
   return readdirSync(root, { withFileTypes: true })
     .filter((entry) => !entry.isFile() && !code.has(entry.name))

@@ -1,5 +1,5 @@
 {
-  "structure": ["packages", "requiredRoles", "role", "npm", "ports", "app", "ui", "entry"],
+  "structure": ["packages", "requiredRoles", "role", "npm", "ports", "app", "ui", "entry", "codeFolders"],
   "typescript-only": ["language", "javascriptAllowed"],
   "dumb-ui": ["streamLibraries", "ui", "uiBridge"],
   "port-contracts": ["adapters", "contractExempt", "ports"],

@@ -422,6 +422,25 @@ describe("a project that breaks the rules", () => {
     ]);
   });
 
+  it("names a file in a package that imports a file that is in no package: a scratch folder, a dot-folder", () => {
+    const outside = of("dependencies", "packages/client-core/src/machines/reachesOut.ts").filter((finding) => finding.message.startsWith("no-code-outside-the-packages: "));
+
+    expect(outside.map((finding) => /imports (\S+)\. /.exec(finding.message)?.[1]).sort()).toEqual([".plugin/state.ts", "scratch/helper.ts"]);
+    expect(outside[0]?.message).toContain("Move the file into the package that owns it, or make its folder a package");
+  });
+
+  it("does not call an import of another package, of an installed or a missing dependency, or of a Node built-in an import from outside the packages", () => {
+    const outside = of("dependencies").filter((finding) => finding.message.startsWith("no-code-outside-the-packages: "));
+
+    // The fixture imports all four: `ws`, `ws-extra`, `node:os`, and its own packages.
+    expect(outside.map((finding) => finding.file)).toEqual(["packages/client-core/src/machines/reachesOut.ts", "packages/client-core/src/machines/reachesOut.ts"]);
+  });
+
+  it("names a visible root folder that holds source and is no declared place of code, and passes over a dot-folder", () => {
+    expect(of("structure").filter((finding) => finding.message.includes("no declared place of code")).map((finding) => finding.file)).toEqual(["scratch", "scripts"]);
+    expect(messages("structure", "scratch")).toContain("This folder holds source (scratch/helper.ts) and is no declared place of code, so the lint does not open it and nothing here is linted. Declare it or delete it:");
+  });
+
   it("names every runtime export of a types-only package, with its line", () => {
     expect(of("types-only").map(({ file, line }) => `${file}:${line}`)).toEqual(
       [3, 4, 5, 6, 11, 14, 15].map((line) => `packages/contract-types/src/index.ts:${line}`),

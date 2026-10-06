@@ -22,6 +22,8 @@ interface RulePath {
   pathNot?: string;
   circular?: boolean;
   dependencyTypes?: string[];
+  dependencyTypesNot?: string[];
+  couldNotResolve?: boolean;
 }
 
 export interface Rule {
@@ -119,6 +121,24 @@ export function buildRules(config: ResolvedConfig, workspace: WorkspacePackage[]
     comment: "Production code imports something written for tests (a testing folder, a page object, a test helper, a test). A fake would ship in the product, and the code could come to depend on it. Move what production needs into a production file, and keep the scaffolding for tests.",
     from: { path: `${anyOf(declared.map(({ path }) => path))}src/`, pathNot: TEST_SCAFFOLDING_SOURCE },
     to: { path: `${anyOf(everyPackage)}.*${TEST_SCAFFOLDING_SOURCE}` },
+  });
+
+  // The checks are told where the project's code is: its packages. A file in
+  // one that imports a file from anywhere else (a scratch folder at the root,
+  // a dot-folder, a folder beside the project) builds code that no gate
+  // walks and no lint reads. An installed dependency and a Node built-in are
+  // not files of the project, and the other rules speak for them.
+  rules.push({
+    name: "no-code-outside-the-packages",
+    severity: "error",
+    comment: `A file in a package imports a file that is in no package. Code is checked where it is declared to be: the packages (${everyPackage.join(", ")}). What is imported from anywhere else is built and judged by nothing. Move the file into the package that owns it, or make its folder a package and declare it in architecture.config.mts.`,
+    from: { path: anyOf(everyPackage) },
+    to: {
+      // `tools/` holds the kit's and the add-ons' helpers for tests and configs, which a package may import today.
+      pathNot: `(${anyOf(everyPackage).slice(0, -1)}/|^tools/|(^|/)node_modules/)`,
+      couldNotResolve: false,
+      dependencyTypesNot: ["core", "npm", "npm-dev", "npm-optional", "npm-peer", "npm-bundled", "npm-no-pkg", "npm-unknown"],
+    },
   });
 
   for (const [vendor, allowed] of Object.entries(config.vendorOnlyIn)) {
