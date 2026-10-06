@@ -3,7 +3,7 @@
 What is not done yet. Finished work is removed from this page, not archived;
 the test records in this folder and the git log say what was done.
 
-**Last updated: 2026-10-05**
+**Last updated: 2026-10-06**
 
 ## Waiting on something outside this repository
 
@@ -32,10 +32,14 @@ on 2026-10-05, on pushes to main and on a pull request
   Seen: "Dependency review is not supported on this repository". The add-on's
   README lists the setting; `gh api -X PUT repos/<owner>/<repo>/vulnerability-alerts`
   switches it on.
-- **`strict-lint` is not in skills-demo yet.**
+- **skills-demo is behind this repository.** It has no `strict-lint`, no
+  `agent-workflow`, none of the gates and lint rules added since 2026-10-05,
+  Node 24 in its workflows and `engines.node` in its package.json.
+- **Not run on GitHub yet:** Node 26 through `setup-node`, the pinned Corepack
+  script (inside the Playwright container jobs too), the pnpm store cache, and
+  the weekly tag workflow of `agent-workflow`.
 - **No job creates a project with several add-ons at once.** CI adds each one
-  alone. All six together, and the recommended three together, pass
-  `gate:full` locally.
+  alone. All eight together pass `gate:full` locally.
 - **No run where the coverage gate fails has been seen.** The report is meant
   to publish then too.
 - **The motion audit had nothing to judge.** The starter has no animation, so
@@ -52,27 +56,6 @@ on 2026-10-05, on pushes to main and on a pull request
   (`ubuntu-24.04`) or to move with the label. Either way, re-run this
   repository's CI once the change lands. The visual tests are the least
   exposed, since they run inside a pinned Playwright container.
-
-## Next, each small
-
-- **The mutation check accepts a test command that runs no test.** A `-t`
-  filter that matches nothing exits 0, so the baseline reads green and the
-  mutant reads SURVIVED; with a runner that exits non-zero on no match it would
-  read KILLED for nothing. The tool should refuse a baseline that ran zero
-  tests. Found while building the `ci-security` add-on.
-- **The creation script rewrites the README.** A created project's README is
-  still titled "Starter" and describes the starter. The script rewrites the
-  package scope and name, not this file.
-- **A kit update says what the project has to change itself.** The installer
-  leaves the project's own files alone, which is right, and says nothing about
-  them, which is not. The new stop hook wanted a longer timeout in
-  `.claude/settings.json` and `.codex/hooks.json` and a changed sentence in
-  `AGENTS.md`; the update printed neither.
-- **A gate that prints failures only.** Held to `gate:full`, the smallest model
-  ran out of context on a feature that crosses every layer, and a second
-  session finished it. Its context filled with the gate's output: every
-  passing test and every cached task. A quiet mode might be what lets it
-  finish in one session; not tried.
 
 ## Open decisions
 
@@ -104,6 +87,25 @@ on 2026-10-05, on pushes to main and on a pull request
   watched an agent do.
 
 ## Known limits
+
+- **The `agent-workflow` hook has not run in a live session of either host.**
+  That Claude Code's `ask` and `deny` rules win over a hook's approval, and
+  that the working directory it is sent follows a `cd`, are taken from the
+  documentation. Its reader was compared with five shells on one Mac, each
+  non-interactive: a person's aliases and shell options are not covered. A
+  security review found an escape in an earlier form (a heredoc body, run by
+  bash 3.2); the add-on's README has the account.
+- **The stop hook's nine-minute limit is tested with short limits only**, on
+  the same code path.
+- **The quiet gate copies the environment pnpm 12.6 gives a script.** A later
+  pnpm may set more; the test that compares the two runs would show it.
+- **A kit update tells a project about a changed template once**, and only
+  from the first update after the one that brought the template copies. A
+  project older than that is not told what changed before.
+- **Without `format-lint`, nothing bans an import that climbs two folders.**
+  The ban is Biome's; ESLint has no twin of it.
+- **`allowBuilds` names esbuild, which nothing in the starter installs** (Vite
+  8 builds with rolldown). It is there for the first dependency that brings it.
 
 - **A new project's formatting depends on its scope's length.** The starter is
   written with `@app`; a longer scope pushes some import lines past the
