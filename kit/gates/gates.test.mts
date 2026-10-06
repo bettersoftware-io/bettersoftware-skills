@@ -63,6 +63,17 @@ describe("the kit's list of its gates", () => {
     expect(Object.keys(list)).toEqual((await runGates({ root: clean })).gates);
   });
 
+  it("says of every gate, and of no other, what it fails on, in one sentence a person is shown when the gate is new to their project", () => {
+    const failsOn = JSON.parse(readFileSync(join(here, "fails-on.json"), "utf8")) as Record<string, string>;
+
+    expect(Object.keys(failsOn)).toEqual(Object.keys(list));
+
+    for (const [gate, sentence] of Object.entries(failsOn)) {
+      expect(sentence.length, gate).toBeGreaterThan(30);
+      expect(sentence, gate).not.toMatch(/\.$/);
+    }
+  });
+
   it("names only options the architecture config has", () => {
     const declared = readFileSync(join(here, "lib", "config.mts"), "utf8");
     const unknown = Object.values(list)

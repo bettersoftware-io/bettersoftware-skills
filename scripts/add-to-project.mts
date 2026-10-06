@@ -4,6 +4,11 @@
 //   node scripts/add-to-project.mts <project> <kit|add-on name> [--force] [--scope @acme]
 //   node scripts/add-to-project.mts <project> <add-on name>:<option>
 //   node scripts/add-to-project.mts --list
+//   node scripts/add-to-project.mts <project> --compare [<kit|add-on name>]
+//
+// `--compare` writes nothing. It lists every file the project owns that
+// differs from its template as this repository ships it now, for the kit and
+// every add-on the project has, or for the one named.
 //
 // An add-on may offer a choice between sets of starting files (one bot or
 // another). `<add-on>:<option>` takes that option, on a first install or to
@@ -38,16 +43,28 @@ import {
   type InstallOutcome,
   InstallError,
   installedChoice,
+  installedStarting,
   installedUnits,
   installFiles,
   isRefusal,
   readFileSet,
+  recordStarting,
+  renameScope,
   replaceProjectFile,
   rewriteScope,
   savedCopyOf,
   writeProjectFile,
 } from "./lib/install.mts";
-import { describeOwnedChange, findOwnedChanges, type OwnedChange, readTemplates, type Template } from "./lib/templates.mts";
+import {
+  changedLines,
+  describeOwnedChange,
+  findOwnedChanges,
+  type OwnedChange,
+  readTemplates,
+  showLines,
+  type Template,
+  withoutAddonSections,
+} from "./lib/templates.mts";
 
 const REPOSITORY = dirname(dirname(fileURLToPath(import.meta.url)));
 const STARTER_SCOPE = "@app";
@@ -72,21 +89,93 @@ const KIT_CHECKS = [
 
 const KIT_SETUP_FILES = ["architecture.config.mts", ".claude/settings.json", ".codex/hooks.json", "package.json"];
 
+interface KitTemplate extends Template {
+  /** Where the template is in this repository, when that is outside `kit/`. */
+  source?: string;
+  /** The folder the project's file would be in, when the project may well not have it: a package of the starter's. */
+  onlyIn?: string;
+}
+
 /**
  * The files of a project that were written from a template the kit ships, and
  * where the kit keeps its copy of each template. The first two copies are the
  * hook files the kit has always installed. The last two have a source outside
  * `kit/`, and are added to the kit's files under the name given.
  */
-const KIT_TEMPLATES: (Template & { source?: string })[] = [
+const KIT_TEMPLATES: KitTemplate[] = [
   { owned: ".claude/settings.json", template: "tools/arch/hooks/claude.settings.json" },
   { owned: ".codex/hooks.json", template: "tools/arch/hooks/codex.hooks.json" },
   { owned: "AGENTS.md", template: "tools/arch/templates/AGENTS.md.txt", source: "starter/AGENTS.md" },
   { owned: "architecture.config.mts", template: "tools/arch/templates/architecture.config.mts.txt", source: "kit/architecture.config.example.mts" },
 ];
 
+/**
+ * Files of the starter that are no template: the lockfile is pnpm's to
+ * write, the README is written for each project from a template of its own,
+ * and the two above have their copies already.
+ */
+const NOT_A_STARTER_TEMPLATE = new Set(["pnpm-lock.yaml", "README.md", "AGENTS.md", "architecture.config.mts"]);
+
+/** A settings file of the starter's: text, by its name. Leaves out what a build or an editor drops beside one. */
+const STARTER_SETTINGS = /\.(ts|mts|json|jsonc|md|yaml|yml|html)$|^\.(gitignore|nvmrc)$/;
+
+/**
+ * Every file a project owns that the kit keeps a template of: the four
+ * above, and the starter's own settings. The Node floor, the hash on the
+ * package manager, `--max-warnings 0`, the workspace's install policy, the
+ * `#/` alias of each package: all of them are lines of the starter's
+ * `package.json`, `pnpm-workspace.yaml`, `tsconfig` files and CI workflow. A
+ * project is told when one of those changes only if the kit keeps the text it
+ * changed from.
+ *
+ * The starter's files are found, not listed: the files at its root, its CI
+ * workflow, and the files at the root of each of its packages (never a
+ * package's source).
+ */
+function kitTemplates(repository: string): KitTemplate[] {
+  const starter = join(repository, "starter");
+  const filesIn = (folder: string): string[] =>
+    existsSync(join(starter, folder))
+      ? readdirSync(join(starter, folder), { withFileTypes: true })
+          .filter((entry) => entry.isFile() && STARTER_SETTINGS.test(entry.name))
+          .map((entry) => (folder === "" ? entry.name : `${folder}/${entry.name}`))
+      : [];
+  const packages = existsSync(join(starter, "packages"))
+    ? readdirSync(join(starter, "packages"), { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => `packages/${entry.name}`)
+    : [];
+  const fromStarter = (owned: string, onlyIn?: string): KitTemplate => ({
+    owned,
+    template: `tools/arch/templates/${owned.replaceAll("/", "__")}.txt`,
+    source: `starter/${owned}`,
+    ...(onlyIn === undefined ? {} : { onlyIn }),
+  });
+
+  return [
+    ...KIT_TEMPLATES,
+    ...[...filesIn(""), ...filesIn(".github/workflows")].filter((owned) => !NOT_A_STARTER_TEMPLATE.has(owned)).sort().map((owned) => fromStarter(owned)),
+    ...packages.sort().flatMap((folder) => filesIn(folder).sort().map((owned) => fromStarter(owned, folder))),
+  ];
+}
+
+/** Adds the kit's templates that have a source outside `kit/` to its files, in the project's scope, and returns the list. */
+function withKitTemplates(files: Map<string, Buffer>, repository: string, scope: string): KitTemplate[] {
+  const templates = kitTemplates(repository);
+
+  for (const { template, source } of templates) {
+    if (source !== undefined && existsSync(join(repository, source))) {
+      // In the project's scope, as the creation script writes the file itself, so the copy can be compared with the project's file, and taken as it is.
+      files.set(template, Buffer.from(renameScope(source.slice(source.lastIndexOf("/") + 1), readFileSync(join(repository, source), "utf8"), STARTER_SCOPE, scope)));
+    }
+  }
+
+  return templates;
+}
+
 /** The kit's list of its gates, each with the options of `architecture.config.mts` it reads. */
 const GATE_LIST = "tools/arch/gates/gates.json";
+
+/** Gate → what it fails on, in one sentence. */
+const GATE_FAILS_ON = "tools/arch/gates/fails-on.json";
 
 /** Never copied from the kit: its own tests and the broken projects they run against. */
 export const SKIPPED_IN_KIT = /(\.test\.mts$|\/gates\/fixtures(\/|$)|\/architecture\.config\.example\.mts$)/;
@@ -120,8 +209,10 @@ export interface AddResult {
   unmerged: string[];
   /** The project's own files whose template this update changed. None was touched. */
   yours: OwnedChange[];
-  /** Gates this update of the kit brought, each with the options of the architecture config it reads. */
-  newGates: { name: string; options: string[] }[];
+  /** Gates this update of the kit brought, each with the options of the architecture config it reads and what it fails on. */
+  newGates: { name: string; options: string[]; failsOn?: string }[];
+  /** True when the project's kit kept no list of its gates, so `newGates` is every gate: which are new cannot be told. */
+  gatesUnknownBefore?: boolean;
   /** A command the add-on asks to be run once, after installing and before anything is checked. */
   firstRun?: string;
   verify?: string;
@@ -234,20 +325,14 @@ export function addToProject({ project, unit, force = false, scope, repository =
       assertInside(destination, path);
     }
 
-    const kitScope = scope ?? scopeIfShared(destination);
-
-    for (const { template, source } of KIT_TEMPLATES) {
-      if (source !== undefined && existsSync(join(repository, source))) {
-        // In the project's scope, so the copy can be compared with the project's file, and taken as it is.
-        files.set(template, Buffer.from(readFileSync(join(repository, source), "utf8").replaceAll(`${STARTER_SCOPE}/`, `${kitScope}/`)));
-      }
-    }
+    const templates = withKitTemplates(files, repository, scope ?? scopeIfShared(destination));
 
     // Read before the update replaces them: the old text is what the new is compared with.
-    const templatesBefore = readTemplates(destination, KIT_TEMPLATES);
+    const templatesBefore = readTemplates(destination, templates);
     const gatesBefore = readGateList(readIfThere(join(destination, GATE_LIST)));
     const outcome = installFiles(destination, KIT, files, force);
     const gatesNow = readGateList(files.get(GATE_LIST)?.toString("utf8")) ?? {};
+    const failsOn = (readGateList(files.get(GATE_FAILS_ON)?.toString("utf8")) ?? {}) as unknown as Record<string, string>;
 
     const setup = setUpKit(destination, repository);
 
@@ -258,15 +343,153 @@ export function addToProject({ project, unit, force = false, scope, repository =
       settingsChanges: [],
       unmerged: [],
       declared: [],
-      // A file the setup has just written from the new template has nothing left to change.
-      yours: findOwnedChanges(destination, KIT_TEMPLATES, templatesBefore, outcome.written).filter(({ owned }) => !setup.created.includes(owned)),
-      // A project whose kit had no list has nothing to compare with: every gate would read as new.
-      newGates: gatesBefore === undefined ? [] : Object.entries(gatesNow).flatMap(([name, options]) => (name in gatesBefore ? [] : [{ name, options }])),
+      yours: findOwnedChanges(destination, templates, templatesBefore, outcome.written)
+        // A file the setup has just written from the new template has nothing left to change.
+        .filter(({ owned }) => !setup.created.includes(owned))
+        // A package of the starter's that this project does not have is not a file it lacks.
+        .filter(({ owned, state }) => state !== "never-seen" || templates.every((template) => template.owned !== owned || template.onlyIn === undefined || existsSync(join(destination, template.onlyIn)))),
+      // A project whose kit had no list has nothing to compare with. Every
+      // gate is named then, and the summary says why: one of them may fail on
+      // code that was never held to it, and silence would leave that to the gate run.
+      newGates: Object.entries(gatesNow).flatMap(([name, options]) =>
+        gatesBefore !== undefined && name in gatesBefore ? [] : [{ name, options, ...(failsOn[name] === undefined ? {} : { failsOn: failsOn[name] }) }],
+      ),
+      ...(gatesBefore === undefined && Object.keys(gatesNow).length > 0 ? { gatesUnknownBefore: true } : {}),
       ...setup,
     };
   }
 
   return addAddon(destination, project, unit, force, scope, repository);
+}
+
+export interface Comparison {
+  unit: string;
+  /** The project's file. */
+  owned: string;
+  /** Where the project keeps the unit's copy of the template. Undefined for a file that is not text: no copy is kept. */
+  template?: string;
+  /** `absent`: the project has no such file. */
+  state: "same" | "differs" | "absent";
+  /** For a text file that differs: `- ` a line only the template has, `+ ` a line only the project's file has. */
+  lines: string[];
+  /** True when the project's copy of the template is not the one this repository ships now: the unit has an update. */
+  templateIsOlder: boolean;
+}
+
+/**
+ * Every file the project owns that a unit keeps a template of, compared with
+ * the template as this repository ships it now, in the project's scope.
+ * Writes nothing. It is the question a person otherwise answers with `diff`
+ * in this repository, file by file: where has my project moved away from
+ * what a new project gets?
+ *
+ * `unit` names one unit; without it, the kit and every add-on the project has.
+ */
+export function compareWithTemplates({ project, unit, scope, repository = REPOSITORY }: Omit<AddOptions, "unit" | "force"> & { unit?: string }): Comparison[] {
+  const destination = resolve(project);
+
+  if (!existsSync(join(destination, "package.json"))) {
+    throw new InstallError(`${destination} has no package.json — it is not a project`);
+  }
+
+  const installed = installedUnits(destination);
+  const units = unit === undefined ? installed : [parseUnit(unit).name];
+  const unknown = units.filter((name) => !installed.includes(name));
+
+  if (unknown.length > 0) {
+    throw new InstallError(`this project does not have "${unknown[0]}" — it has: ${installed.join(", ") || "nothing installed by this script"}`);
+  }
+
+  return units.flatMap((name) => {
+    const { shipped, templates } = name === KIT ? readKitTemplates(destination, repository, scope) : readAddonTemplates(destination, name, repository, scope);
+
+    return [...shipped].map(([owned, content]): Comparison => {
+      const template = templates.find((candidate) => candidate.owned === owned)?.template;
+      const file = join(destination, owned);
+      const templateIsOlder = template !== undefined && readIfThere(join(destination, template)) !== content.toString("utf8");
+
+      if (!existsSync(file)) {
+        return { unit: name, owned, ...(template === undefined ? {} : { template }), state: "absent", lines: [], templateIsOlder };
+      }
+
+      // A text file is compared without the sections this script appends to it itself.
+      const yours = template === undefined ? readFileSync(file) : Buffer.from(withoutAddonSections(readFileSync(file, "utf8")));
+
+      return {
+        unit: name,
+        owned,
+        ...(template === undefined ? {} : { template }),
+        state: yours.equals(content) ? "same" : "differs",
+        lines: template === undefined || yours.equals(content) ? [] : changedLines(content.toString("utf8"), yours.toString("utf8")),
+        templateIsOlder,
+      };
+    });
+  });
+}
+
+interface ShippedTemplates {
+  /** The project's file → the template's content now, in the project's scope. */
+  shipped: Map<string, Buffer>;
+  templates: Template[];
+}
+
+function readKitTemplates(destination: string, repository: string, scope: string | undefined): ShippedTemplates {
+  const files = readFileSet(join(repository, "kit"), "tools/arch", (path) => SKIPPED_IN_KIT.test(path));
+  const templates = withKitTemplates(files, repository, scope ?? scopeIfShared(destination))
+    // A package of the starter's that this project does not have is not a file it lacks.
+    .filter(({ onlyIn }) => onlyIn === undefined || existsSync(join(destination, onlyIn)));
+
+  return { shipped: new Map(templates.flatMap(({ owned, template }) => (files.has(template) ? [[owned, files.get(template) as Buffer]] : []))), templates };
+}
+
+function readAddonTemplates(destination: string, unit: string, repository: string, scope: string | undefined): ShippedTemplates {
+  const addon = join(repository, "addons", unit);
+
+  if (!existsSync(join(addon, "addon.json"))) {
+    throw new InstallError(`there is no add-on called "${unit}" in this repository, so there is no template to compare with`);
+  }
+
+  const projectScope = scope ?? detectScope(destination);
+  const manifest = JSON.parse(readFileSync(join(addon, "addon.json"), "utf8")) as AddonManifest;
+  const read = (folder: string): Map<string, Buffer> => (existsSync(folder) ? rewriteScope(readFileSet(folder, ""), STARTER_SCOPE, projectScope) : new Map<string, Buffer>());
+  const files = read(join(addon, "files"));
+  const starting = takeStartingFiles(files, manifest.startingFiles ?? []);
+  const chosen = chooseOption(manifest, undefined, installedChoice(destination, unit));
+
+  for (const [path, content] of chosen === undefined ? [] : read(join(addon, "choice", chosen, "files"))) {
+    starting.set(path, content);
+  }
+
+  return { shipped: starting, templates: keepTemplates(new Map(), starting, unit) };
+}
+
+/** What `--compare` prints. */
+export function describeComparison(comparisons: Comparison[]): string {
+  const units = [...new Set(comparisons.map(({ unit }) => unit))];
+  const lines = units.flatMap((unit) => {
+    const ofUnit = comparisons.filter((comparison) => comparison.unit === unit);
+    const differing = ofUnit.filter(({ state }) => state === "differs");
+    const absent = ofUnit.filter(({ state }) => state === "absent");
+    const older = ofUnit.some(({ templateIsOlder }) => templateIsOlder);
+
+    return [
+      `${unit}: ${ofUnit.length} file(s) this project owns have a template. ${differing.length} differ from it, ${absent.length} ${absent.length === 1 ? "is" : "are"} not in the project.`,
+      ...(older ? [`  The project's copy of ${unit} is older than this repository's. The comparison is with the template as it is now; an update brings the copies in tools/ up to date.`] : []),
+      ...differing.flatMap(({ owned, template, lines: differences }) =>
+        template === undefined
+          ? [`  differs  ${owned} (not text: no lines to show)`]
+          : [`  differs  ${owned} — template: ${template}`, ...showLines(differences, template, owned)],
+      ),
+      ...absent.map(({ owned, template }) => `  absent   ${owned}${template === undefined ? "" : ` — template: ${template}`}`),
+    ];
+  });
+
+  return [
+    ...lines,
+    "",
+    "In a difference, `-` is a line only the template has and `+` a line only this project's file has. A difference is not a fault: these files are the project's to change.",
+    "Nothing was written.",
+  ].join("\n");
 }
 
 /** `ci-security:renovate` → the add-on and the option asked for. */
@@ -367,17 +590,33 @@ function addAddon(destination: string, project: string, asked: string, force: bo
   // version of the add-on is the first to ship. The second is told by its
   // template being new here, in a project that already keeps templates; one
   // the project deleted has its template, and is not brought back.
+  //
+  // The record also says which starting files the project was given at its
+  // last update, images included. With it a file is new when it is not
+  // listed, and deleted here when it is listed and gone.
   const keepsTemplates = templatesBefore.size > 0;
+  const given = firstTime ? undefined : installedStarting(destination, unit);
   const neverGiven = (path: string): boolean =>
     (previous !== chosen && optionFiles.has(path)) ||
+    (given !== undefined && !given.includes(path)) ||
     (keepsTemplates && templates.some(({ owned, template }) => owned === path && !templatesBefore.has(template)));
+  /** Shipped, not in the project, not written, and not text: no template speaks for it under "Yours to change". */
+  const unseen: string[] = [];
 
   for (const [path, content] of starting) {
-    if ((firstTime || neverGiven(path)) && !existsSync(join(destination, path))) {
+    if (existsSync(join(destination, path))) {
+      continue;
+    }
+
+    if (firstTime || neverGiven(path)) {
       writeProjectFile(destination, path, content);
       created.push(path);
+    } else if (given === undefined && !templates.some(({ owned }) => owned === path)) {
+      unseen.push(path);
     }
   }
+
+  recordStarting(destination, unit, [...starting.keys()].sort());
 
   const retired: string[] = [];
 
@@ -429,8 +668,22 @@ function addAddon(destination: string, project: string, asked: string, force: bo
     return [`${path} ${when}. Your version is kept as ${copy}. Move what you changed into ${to}, then delete the copy. ${note}`];
   });
 
+  // Never in silence: a file the add-on ships and the project lacks is
+  // written when it is known to be new, and named when that cannot be told.
+  // Not written then, because one the project deleted would come back: a
+  // golden image of a scenario it removed fails the run as an orphan, a
+  // sample spec runs against a screen that is gone. Said once: the record
+  // now lists these files, so the next update knows the project has seen them.
+  const unseenNote =
+    unseen.length === 0
+      ? []
+      : [
+          `${unseen.length} file(s) the add-on ships are not in this project, and it cannot be told whether they were deleted here or never given: ${unseen.slice(0, 5).join(", ")}${unseen.length > 5 ? `, and ${unseen.length - 5} more` : ""}. None was written. To see them all: add-to-project.mts ${project} --compare ${unit}`,
+        ];
+
   const notes = [
     ...kept,
+    ...unseenNote,
     ...choiceNotes,
     ...architecturePlan.notes,
     ...settingsPlan.unmerged,
@@ -462,6 +715,7 @@ function addAddon(destination: string, project: string, asked: string, force: bo
     created,
     notes,
     unmerged: settingsPlan.unmerged,
+    // A file this run has just written is the template word for word, and so is not among these.
     yours: findOwnedChanges(destination, templates, templatesBefore, outcome.written),
     newGates: [],
     firstRun: manifest.firstRun,
@@ -1025,15 +1279,25 @@ export function describe(result: AddResult, project: string): string {
 }
 
 /** The section that says what the update left to the project. Empty when it left nothing. */
-export function describeYours({ yours, newGates }: Pick<AddResult, "yours" | "newGates">): string[] {
+export function describeYours({ yours, newGates, gatesUnknownBefore = false }: Pick<AddResult, "yours" | "newGates" | "gatesUnknownBefore">): string[] {
+  const gates = newGates.map(({ name, options, failsOn }) => [
+    `architecture.config.mts: ${gatesUnknownBefore ? "the kit has the gate" : "the kit has a new gate,"} ${name}. ${
+      options.length === 0 ? "It reads no option of this file." : `It reads ${options.join(", ")}: set what this project needs.`
+    }`,
+    ...(failsOn === undefined ? [] : [`    It fails when: ${failsOn}`]),
+    "    tools/arch/README.md says more. Run pnpm gates to see what it says here.",
+  ]);
   const entries = [
     ...yours.map(describeOwnedChange),
-    ...newGates.map(({ name, options }) => [
-      `architecture.config.mts: the kit has a new gate, ${name}. ${
-        options.length === 0 ? "It reads no option of this file." : `It reads ${options.join(", ")}: set what this project needs.`
-      }`,
-      "    tools/arch/README.md says what it fails on. Run pnpm gates to see what it says here.",
-    ]),
+    // Which gates are new cannot be told, and that is said once, before all of them.
+    ...(gatesUnknownBefore && gates.length > 0
+      ? [
+          [
+            `This project's copy of the kit kept no list of its gates, so it cannot be told which are new to it. All ${gates.length} are named below, each with what it fails on: any of them may fail on code that was never held to it.`,
+          ],
+        ]
+      : []),
+    ...gates,
   ];
 
   if (entries.length === 0) {
@@ -1051,18 +1315,20 @@ function parseArguments(argv: string[]): AddOptions {
   const positional = argv.filter((argument, index) => !argument.startsWith("--") && argv[index - 1] !== "--scope");
   const [project, unit] = positional;
 
-  if (project === undefined || unit === undefined) {
+  // `--compare` needs no unit: without one it is every unit the project has.
+  if (project === undefined || (unit === undefined && !argv.includes("--compare"))) {
     throw new InstallError(usage());
   }
 
   const scopeAt = argv.indexOf("--scope");
 
-  return { project, unit, force: argv.includes("--force"), scope: scopeAt === -1 ? undefined : argv[scopeAt + 1] };
+  return { project, unit: unit as string, force: argv.includes("--force"), scope: scopeAt === -1 ? undefined : argv[scopeAt + 1] };
 }
 
 function usage(): string {
   return [
     "usage: add-to-project.mts <project> <unit>[:<option>] [--force] [--scope @acme]",
+    "       add-to-project.mts <project> --compare [<unit>]   every file the project owns that differs from its template; writes nothing",
     "",
     "units:",
     `  ${KIT.padEnd(12)} the architecture gates, lint rules and hooks (tools/arch)`,
@@ -1085,6 +1351,11 @@ if (isMainModule(import.meta.url)) {
 
   try {
     const options = parseArguments(argv);
+
+    if (argv.includes("--compare")) {
+      console.log(describeComparison(compareWithTemplates({ ...options, unit: options.unit as string | undefined })));
+      process.exit(0);
+    }
 
     const result = addToProject(options);
 

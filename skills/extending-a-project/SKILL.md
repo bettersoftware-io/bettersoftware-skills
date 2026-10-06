@@ -70,6 +70,13 @@ node <plugin root>/scripts/add-to-project.mts <project> <unit>
   the project owns and left the project's file alone. Show the section
   unchanged. Run a `cp` it gives only when the user agrees; make a change "by
   hand" with the user, since the file holds their edits.
+- "cannot be told which side changed" is a file compared with a template the
+  project never had a copy of. A `-` line is in the template only, a `+` line
+  in the project only. Go through each with the user: a `-` line may be
+  something new the project should take, or something it removed on purpose.
+- To see where the project's own files stand against their templates at any
+  time, run the script with `--compare` in place of a unit. It writes
+  nothing.
 
 ## 4. Prove it
 

@@ -285,9 +285,13 @@ Not tested: Linux; Windows; a run on GitHub.
   `text-decoration`, `box-shadow` or a gradient outside `background` is not
   judged, and neither is the fallback in `var(--name, #fff)`.
 - A project that took the add-on before the base existed keeps its own
-  `stylelint.json`, which extends the standard set alone. The update shows
-  the changed line; until the project takes it, the new rules do not run
-  there. The `strict-lint` add-on's `knip.jsonc` names both stylelint files
+  `stylelint.json`, which extends the standard set alone. Until 2026-10-06
+  the new rules were then off there and `lint:css` passed: the demo ran
+  that way. Now `lint:css` reads the project's file and fails when its
+  `extends` does not name `./stylelint.base.json`, with what it extends
+  and what to put there; and the update shows the two files side by side
+  even when the project kept no earlier template. A project that wants a
+  rule off extends the base and switches the rule off below it. The `strict-lint` add-on's `knip.jsonc` names both stylelint files
   for the same reason, and is the project's file too.
 - The wrappers read what manypkg and syncpack print. A new major of either
   that changes its output (manypkg's `error` lines, `syncpack json`'s one

@@ -1,0 +1,254 @@
+[
+  {
+    "name": "told: a file that differs from a template with no earlier copy is shown",
+    "file": "scripts/lib/templates.mts",
+    "find": "      } else if (withoutAddonSections(yours) !== now) {",
+    "replace": "      } else if (false) {",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"shows where each of the project's files differs from the template\""
+  },
+  {
+    "name": "told: a file that is the template word for word is not",
+    "file": "scripts/lib/templates.mts",
+    "find": "      } else if (withoutAddonSections(yours) !== now) {",
+    "replace": "      } else {",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"says nothing of a file that is the template word for word\""
+  },
+  {
+    "name": "told: the difference is from the template to the project's file",
+    "file": "scripts/lib/templates.mts",
+    "find": "lines: changedLines(now, withoutAddonSections(yours)) });",
+    "replace": "lines: changedLines(withoutAddonSections(yours), now) });",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"shows where a file the project already had differs\""
+  },
+  {
+    "name": "told: a file the project lacks is named",
+    "file": "scripts/lib/templates.mts",
+    "find": "        changes.push({ owned, template, state: \"never-seen\", lines: [] });\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"names a file the project does not have, with the command that takes it\""
+  },
+  {
+    "name": "told: only when the update wrote the template: once",
+    "file": "scripts/lib/templates.mts",
+    "find": "    if (!written.includes(template)) {\n      continue;\n    }\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"says it once, and from then on says what changed in a template\""
+  },
+  {
+    "name": "told: it says it cannot tell which side changed",
+    "file": "scripts/lib/templates.mts",
+    "find": "so it cannot be told which side changed: compare with ${template}`,",
+    "replace": "so yours is out of date: compare with ${template}`,",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"shows where each of the project's files differs from the template\""
+  },
+  {
+    "name": "told: a long difference is cut, with the command for the rest",
+    "file": "scripts/lib/templates.mts",
+    "find": "  return lines.length <= SHOWN_LINES\n",
+    "replace": "  return true\n",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"prints the first thirty lines of a long difference\""
+  },
+  {
+    "name": "told: thirty lines",
+    "file": "scripts/lib/templates.mts",
+    "find": "export const SHOWN_LINES = 30;",
+    "replace": "export const SHOWN_LINES = 31;",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"prints the first thirty lines of a long difference\""
+  },
+  {
+    "name": "told: the starter's settings are templates of the kit",
+    "file": "scripts/add-to-project.mts",
+    "find": "    ...[...filesIn(\"\"), ...filesIn(\".github/workflows\")].filter((owned) => !NOT_A_STARTER_TEMPLATE.has(owned)).sort().map((owned) => fromStarter(owned)),\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"keeps a template of each of the starter's settings files\""
+  },
+  {
+    "name": "told: the lockfile and the README are not",
+    "file": "scripts/add-to-project.mts",
+    "find": "const NOT_A_STARTER_TEMPLATE = new Set([\"pnpm-lock.yaml\", \"README.md\", \"AGENTS.md\", \"architecture.config.mts\"]);",
+    "replace": "const NOT_A_STARTER_TEMPLATE = new Set([\"AGENTS.md\", \"architecture.config.mts\"]);",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"keeps a template of each of the starter's settings files\""
+  },
+  {
+    "name": "told: what a build drops beside a setting is not",
+    "file": "scripts/add-to-project.mts",
+    "find": "          .filter((entry) => entry.isFile() && STARTER_SETTINGS.test(entry.name))",
+    "replace": "          .filter((entry) => entry.isFile())",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"keeps a template of each of the starter's settings files\""
+  },
+  {
+    "name": "told: each package's settings are",
+    "file": "scripts/add-to-project.mts",
+    "find": "    ...packages.sort().flatMap((folder) => filesIn(folder).sort().map((owned) => fromStarter(owned, folder))),\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"keeps a template of each of the starter's settings files\""
+  },
+  {
+    "name": "told: a template is kept in the project's scope",
+    "file": "scripts/add-to-project.mts",
+    "find": "readFileSync(join(repository, source), \"utf8\"), STARTER_SCOPE, scope)));",
+    "replace": "readFileSync(join(repository, source), \"utf8\"), STARTER_SCOPE, STARTER_SCOPE)));",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"keeps a template of each of the starter's settings files\""
+  },
+  {
+    "name": "told: a package the project does not have is not a file it lacks",
+    "file": "scripts/add-to-project.mts",
+    "find": "template.onlyIn === undefined || existsSync(join(destination, template.onlyIn)))),",
+    "replace": "template.onlyIn === undefined || true)),",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"says nothing of a package of the starter's that the project does not have\""
+  },
+  {
+    "name": "told: every gate is named when the project kept no list",
+    "file": "scripts/add-to-project.mts",
+    "find": "        gatesBefore !== undefined && name in gatesBefore ? [] :",
+    "replace": "        gatesBefore === undefined || name in gatesBefore ? [] :",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"names every gate, and says why\""
+  },
+  {
+    "name": "told: and the summary says that it cannot tell which are new",
+    "file": "scripts/add-to-project.mts",
+    "find": "      ...(gatesBefore === undefined && Object.keys(gatesNow).length > 0 ? { gatesUnknownBefore: true } : {}),",
+    "replace": "      ...{},",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"names every gate, and says why\""
+  },
+  {
+    "name": "told: a gate is named with what it fails on",
+    "file": "scripts/add-to-project.mts",
+    "find": "    ...(failsOn === undefined ? [] : [`    It fails when: ${failsOn}`]),\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"says what a new gate fails on\""
+  },
+  {
+    "name": "told: the sentence is the kit's own, for that gate",
+    "file": "scripts/add-to-project.mts",
+    "find": "...(failsOn[name] === undefined ? {} : { failsOn: failsOn[name] })",
+    "replace": "...(failsOn.structure === undefined ? {} : { failsOn: failsOn.structure })",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"says what a new gate fails on\""
+  },
+  {
+    "name": "told: a gate the project has is not called new",
+    "file": "scripts/add-to-project.mts",
+    "find": "        gatesBefore !== undefined && name in gatesBefore ? [] :",
+    "replace": "        false ? [] :",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"says what a new gate fails on\""
+  },
+  {
+    "name": "starting: a file the record does not list is new, and is written",
+    "file": "scripts/add-to-project.mts",
+    "find": "    (given !== undefined && !given.includes(path)) ||\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"is written whether it is text or not\""
+  },
+  {
+    "name": "starting: a file the record lists and the project deleted is not brought back",
+    "file": "scripts/add-to-project.mts",
+    "find": "    (given !== undefined && !given.includes(path)) ||\n",
+    "replace": "    given !== undefined ||\n",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"is not brought back, and not named again\""
+  },
+  {
+    "name": "starting: the list is written after an update",
+    "file": "scripts/add-to-project.mts",
+    "find": "  recordStarting(destination, unit, [...starting.keys()].sort());\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"is written whether it is text or not\""
+  },
+  {
+    "name": "starting: an image the project lacks is named when the record cannot say",
+    "file": "scripts/add-to-project.mts",
+    "find": "    } else if (given === undefined && !templates.some(({ owned }) => owned === path)) {\n      unseen.push(path);\n    }",
+    "replace": "    }",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"names the images a project lacks\""
+  },
+  {
+    "name": "starting: it is not named when the record can say",
+    "file": "scripts/add-to-project.mts",
+    "find": "    } else if (given === undefined && !templates.some(({ owned }) => owned === path)) {",
+    "replace": "    } else if (!templates.some(({ owned }) => owned === path)) {",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"is not brought back, and not named again\""
+  },
+  {
+    "name": "starting: a text file is named under Yours to change, not twice",
+    "file": "scripts/add-to-project.mts",
+    "find": "    } else if (given === undefined && !templates.some(({ owned }) => owned === path)) {",
+    "replace": "    } else if (given === undefined) {",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"is not written in a project whose record is from before\""
+  },
+  {
+    "name": "compare: every unit the project has",
+    "file": "scripts/add-to-project.mts",
+    "find": "  const units = unit === undefined ? installed : [parseUnit(unit).name];",
+    "replace": "  const units = unit === undefined ? installed.slice(0, 1) : [parseUnit(unit).name];",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"lists every file of every unit the project has\""
+  },
+  {
+    "name": "compare: a unit the project does not have is refused",
+    "file": "scripts/add-to-project.mts",
+    "find": "  if (unknown.length > 0) {\n    throw new InstallError(`this project does not have",
+    "replace": "  if (false) {\n    throw new InstallError(`this project does not have",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"takes one unit when one is named\""
+  },
+  {
+    "name": "compare: with the template as it is now, not the project's copy",
+    "file": "scripts/add-to-project.mts",
+    "find": "      const templateIsOlder = template !== undefined && readIfThere(join(destination, template)) !== content.toString(\"utf8\");",
+    "replace": "      const templateIsOlder = false;",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"compares with the template as the repository ships it now\""
+  },
+  {
+    "name": "compare: a file that is gone is absent",
+    "file": "scripts/add-to-project.mts",
+    "find": "      if (!existsSync(file)) {\n        return { unit: name, owned, ...(template === undefined ? {} : { template }), state: \"absent\", lines: [], templateIsOlder };\n      }\n",
+    "replace": "      if (!existsSync(file)) {\n        return { unit: name, owned, ...(template === undefined ? {} : { template }), state: \"same\", lines: [], templateIsOlder };\n      }\n",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"lists every file of every unit the project has\""
+  },
+  {
+    "name": "compare: the sections this script appends are no difference",
+    "file": "scripts/add-to-project.mts",
+    "find": "Buffer.from(withoutAddonSections(readFileSync(file, \"utf8\")));",
+    "replace": "readFileSync(file);",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"prints the differences, the files that are not there\""
+  },
+  {
+    "name": "compare: an image is compared too",
+    "file": "scripts/add-to-project.mts",
+    "find": "        state: yours.equals(content) ? \"same\" : \"differs\",",
+    "replace": "        state: template === undefined || yours.equals(content) ? \"same\" : \"differs\",",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"says an image differs, with no lines\""
+  },
+  {
+    "name": "compare: it says nothing was written",
+    "file": "scripts/add-to-project.mts",
+    "find": "    \"Nothing was written.\",\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"prints the differences, the files that are not there\""
+  },
+  {
+    "name": "sections: each from its own opening to its own closing",
+    "file": "scripts/lib/templates.mts",
+    "find": "<!-- add-on: ([\\w-]+) -->[\\s\\S]*?<!-- \\/add-on: \\1 -->",
+    "replace": "<!-- add-on: ([\\w-]+) -->[\\s\\S]*?<!-- \\/add-on: [\\w-]+ -->",
+    "test": "pnpm vitest run scripts/lib/templates.test.mts -t \"leave a text with none as it is\""
+  },
+  {
+    "name": "sections: what is left ends as a file does",
+    "file": "scripts/lib/templates.mts",
+    "find": "  return without === text ? text : without.replace(/\\n+$/, \"\\n\");",
+    "replace": "  return without;",
+    "test": "pnpm vitest run scripts/lib/templates.test.mts -t \"are left out of a comparison\""
+  },
+  {
+    "name": "told: a file the setup has just written is not reported",
+    "file": "scripts/add-to-project.mts",
+    "find": "        .filter(({ owned }) => !setup.created.includes(owned))\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"does not ask for a change to a file it has just written from the new template\""
+  },
+  {
+    "name": "starting: the list is kept through an install",
+    "file": "scripts/lib/install.mts",
+    "find": "    ...(record[unit]?.starting === undefined ? {} : { starting: record[unit].starting }),\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts -t \"is not brought back, and not named again\""
+  }
+]

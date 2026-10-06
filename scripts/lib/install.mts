@@ -51,6 +51,12 @@ interface InstalledRecord {
     files: Record<string, string>;
     /** The option of the add-on's choice the project has, when the add-on offers one. */
     choice?: string;
+    /**
+     * The starting files the project has been given, or told of: every one
+     * the unit shipped at its last update. A starting file that is not here
+     * is new to the project; one that is here and gone was deleted by it.
+     */
+    starting?: string[];
   };
 }
 
@@ -279,6 +285,8 @@ export function installFiles(
     ),
     // Written with every install, so an update that names no option must pass the one the project has.
     ...(choice === undefined ? {} : { choice }),
+    // Kept through the install: it is read after it, to tell a new starting file from a deleted one.
+    ...(record[unit]?.starting === undefined ? {} : { starting: record[unit].starting }),
   };
   writeRecord(project, record);
 
@@ -377,6 +385,22 @@ export function installedUnits(project: string): string[] {
 /** The option the project has of a unit's choice. Undefined: none was ever recorded. */
 export function installedChoice(project: string, unit: string): string | undefined {
   return readRecord(project)[unit]?.choice;
+}
+
+/** The starting files the project was given or told of at the unit's last update. Undefined: the record is from before that was kept. */
+export function installedStarting(project: string, unit: string): string[] | undefined {
+  return readRecord(project)[unit]?.starting;
+}
+
+/** Records the starting files the unit ships now. Called after an install, which made the unit's entry. */
+export function recordStarting(project: string, unit: string, starting: string[]): void {
+  const record = readRecord(project);
+  const entry = record[unit];
+
+  if (entry !== undefined && JSON.stringify(entry.starting) !== JSON.stringify(starting)) {
+    record[unit] = { ...entry, starting };
+    writeRecord(project, record);
+  }
 }
 
 function readRecord(project: string): InstalledRecord {

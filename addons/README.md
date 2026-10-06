@@ -73,11 +73,26 @@ addons/<name>/
   under "Yours to change" and shows the lines that changed. For that it keeps
   a copy of each text starting file in `tools/templates/`; an image gets no
   copy and no notice.
-  A starting file that a later version of the add-on is the first to ship is
-  written by the update, when the project has no file there. The update tells
-  it from a file the project deleted by its template being new to the
-  project. A project whose copy of the add-on keeps no template yet is not
-  given the file: there a missing file may have been deleted.
+  A starting file the project does not have is never passed over in silence.
+  It is written when it is known to be new to the project, and named when
+  that cannot be told:
+  - `tools/installed.json` lists the starting files the project was given at
+    the add-on's last update (`starting`), images included. A file the
+    add-on ships that is not in that list is new: it is written. One that is
+    in the list and gone was deleted by the project: it is left out, and
+    nothing is said.
+  - A record from before that list was kept cannot say. A text file is then
+    new if its template is new to a project that keeps templates, and is
+    written. Otherwise it is named under "Yours to change" with the `cp`
+    that takes it; an image is named in one line under "Still to do by
+    hand". It is not written, because a file the project deleted would come
+    back: a golden of a scenario it removed fails the run as an orphan, a
+    sample spec runs against a screen that is gone. It is said once.
+  A starting file that differs from a template the project had no copy of is
+  shown against the template, as "cannot be told which side changed"
+  ([the kit's README](../kit/README.md) has the whole rule), and
+  `add-to-project.mts <project> --compare <add-on>` lists every starting
+  file that differs or is missing, at any time.
 - `choice` is for an add-on that has two ways to do one job, of which a
   project has exactly one: one update bot or another. See "A choice" below.
 - `verify` is the one command that proves the add-on works in a project that

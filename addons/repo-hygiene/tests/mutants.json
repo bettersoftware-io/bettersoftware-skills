@@ -950,5 +950,61 @@
     "find": "          SAME_RANGE,\n",
     "replace": "",
     "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"keeps the advice for a range\""
+  },
+  {
+    "name": "check-css: a rules file that does not extend the base fails",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-css.mts",
+    "find": "    failed: reports.length > 0 || missingBase !== undefined,",
+    "replace": "    failed: reports.length > 0,",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-css.test.mts -t \"fails though stylelint found nothing\""
+  },
+  {
+    "name": "check-css: and says so",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-css.mts",
+    "find": "      ...(missingBase === undefined ? [] : [\"\", missingBase]),\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-css.test.mts -t \"fails though stylelint found nothing\""
+  },
+  {
+    "name": "check-css: the base is told from a file of the same name elsewhere",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-css.mts",
+    "find": "resolve(root, dirname(CONFIG), entry) === resolve(root, BASE)",
+    "replace": "entry.endsWith(\"stylelint.base.json\")",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-css.test.mts -t \"fails for a file called like the base in another folder\""
+  },
+  {
+    "name": "check-css: a package of that name is not the file",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-css.mts",
+    "find": "/^\\.{1,2}\\//.test(entry) && resolve",
+    "replace": "resolve",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-css.test.mts -t \"fails for another file, and a package called like the base\""
+  },
+  {
+    "name": "check-css: extends may be one name, not a list",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-css.mts",
+    "find": "(Array.isArray(declared) ? declared : [declared])",
+    "replace": "(Array.isArray(declared) ? declared : [])",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-css.test.mts -t \"passes for the base as one name\""
+  },
+  {
+    "name": "check-css: stylelint's findings are still printed",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-css.mts",
+    "find": "      ...(report === \"\" ? [] : [\"\", report,",
+    "replace": "      ...(missingBase !== undefined || report === \"\" ? [] : [\"\", report,",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-css.test.mts -t \"is said together with what stylelint found\""
+  },
+  {
+    "name": "check-css: a base that is gone is not a verdict",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-css.mts",
+    "find": "  if (!existsSync(join(project, BASE))) {",
+    "replace": "  if (false) {",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-css.test.mts -t \"could not run when the rules file is not JSON, or the base is gone\""
+  },
+  {
+    "name": "check-css: the shipped rules file extends the base",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/stylelint.json",
+    "find": "\"extends\": [\"./stylelint.base.json\"]",
+    "replace": "\"extends\": [\"stylelint-config-standard\"]",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-css.test.mts -t \"holds for the file the add-on ships\""
   }
 ]
