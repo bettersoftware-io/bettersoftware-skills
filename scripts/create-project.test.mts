@@ -108,6 +108,21 @@ describe("creating a project from the starter", () => {
     expect(createProject({ target: createTarget("price-desk") }).notes).toEqual([]);
   });
 
+  it("runs every check of the kit in the gate, not only as a script somebody may call", () => {
+    const target = createTarget("price-desk");
+
+    createProject({ target });
+
+    const { scripts } = JSON.parse(readFileSync(join(target, "package.json"), "utf8")) as { scripts: Record<string, string> };
+
+    expect(scripts["gate:fast"]).toBe("pnpm gates && pnpm check:react-policies && pnpm check:compiler && pnpm lint && pnpm typecheck");
+    expect(scripts["gate:full"]).toBe("pnpm gate:fast && pnpm test && pnpm build");
+    expect(scripts.gates).toBe("node tools/arch/gates/run.mts");
+    expect(scripts["check:react-policies"]).toBe("node tools/arch/check-react-policies.mts");
+    expect(scripts["check:compiler"]).toBe("node tools/arch/check-compiler.mts");
+    expect(scripts.lint).toBe("eslint --flag unstable_native_nodejs_ts_config --max-warnings 0 .");
+  });
+
   it("passes on what the kit's setup could not do", () => {
     const { notes } = createProject({ target: createTarget("price-desk") }, { installKit: () => ({ notes: ["copy the hook file yourself"] }) });
 

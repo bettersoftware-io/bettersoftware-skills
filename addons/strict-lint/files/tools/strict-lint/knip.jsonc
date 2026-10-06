@@ -13,9 +13,19 @@
       "stylelint": { "config": ["tools/repo-hygiene/stylelint.json"] },
       // Run as a program by a script in tools/, which starts it by its name in
       // a string. knip follows imports and package.json scripts, not that.
-      // dependency-cruiser: the kit's dependencies gate. The other three: the
+      // dependency-cruiser: the kit's dependencies gate. The next three: the
       // repo-hygiene add-on's checks.
-      "ignoreDependencies": ["dependency-cruiser", "@manypkg/cli", "stylelint", "syncpack"],
+      // The last two are not the root's at all: the kit's check-compiler.mts
+      // loads them from the client package, to judge with the compiler the
+      // build runs. knip reads that as an import by the root.
+      "ignoreDependencies": [
+        "dependency-cruiser",
+        "@manypkg/cli",
+        "stylelint",
+        "syncpack",
+        "@babel/core",
+        "babel-plugin-react-compiler"
+      ],
       // The visual add-on's scripts here run Playwright in the package that
       // installs it (`pnpm --dir packages/client-react exec playwright`). knip
       // reads them as run at the root, where Playwright is not a dependency.
