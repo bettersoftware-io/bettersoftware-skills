@@ -32,9 +32,6 @@ on 2026-10-05, on pushes to main and on a pull request
   Seen: "Dependency review is not supported on this repository". The add-on's
   README lists the setting; `gh api -X PUT repos/<owner>/<repo>/vulnerability-alerts`
   switches it on.
-- **skills-demo is behind this repository.** It has no `strict-lint`, no
-  `agent-workflow`, no `e2e`, none of the gates and lint rules added since 2026-10-05,
-  Node 24 in its workflows and `engines.node` in its package.json.
 - **Not run on GitHub yet:** Node 26 through `setup-node`, the pinned Corepack
   script (inside the Playwright container jobs too), the pnpm store cache, and
   the weekly tag workflow of `agent-workflow`.
@@ -61,6 +58,34 @@ on 2026-10-05, on pushes to main and on a pull request
   (`ubuntu-24.04`) or to move with the label. Either way, re-run this
   repository's CI once the change lands. The visual tests are the least
   exposed, since they run inside a pinned Playwright container.
+
+## Found by the demo's first update
+
+skills-demo took every change since 2026-10-05 in one update
+([the pull request](https://github.com/bettersoftware-io/skills-demo/pull/9)).
+What that showed in this repository, none fixed yet:
+
+- **The visual host is the add-on's file, and a feature has to edit it.**
+  `tests/visual/host/main.tsx` holds how a scenario becomes app state. The
+  demo's own scenarios needed sixty lines there, so every update of `visual`
+  refuses, needs `--force`, and the lines are put back by hand. It needs a
+  seeding file the project owns.
+- **A project from before templates were kept is told almost nothing by a kit
+  update.** The Node floor, the hash on pnpm, `--max-warnings 0`, the `#/`
+  alias, the workspace settings and the new config options showed only as
+  gate failures, or by comparing with the starter. `SECURITY.md` was not
+  written and nothing said so. A stylelint config still extending the old
+  preset left the token rule off.
+- **`e2e`'s package.json is out of order for a scope that sorts after
+  `@playwright`**, so `repo-hygiene` fails `gate:fast` on a new project.
+  CI's long scope sorts before it and does not show this.
+- **An `e2e` mode's server gives one address.** A server with two protocols
+  on one port needed its host and port taken apart by hand.
+- **Two `vendorOnlyIn` entries can get one rule name** (`hono` and `@hono/`),
+  so a finding may carry the other entry's message.
+- **`lint:types` reads files git ignores.** A local tool's folder failed it.
+- **The fixers have to be run in turn.** The formatter rewraps, which makes
+  new blank-line findings for `eslint --fix`; two rounds settled it.
 
 ## Open decisions
 
