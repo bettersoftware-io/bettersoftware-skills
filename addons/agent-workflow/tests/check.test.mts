@@ -132,21 +132,84 @@ describe("the add-on's check", () => {
     expect(lines.join("\n")).toMatch(new RegExp(`FAIL ${host}: ${path.replace(".", "\\.")} does not register tools/agent-workflow/hooks/split-outward-commands\\.mts`));
   });
 
-  it.each([
-    ["another tool", "Edit", false],
-    ["nothing", "Nothing", false],
-    ["a word that only holds the tool's name", "BashOutput", false],
-    ["a pattern", "^Bash$", false],
-    ["a list that names the tool", "Edit|Bash", true],
-    ["every tool", "*", true],
-    ["every tool, by an empty matcher", "", true],
-    ["every tool, by no matcher", undefined, true],
-  ])("reads a hook under a matcher for %s as one that runs before a shell command or not", (_name, matcher, runs) => {
-    const { status, lines } = runCheck(createProject({ ".codex/hooks.json": { hooks: { PreToolUse: [createGroup(CODEX_HOOK, matcher)] } } }));
+  const NOT_RUN = (host: string, path: string): string => `FAIL ${host}: ${path} names tools/agent-workflow/hooks/split-outward-commands.mts under hooks.PreToolUse, but not as a hook the host is known to run before a shell command.`;
 
-    expect(status).toBe(runs ? 0 : 1);
-    expect(lines.includes("PASS Codex: .codex/hooks.json runs the hook before each shell command")).toBe(runs);
-    expect(lines.join("\n").includes(`FAIL Codex: .codex/hooks.json registers tools/agent-workflow/hooks/split-outward-commands.mts only under a matcher that does not cover Bash (${JSON.stringify(matcher)}), so it does not run before a shell command.`)).toBe(!runs);
+  it.each([
+    ["another tool", "Edit", false, false],
+    ["nothing", "Nothing", false, false],
+    ["a word that only holds the tool's name", "BashOutput", false, false],
+    ["the tool in another case", "bash", false, false],
+    ["no text", 7, false, false],
+    ["a list that names the tool", "Edit|Bash", true, true],
+    ["every tool", "*", true, true],
+    ["every tool, by an empty matcher", "", true, true],
+    ["every tool, by no matcher", undefined, true, true],
+    ["a list with a comma and a blank, which only Claude Code reads as a list", "Edit, Bash", true, false],
+    ["a pattern that holds the name, which only Claude Code is known to test anywhere in it", "^Bash$", true, false],
+    ["a pattern that does not match", "^Notebook", false, false],
+    ["a pattern that is none", "Bash(", false, false],
+  ])("reads a hook under a matcher for %s as each host reads it", (_name, matcher, claudeRuns, codexRuns) => {
+    for (const [host, path, command, runs] of [
+      ["Claude Code", ".claude/settings.json", CLAUDE_HOOK, claudeRuns],
+      ["Codex", ".codex/hooks.json", CODEX_HOOK, codexRuns],
+    ] as const) {
+      const { status, lines } = runCheck(createProject({ [path]: { permissions: { ask: [...ASK_RULES, ...EDIT_ASK_RULES] }, hooks: { PreToolUse: [{ matcher, hooks: [{ type: "command", command }] }] } } }));
+
+      expect(status, host).toBe(runs ? 0 : 1);
+      expect(lines.includes(`PASS ${host}: ${path} runs the hook before each shell command`), host).toBe(runs);
+      expect(lines.some((line) => line.startsWith(NOT_RUN(host, path))), host).toBe(!runs);
+    }
+  });
+
+  it.each([
+    ["has another type", { type: "prompt", command: CODEX_HOOK }],
+    ["has no type", { command: CODEX_HOOK }],
+    ["runs only for some commands", { type: "command", command: CODEX_HOOK, if: "Bash(git *)" }],
+    ["runs in the background", { type: "command", command: CODEX_HOOK, async: true }],
+    ["has a time limit of nothing", { type: "command", command: CODEX_HOOK, timeout: 0 }],
+    ["has a time limit that is no number", { type: "command", command: CODEX_HOOK, timeout: "5" }],
+    ["only prints the command", { type: "command", command: `echo ${CODEX_HOOK}` }],
+    ["goes on after the command, so its answer is lost", { type: "command", command: `${CODEX_HOOK} || true` }],
+    ["has the command behind a comment sign", { type: "command", command: `# ${CODEX_HOOK}` }],
+    ["gives the hook an argument nobody registered", { type: "command", command: `${CODEX_HOOK} --off` }],
+    ["starts the hook another way", { type: "command", command: `node --no-warnings ${CODEX_HOOK.slice(5)}` }],
+    ["is text and no entry", CODEX_HOOK],
+  ])("fails when the entry that names the hook %s", (_name, entry) => {
+    const { status, lines } = runCheck(createProject({ ".codex/hooks.json": { hooks: { PreToolUse: [{ matcher: "Bash", hooks: [entry] }] } } }));
+
+    expect(status).toBe(1);
+    expect(lines.some((line) => line.startsWith(NOT_RUN("Codex", ".codex/hooks.json")))).toBe(true);
+    expect(lines.join("\n")).not.toContain("PASS Codex: .codex/hooks.json runs the hook");
+  });
+
+  it.each([
+    ["a group whose hooks are no list", { hooks: { PreToolUse: [{ matcher: "Bash", hooks: { type: "command", command: CODEX_HOOK } }] } }, "names"],
+    ["the event's name in another case", { hooks: { pretooluse: [createGroup(CODEX_HOOK, "Bash")] } }, "does not register"],
+    ["groups that are no list", { hooks: { PreToolUse: createGroup(CODEX_HOOK, "Bash") } }, "does not register"],
+  ])("fails when the hook is under %s", (_name, settings, how) => {
+    const { status, lines } = runCheck(createProject({ ".codex/hooks.json": settings }));
+
+    expect(status).toBe(1);
+    expect(lines.join("\n")).toMatch(new RegExp(`FAIL Codex: \\.codex/hooks\\.json ${how} `));
+  });
+
+  it.each([
+    ["the project's settings", ".claude/settings.json", true],
+    ["the project's settings, by a value that is not false", ".claude/settings.json", "yes"],
+    ["a person's own settings for the project", ".claude/settings.local.json", true],
+  ])("fails when every hook is switched off in %s", (_name, path, value) => {
+    const own = { permissions: { ask: [...ASK_RULES, ...EDIT_ASK_RULES] }, hooks: { PreToolUse: [createGroup(CLAUDE_HOOK, "Bash", 5)] } };
+    const { status, lines } = runCheck(createProject({ ".claude/settings.json": own, [path]: { ...(path === ".claude/settings.json" ? own : {}), disableAllHooks: value } }));
+
+    expect(status).toBe(1);
+    expect(lines).toContain(`FAIL Claude Code: ${path} sets disableAllHooks, so no hook of the project runs, this one included. Take that setting out, or set it to false`);
+  });
+
+  it("passes when that switch is there and set to false, or the person's own settings hold something else", () => {
+    const own = { permissions: { ask: [...ASK_RULES, ...EDIT_ASK_RULES] }, hooks: { PreToolUse: [createGroup(CLAUDE_HOOK, "Bash", 5)] }, disableAllHooks: false };
+
+    expect(runCheck(createProject({ ".claude/settings.json": own, ".claude/settings.local.json": { disableAllHooks: false, model: "x" } })).status).toBe(0);
+    expect(runCheck(createProject({ ".claude/settings.local.json": "not json" })).status).toBe(0);
   });
 
   it("does not count a copy under another matcher as a second registration", () => {

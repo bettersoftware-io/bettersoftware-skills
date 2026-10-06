@@ -23,13 +23,18 @@
 //   - it is rewritten where it stands. Only the command changes: the entry's
 //     other fields (its timeout), its group, the group's matcher and the
 //     other hooks of the group stay as they are. No group is ever taken out;
-//   - one thing is taken out: when the rewrite leaves the same command line
-//     twice in one group, the later one goes. The hook still runs there.
+//   - one thing is taken out: when the rewrite leaves the same entry twice in
+//     one group, equal in every field, the later one goes. Two entries that
+//     differ in anything (a type, a timeout) both stay: the one kept might be
+//     one the host does not run.
 //
-// A hook counts as registered only under a matcher that covers the one the
-// add-on asks for: the same matcher, no matcher, `*`, or a list (`a|b`) that
-// names it. The command under any other matcher (`Edit`, `Nothing`) does not
-// run where the add-on needs it, so the add-on's own group is added.
+// A hook counts as registered only when the host would run it where the
+// add-on needs it: in a group whose matcher the host reads as covering every
+// tool the add-on's matcher names, as an entry the host runs as that command
+// (`lib/hook-registration.mts` decides both, by each host's own rules). A
+// copy under `Edit` or `Nothing`, one with another `type`, an `if` or a
+// `timeout` of 0, does not run before a shell command, so the add-on's own
+// group is added beside it.
 //
 // A command that only begins like the add-on's own is another shape. It is
 // left alone and named in `unknown`.
@@ -38,6 +43,8 @@
 // (`"permissions": null`, `"ask": "Bash(x)"`, `"PreToolUse": {}`), the first
 // rule holds and the project's value stands. That leaves the add-on's entries
 // out, so it is never silent: each such place is named in `skipped`.
+
+import { groupRuns, type Host, hostOf, toolsNamed } from "./hook-registration.mts";
 
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 
@@ -76,13 +83,17 @@ export function parseSettings(text: string, path: string): { [key: string]: Json
 }
 
 /** `current` with everything from `wanted` that it lacks. `current` itself is not changed. */
-export function mergeSettings(current: Json, wanted: Json, retired: RetiredCommands = {}, path: string[] = []): MergeResult {
+export function mergeSettings(current: Json, wanted: Json, retired: RetiredCommands = {}, file = ".claude/settings.json"): MergeResult {
+  return mergeAt(current, wanted, retired, hostOf(file), []);
+}
+
+function mergeAt(current: Json, wanted: Json, retired: RetiredCommands, host: Host, path: string[]): MergeResult {
   if (isObject(current) && isObject(wanted)) {
     const result: MergeResult = { merged: { ...current }, added: [], skipped: [], changed: [], unknown: [] };
 
     for (const [key, value] of Object.entries(wanted)) {
       if (key in current) {
-        const inner = mergeSettings(current[key] as Json, value, retired, [...path, key]);
+        const inner = mergeAt(current[key] as Json, value, retired, host, [...path, key]);
 
         (result.merged as { [key: string]: Json })[key] = inner.merged;
         result.added.push(...inner.added);
@@ -104,7 +115,7 @@ export function mergeSettings(current: Json, wanted: Json, retired: RetiredComma
     const added: string[] = [];
 
     for (const entry of wanted) {
-      if (!merged.some((existing) => isSameEntry(existing, entry, path))) {
+      if (!merged.some((existing) => isSameEntry(existing, entry, path, host))) {
         merged.push(entry);
         added.push(...describeAdded(entry, path));
       }
@@ -134,6 +145,9 @@ function kindOf(value: Json): "a list" | "an object" | "a value" {
   return Array.isArray(value) ? "a list" : isObject(value) ? "an object" : "a value";
 }
 
+/** Two tool names no host has, to ask whether a group runs whatever the tool. Two, so that naming one of them is not enough. */
+const ANY_TOOLS = ["NoSuchTool", "AnotherTool"];
+
 /** Under `hooks`, a list holds groups of commands, one list per event. */
 function isHookGroup(path: string[]): boolean {
   return path[0] === "hooks" && path.length === 2;
@@ -141,44 +155,42 @@ function isHookGroup(path: string[]): boolean {
 
 /**
  * Whether the project's list already holds this entry. Under `hooks`, an entry
- * is a group of commands, and it is there when a group whose matcher covers
- * the wanted one holds its commands: a project that changed the group's
- * timeout or widened its matcher still has the hook, and adding the group
- * again would run it twice. The commands under a matcher that does not cover
- * the wanted one do not run where the add-on needs them.
+ * is a group of commands, and it is there when one group of the project runs
+ * every command of it for every tool it names, as the host reads that group.
+ * A project that changed the group's timeout or widened its matcher still has
+ * the hook, and adding the group again would run it twice.
  */
-function isSameEntry(existing: Json, wanted: Json, path: string[]): boolean {
-  if (isHookGroup(path)) {
-    const commands = hookCommands(wanted);
-
-    return commands.length > 0 && coversMatcher(existing, wanted) && commands.every((command) => hookCommands(existing).includes(command));
+function isSameEntry(existing: Json, wanted: Json, path: string[], host: Host): boolean {
+  if (!isHookGroup(path)) {
+    return isEqual(existing, wanted);
   }
 
-  return isEqual(existing, wanted);
-}
+  const commands = hookCommands(wanted);
+  const matcher = isObject(wanted) ? wanted.matcher : undefined;
+  const tools = toolsNamed(matcher);
 
-/**
- * Whether the project's group runs for everything the wanted group runs for,
- * as far as that can be told without reading a pattern: the same matcher, no
- * matcher, an empty one or `*` (each runs for every tool), or a list of names
- * that holds the wanted one. Anything else is taken not to cover it.
- */
-function coversMatcher(existing: Json, wanted: Json): boolean {
-  const has = isObject(existing) ? existing.matcher : undefined;
-  const needs = isObject(wanted) ? wanted.matcher : undefined;
-
-  if (has === undefined || has === "" || has === "*") {
-    return true;
+  if (commands.length === 0) {
+    return false;
   }
 
-  return typeof has === "string" && typeof needs === "string" && has.split("|").includes(needs);
+  // A wanted group for every tool: only a group the host runs for every tool covers it. A name no tool has stands for them.
+  if (matcher === undefined || matcher === "" || matcher === "*") {
+    return commands.every((command) => ANY_TOOLS.every((tool) => groupRuns(existing, command, tool, host)));
+  }
+
+  // A wanted group under a pattern: only a group with that very matcher is known to cover it.
+  if (tools === undefined) {
+    return isObject(existing) && existing.matcher === matcher && commands.every((command) => groupRuns({ ...existing, matcher: undefined }, command, "", host));
+  }
+
+  return commands.every((command) => tools.every((tool) => groupRuns(existing, command, tool, host)));
 }
 
 /**
  * The project's groups for one event, with each hook that is exactly an older
  * command line of one of `registered` rewritten, where it stands, to the line
- * registered now. Every group stays, with its matcher. Within one group, a
- * command line the rewrite left there twice is kept once, the first.
+ * registered now. Every group stays, with its matcher. Within one group, an
+ * entry the rewrite left there twice, the same in every field, is kept once.
  */
 function renewCommands(groups: Json[], registered: string[], retired: RetiredCommands, path: string[]): { groups: Json[]; changed: string[]; unknown: string[] } {
   const changed: string[] = [];
@@ -192,38 +204,31 @@ function renewCommands(groups: Json[], registered: string[], retired: RetiredCom
       return group;
     }
 
-    // The lines this group gets by a rewrite. Only these may be there twice because of it.
-    const rewritten = new Set(group.hooks.flatMap((hook) => renewedTo(hook) ?? []));
-    const seen = new Set<string>();
-
-    if (rewritten.size === 0) {
+    if (!group.hooks.some((hook) => renewedTo(hook) !== undefined)) {
       return group;
     }
 
-    const hooks = group.hooks.flatMap((hook) => {
+    const kept: { hook: Json; wasRewritten: boolean }[] = [];
+
+    for (const hook of group.hooks) {
       const now = renewedTo(hook);
-      const command = now ?? (isObject(hook) && typeof hook.command === "string" ? hook.command : undefined);
+      const renewedHook = now === undefined || !isObject(hook) ? hook : { ...hook, command: now };
+      const wasRewritten = renewedHook !== hook;
 
-      if (!isObject(hook) || command === undefined || !rewritten.has(command)) {
-        return [hook];
+      // Only an entry that a rewrite made the same as an earlier one, in every field, goes: the earlier one does all it did.
+      if (isObject(renewedHook) && kept.some((earlier) => (wasRewritten || earlier.wasRewritten) && isEqual(earlier.hook, renewedHook))) {
+        changed.push(`${path.join(".")}: took out a second ${String(renewedHook.command)} from a group that has the same entry already`);
+        continue;
       }
 
-      if (seen.has(command)) {
-        changed.push(`${path.join(".")}: took out ${String(hook.command)}, which the same group already runs as ${command}`);
-
-        return [];
+      if (wasRewritten) {
+        changed.push(`${path.join(".")}: ${String((hook as { command: Json }).command)} is now ${now}`);
       }
 
-      seen.add(command);
+      kept.push({ hook: renewedHook, wasRewritten });
+    }
 
-      if (now === undefined) {
-        return [hook];
-      }
-
-      changed.push(`${path.join(".")}: ${String(hook.command)} is now ${now}`);
-
-      return [{ ...hook, command: now }];
-    });
+    const hooks = kept.map(({ hook }) => hook);
 
     return { ...group, hooks };
   });

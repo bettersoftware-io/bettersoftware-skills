@@ -15,7 +15,15 @@ export const RETIRED_FILES = ["tools/agent-workflow.config.json", "tools/agent-w
 export const RETIRED_ARGUMENT = "--host=claude-code";
 
 export const CLAUDE_SETTINGS = ".claude/settings.json";
+/** A person's own settings for the project. They win over the project's, and can switch every hook off. */
+export const CLAUDE_LOCAL_SETTINGS = ".claude/settings.local.json";
 export const CODEX_HOOKS = ".codex/hooks.json";
+
+/** The command line the add-on registers the hook with, in each host's file. The same text is in the manifest. */
+export const HOOK_COMMANDS: Record<string, string> = {
+  [CLAUDE_SETTINGS]: `node "$CLAUDE_PROJECT_DIR/${HOOK_SCRIPT}"`,
+  [CODEX_HOOKS]: `node ${HOOK_SCRIPT}`,
+};
 
 /**
  * Always ask. The add-on ships no `allow` rule, and its hook allows nothing.

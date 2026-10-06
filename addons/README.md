@@ -79,13 +79,16 @@ addons/<name>/
   permission rule. The key is the file's path. Those files belong to the
   project, so the entries are merged in and the file is never written over:
   a key the project has keeps its value, a list gains the entries it lacks,
-  a hook whose command is already registered under a matcher that covers the
-  add-on's (the same one, none, `*`, or a list that names it) is not added
-  again, and
+  a hook the host would already run where the add-on needs it is not added
+  again (its group's matcher covers the add-on's as that host reads a
+  matcher, and its entry is a plain command hook with exactly that command
+  line: `scripts/lib/hook-registration.mts`), and
   nothing is removed (but see `retiredHookCommands`). A second run changes nothing, and does not rewrite the
   file. A file that the host keeps read-only is left alone, and the script
   says what is left to do. The merge cannot tell an entry the project removed
   from one that was never there: a later run adds it back.
+  A file that sets `disableAllHooks` runs no hook at all. The merge leaves
+  that value, lists it under "Not merged", and exits 3.
   **What could not be merged is never silent.** A file that is not JSON, and
   a place where the project's file holds a value of another kind than the
   add-on needs (`"permissions": null`, `"ask": "Bash(x)"`,
@@ -114,8 +117,8 @@ addons/<name>/
     value. It is rewritten where it stands. Only the command changes: the
     entry's timeout, its group, the group's matcher and the other hooks of
     the group stay. No group is ever taken out.
-  - One thing is taken out: when the rewrite leaves the same command line
-    twice in one group, the later one goes. The hook still runs there.
+  - One thing is taken out: when the rewrite leaves the same entry twice in
+    one group, equal in every field, the later one goes.
   - A command that only begins like the new line is left alone, the new line
     is added beside it, and the summary names it under "Still to do by hand".
   - The settings file is replaced in one step (a new file takes its place),

@@ -113,12 +113,21 @@ settings file.
 
 - A key the project has keeps the project's value.
 - A list gains the entries it lacks, after the ones it has.
-- A hook counts as there when its command is in a group whose matcher still
-  covers `Bash`: the same matcher, none, `*`, or a list that names it. A
-  longer timeout or a wider matcher changes nothing, and it is not added a
-  second time. Under any other matcher (`Edit`, `Nothing`) the command does
-  not run before a shell command, so the add-on's own group is added, and
-  the check fails until it is.
+- A hook counts as there only when the host would run it before a shell
+  command, read by each host's own rules (`lib/hook-registration.mts`): the
+  group's matcher covers `Bash`, and the entry is of type `command` with
+  exactly the registered command line, no `if`, not `async`, and a timeout
+  above 0 or none. A longer timeout or a wider matcher changes nothing, and
+  the hook is not added a second time. Any other copy (under `Edit`, with
+  `|| true` after it, with another type) does not count: the add-on's own
+  group is added beside it, and the check fails until it is.
+- For Claude Code a matcher is every tool (left out, `""`, `*`), a list of
+  exact names split at `|` or `,`, or else a regular expression tested
+  anywhere in the name. For Codex it is a regular expression whose anchoring
+  its documentation does not give, so only a list of plain names split at
+  `|` is read, and any other pattern counts as not registered.
+- `disableAllHooks` in the settings file switches every hook off. The merge
+  leaves the project's value and says the add-on is not whole (exit 3).
 - Nothing is removed. One command line is rewritten: that of a hook this
   add-on registered under an older form. See
   [below](#updating-a-project-that-had-it) and `retiredHookCommands` in
@@ -159,7 +168,8 @@ session of either host.
   timeout of 30. The update takes the argument off that command line where
   it stands and changes nothing else: the entry's timeout, its group, the
   matcher and the hooks beside it stay, and no group is taken out. Only when
-  that leaves the same line twice in one group does the later one go. A
+  that leaves the same entry twice in one group, equal in every field, does
+  the later one go. A
   command line that is not the old one letter for letter is left alone and
   named. Until the update runs, the old line still works: the hook ignores
   its arguments.
@@ -312,6 +322,9 @@ against real repositories made in a temporary folder, with another folder as
   The same file holds the bounds: a command too deep or too long to read,
   and a payload that is not JSON.
 - `tests/check.test.mts`: the verify command and `requires.mts`.
+- `tests/hook-registration.test.mts`: whether a host would run a hook, by
+  matcher and by entry, put to both copies of the file that decides it, and
+  that the two copies are one text.
 - `tests/new-worktree.test.mts` also holds the base that ran a command,
   and sixteen other words that are not a branch name.
 - `tests/addon.test.mts`: the manifest, the workflow's standards, the
@@ -324,7 +337,7 @@ against real repositories made in a temporary folder, with another folder as
 - `scripts/host-settings.test.mts`, `scripts/add-to-project.test.mts`: the
   merge and the installer.
 
-Every test was turned red by a mutant of its own and restored: 394 mutants
+Every test was turned red by a mutant of its own and restored: 467 mutants
 in `tests/mutants.json`, run with the coverage add-on's `mutation-check.mts`,
 all killed. Two of them are judged by the type checker, not by a test run. Each of its test commands was first seen green and selecting at
 least one test, since a filter that matches no test exits 0 and would read
@@ -348,6 +361,16 @@ thousand commands.
 - **The ask rules in Claude Code itself.** That an `ask` rule wins over an
   `allow` rule is from its documentation; no session was run to see it. The
   rules are matched in tests with a model of the documented pattern syntax.
+- **How each host reads a matcher and a hook entry.** From their
+  documentation, read on 2026-10-06; no session was run. Codex's does not say
+  whether a pattern must match the whole tool name, which is why only a list
+  of plain names is read for it.
+- **Settings the check does not read.** A person's own settings and managed
+  settings can add hooks and can switch the project's off; so can the
+  `--settings` flag. Codex runs a project's hook only after a person has
+  reviewed and trusted it, and no file in the project records that. The
+  check reads the project's two files, and `.claude/settings.local.json` for
+  `disableAllHooks` only.
 - **The workflow on GitHub.** It was linted, and its script was tested with
   a stand-in for `gh`. No tag or issue was created anywhere. The lint ran
   with no token, so zizmor's checks that ask GitHub (an action with a known

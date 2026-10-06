@@ -2137,13 +2137,6 @@
     "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"passes its proof in such a project\""
   },
   {
-    "name": "does not note an argument that is not there",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "registered.some((command) => command.includes(RETIRED_ARGUMENT))",
-    "replace": "registered.some((command) => command.includes(\"node\"))",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"passes, and notes it, when\""
-  },
-  {
     "name": "notes a hook registered twice",
     "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
     "find": "    if (registered.length > 1) {",
@@ -2270,27 +2263,6 @@
     "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"leaves a project that had the old setting and the old registration right\""
   },
   {
-    "name": "notes the old argument",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "registered.some((command) => command.includes(RETIRED_ARGUMENT))",
-    "replace": "registered.some((command) => command.includes(`${RETIRED_ARGUMENT}!`))",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"passes, and notes it, when\""
-  },
-  {
-    "name": "notes the old argument in its proof, before the update",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "registered.some((command) => command.includes(RETIRED_ARGUMENT))",
-    "replace": "registered.some((command) => command.includes(`${RETIRED_ARGUMENT}!`))",
-    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"notes the old argument in its proof before the update\""
-  },
-  {
-    "name": "does not note an argument that is gone after the update",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "registered.some((command) => command.includes(RETIRED_ARGUMENT))",
-    "replace": "registered.some((command) => command.includes(\"node\"))",
-    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"passes its proof in such a project\""
-  },
-  {
     "name": "names a command that only begins like the add-on's own",
     "file": "scripts/lib/host-settings.mts",
     "find": ".filter((line) => line.startsWith(`${now} `))",
@@ -2333,13 +2305,6 @@
     "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"keeps the project's value where both have one\""
   },
   {
-    "name": "changes nothing the second time",
-    "file": "scripts/lib/host-settings.mts",
-    "find": "      if (!merged.some((existing) => isSameEntry(existing, entry, path))) {",
-    "replace": "      if (merged.length >= 0) {",
-    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"changes nothing the second time\""
-  },
-  {
     "name": "refuses a replacement no settings file registers",
     "file": "scripts/lib/host-settings.mts",
     "find": "    if (typeof now !== \"string\" || !registered.includes(now)) {",
@@ -2373,20 +2338,6 @@
     "find": "  if (refusal !== undefined) {\n    throw new InstallError(`the add-on \"${manifest.name}\" cannot be installed: ${refusal}`);\n  }\n",
     "replace": "",
     "test": "pnpm vitest run scripts/add-to-project.test.mts --testNamePattern=\"refuses an add-on whose older command line leads to a command it does not register\""
-  },
-  {
-    "name": "gives the merge the older command lines",
-    "file": "scripts/add-to-project.mts",
-    "find": "mergeSettings(current, wanted, manifest.retiredHookCommands)",
-    "replace": "mergeSettings(current, wanted)",
-    "test": "pnpm vitest run scripts/add-to-project.test.mts --testNamePattern=\"brings a hook the project has under an older command line to the new one\""
-  },
-  {
-    "name": "gives the merge the older command lines (the add-on in a project that had the old registration)",
-    "file": "scripts/add-to-project.mts",
-    "find": "mergeSettings(current, wanted, manifest.retiredHookCommands)",
-    "replace": "mergeSettings(current, wanted)",
-    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"leaves a project that had the old setting and the old registration right\""
   },
   {
     "name": "writes the file when only a command line changed",
@@ -2501,20 +2452,6 @@
     "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"rewrites the command of a hook the project has under an older line\""
   },
   {
-    "name": "rewrites the older line where the new one is under another matcher",
-    "file": "scripts/lib/host-settings.mts",
-    "find": "    const rewritten = new Set(group.hooks.flatMap((hook) => renewedTo(hook) ?? []));",
-    "replace": "    const rewritten = new Set(groups.flatMap(hookCommands).includes(registered[0] ?? \"\") ? [] : group.hooks.flatMap((hook) => renewedTo(hook) ?? []));",
-    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"rewrites the older line under Bash where the new line is only under another matcher\""
-  },
-  {
-    "name": "rewrites the older line in every group that has it",
-    "file": "scripts/lib/host-settings.mts",
-    "find": "    const rewritten = new Set(group.hooks.flatMap((hook) => renewedTo(hook) ?? []));",
-    "replace": "    const rewritten = new Set(group !== groups.find((each) => hookCommands(each).some((line) => retired[line] !== undefined)) ? [] : group.hooks.flatMap((hook) => renewedTo(hook) ?? []));",
-    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"rewrites the older line in every group that has it\""
-  },
-  {
     "name": "never takes a group out",
     "file": "scripts/lib/host-settings.mts",
     "find": "  const renewed = groups.map((group) => {\n    if (!isObject(group) || !Array.isArray(group.hooks)) {\n      return group;\n    }",
@@ -2543,123 +2480,11 @@
     "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"rewrites the command of a hook the project has under an older line\""
   },
   {
-    "name": "keeps the entry's other fields",
-    "file": "scripts/lib/host-settings.mts",
-    "find": "      return [{ ...hook, command: now }];",
-    "replace": "      return [{ type: \"command\", command: now }];",
-    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"rewrites the command of a hook the project has under an older line\""
-  },
-  {
-    "name": "does not change what it was given",
-    "file": "scripts/lib/host-settings.mts",
-    "find": "      return [{ ...hook, command: now }];",
-    "replace": "      hook.command = now;\n\n      return [hook];",
-    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"rewrites the command of a hook the project has under an older line\""
-  },
-  {
-    "name": "keeps one when the older line is twice in one group",
-    "file": "scripts/lib/host-settings.mts",
-    "find": "      if (seen.has(command)) {",
-    "replace": "      if (seen.has(`${command}!`)) {",
-    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"keeps one when the older line is twice in one group\""
-  },
-  {
-    "name": "keeps the first of the two",
-    "file": "scripts/lib/host-settings.mts",
-    "find": "      seen.add(command);\n\n      if (now === undefined) {\n        return [hook];\n      }",
-    "replace": "      seen.add(command);\n\n      if (now === undefined) {\n        return [];\n      }",
-    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"keeps one when the older line is twice in one group\""
-  },
-  {
-    "name": "takes out a second line only in the same group",
-    "file": "scripts/lib/host-settings.mts",
-    "find": "    const seen = new Set<string>();\n\n    if (rewritten.size === 0) {",
-    "replace": "    if (rewritten.size === 0) {",
-    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"rewrites the older line in every group that has it\""
-  },
-  {
-    "name": "takes out a second line only where a rewrite put it",
-    "file": "scripts/lib/host-settings.mts",
-    "find": "      if (!isObject(hook) || command === undefined || !rewritten.has(command)) {",
-    "replace": "      if (!isObject(hook) || command === undefined) {",
-    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"does not take out another command the project has twice in a group where it rewrites the older line\""
-  },
-  {
-    "name": "does not take out what the project has twice by its own hand",
-    "file": "scripts/lib/host-settings.mts",
-    "find": "    if (rewritten.size === 0) {\n      return group;\n    }",
-    "replace": "    if (rewritten.size === 0) {\n      rewritten.add(registered[0] ?? \"\");\n    }",
-    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"does not take out a command the project has twice in a group when no rewrite put it there\""
-  },
-  {
-    "name": "says what it took out",
-    "file": "scripts/lib/host-settings.mts",
-    "find": "        changed.push(`${path.join(\".\")}: took out ${String(hook.command)}, which the same group already runs as ${command}`);\n",
-    "replace": "",
-    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"keeps one when the older line is twice in one group\""
-  },
-  {
-    "name": "says what it rewrote",
-    "file": "scripts/lib/host-settings.mts",
-    "find": "      changed.push(`${path.join(\".\")}: ${String(hook.command)} is now ${now}`);\n",
-    "replace": "",
-    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"rewrites the command of a hook the project has under an older line\""
-  },
-  {
     "name": "does not rewrite an older line under an event where the new line is not registered",
     "file": "scripts/lib/host-settings.mts",
     "find": "const renewed = isHookGroup(path) ? renewCommands(current, wanted.flatMap(hookCommands), retired, path)",
     "replace": "const renewed = isHookGroup(path) ? renewCommands(current, Object.values(retired), retired, path)",
     "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"does not rewrite an older line under an event where the add-on registers another hook\""
-  },
-  {
-    "name": "the hook under another matcher is not the hook under Bash",
-    "file": "scripts/lib/host-settings.mts",
-    "find": "    return commands.length > 0 && coversMatcher(existing, wanted) && commands.every(",
-    "replace": "    return commands.length > 0 && commands.every(",
-    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"adds its own group when the project's only copy of the hook is under a matcher that names nothing\""
-  },
-  {
-    "name": "the hook under another matcher is not the hook under Bash (over generated files)",
-    "file": "scripts/lib/host-settings.mts",
-    "find": "    return commands.length > 0 && coversMatcher(existing, wanted) && commands.every(",
-    "replace": "    return commands.length > 0 && commands.every(",
-    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"never leaves fewer pairs of a matcher and a command than it found\""
-  },
-  {
-    "name": "a matcher that only holds the word does not cover it",
-    "file": "scripts/lib/host-settings.mts",
-    "find": "has.split(\"|\").includes(needs);",
-    "replace": "has.includes(needs);",
-    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"adds its own group when the project's only copy of the hook is under a matcher that only holds the word\""
-  },
-  {
-    "name": "a list that names the matcher covers it",
-    "file": "scripts/lib/host-settings.mts",
-    "find": "has.split(\"|\").includes(needs);",
-    "replace": "has === needs;",
-    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"adds nothing when the hook is under a list that names it\""
-  },
-  {
-    "name": "no matcher covers every tool",
-    "file": "scripts/lib/host-settings.mts",
-    "find": "  if (has === undefined || has === \"\" || has === \"*\") {",
-    "replace": "  if (has === \"\" || has === \"*\") {",
-    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"adds nothing when the hook is under no matcher\""
-  },
-  {
-    "name": "an empty matcher covers every tool",
-    "file": "scripts/lib/host-settings.mts",
-    "find": "  if (has === undefined || has === \"\" || has === \"*\") {",
-    "replace": "  if (has === undefined || has === \"*\") {",
-    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"adds nothing when the hook is under an empty matcher\""
-  },
-  {
-    "name": "a star covers every tool",
-    "file": "scripts/lib/host-settings.mts",
-    "find": "  if (has === undefined || has === \"\" || has === \"*\") {",
-    "replace": "  if (has === undefined || has === \"\") {",
-    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"adds nothing when the hook is under a star\""
   },
   {
     "name": "adds its group beside an older line it rewrote under another matcher",
@@ -2669,94 +2494,780 @@
     "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"adds its Bash group beside an older line it rewrote under another matcher\""
   },
   {
+    "name": "a matcher left out runs for every tool (the installer's copy)",
+    "find": "  if (matcher === undefined || EVERY_TOOL.includes(matcher as string)) {",
+    "replace": "  if (EVERY_TOOL.includes(matcher as string)) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is left out\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "an empty matcher runs for every tool (the installer's copy)",
+    "find": "const EVERY_TOOL = [\"\", \"*\"];",
+    "replace": "const EVERY_TOOL = [\"*\"];",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is empty\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "a star runs for every tool (the installer's copy)",
+    "find": "const EVERY_TOOL = [\"\", \"*\"];",
+    "replace": "const EVERY_TOOL = [\"\"];",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a star\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "a matcher that is no text runs for no tool (the installer's copy)",
+    "find": "  if (typeof matcher !== \"string\") {\n    return false;\n  }",
+    "replace": "  if (typeof matcher !== \"string\") {\n    return true;\n  }",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a number\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "Codex is not read a comma list (the installer's copy)",
+    "find": "  if (host === \"codex\") {",
+    "replace": "  if (host === \"codex!\") {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a list with commas as each host does\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "Codex is not read a pattern (the installer's copy)",
+    "find": "    return NAMES.test(matcher) && matcher.split(\"|\").includes(tool);",
+    "replace": "    return matcher.split(\"|\").includes(tool) || new RegExp(matcher).test(tool);",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a pattern that is the whole name\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "Codex is read a list of plain names (the installer's copy)",
+    "find": "    return NAMES.test(matcher) && matcher.split(\"|\").includes(tool);",
+    "replace": "    return matcher === tool;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a list that names the tool\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "a list with an empty part is a pattern for Codex (the installer's copy)",
+    "find": "const NAMES = /^[A-Za-z0-9_]+(\\|[A-Za-z0-9_]+)*$/;",
+    "replace": "const NAMES = /^[A-Za-z0-9_|]+$/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a list with an empty part\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "Claude Code compares a plain name whole, not as a pattern (the installer's copy)",
+    "find": "  if (CLAUDE_LIST.test(matcher)) {",
+    "replace": "  if (CLAUDE_LIST.test(`${matcher}(`)) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a name the tool's only begins like\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "Claude Code splits a list at a comma too (the installer's copy)",
+    "find": "      .split(/[|,]/)",
+    "replace": "      .split(/[|]/)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a list with commas as each host does\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "Claude Code drops blanks around a name (the installer's copy)",
+    "find": "      .map((name) => name.trim())\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a list with commas and blanks\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "Claude Code compares names in their case (the installer's copy)",
+    "find": "      .includes(tool);\n  }\n\n  try {",
+    "replace": "      .some((name) => name.toLowerCase() === tool.toLowerCase());\n  }\n\n  try {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is the name in another case\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "Claude Code tests a pattern anywhere in the name (the installer's copy)",
+    "find": "    return new RegExp(matcher).test(tool);",
+    "replace": "    return new RegExp(`^(?:${matcher})$`).test(tool);",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a pattern with a dot\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "a pattern that is none runs for no tool (the installer's copy)",
+    "find": "    // Not a pattern the host can read either.\n    return false;",
+    "replace": "    // Not a pattern the host can read either.\n    return true;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a pattern that is none\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "a dash keeps a matcher a list for Claude Code (the installer's copy)",
+    "find": "const CLAUDE_LIST = /^[A-Za-z0-9_\\- ,|]+$/;",
+    "replace": "const CLAUDE_LIST = /^[A-Za-z0-9_ ,|]+$/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a list with a dash in one name\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "an entry of another type is not the hook (the installer's copy)",
+    "find": "    type === \"command\" &&\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is another type\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "an entry with a longer command is not the hook (the installer's copy)",
+    "find": "    has === command &&\n",
+    "replace": "    typeof has === \"string\" &&\n    has.startsWith(command) &&\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is a command that ends in more\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "an entry that only holds the command is not the hook (the installer's copy)",
+    "find": "    has === command &&\n",
+    "replace": "    typeof has === \"string\" &&\n    has.includes(command) &&\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is a command that is only printed\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "an entry with an if is not the hook (the installer's copy)",
+    "find": "    !(\"if\" in hook) &&\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is an if for the hook\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "an entry with an empty if is not the hook (the installer's copy)",
+    "find": "    !(\"if\" in hook) &&\n",
+    "replace": "    !(hook as { if?: unknown }).if &&\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is an if that is empty\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "an entry that runs in the background is not the hook (the installer's copy)",
+    "find": "    (inBackground === undefined || inBackground === false) &&\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is a run in the background\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "a background flag that is no yes or no is not the hook (the installer's copy)",
+    "find": "    (inBackground === undefined || inBackground === false) &&\n",
+    "replace": "    inBackground !== true &&\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is a background flag that is no yes or no\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "an entry said not to run in the background is the hook (the installer's copy)",
+    "find": "(inBackground === undefined || inBackground === false)",
+    "replace": "inBackground === undefined",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is one said not to run in the background\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "a time limit of 0 is not the hook (the installer's copy)",
+    "find": "timeout > 0)",
+    "replace": "timeout >= 0)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is a time limit of 0\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "a time limit that is text is not the hook (the installer's copy)",
+    "find": "(typeof timeout === \"number\" && Number.isFinite(timeout) && timeout > 0)",
+    "replace": "Number(timeout) > 0",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is a time limit that is text\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "a time limit that is nothing is not the hook (the installer's copy)",
+    "find": "(timeout === undefined || (typeof timeout",
+    "replace": "(timeout === undefined || timeout === null || (typeof timeout",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is a time limit that is nothing\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "an entry with no time limit is the hook (the installer's copy)",
+    "find": "(timeout === undefined || (typeof timeout",
+    "replace": "((typeof timeout",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is a command hook for the hook\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "text is no entry (the installer's copy)",
+    "find": "  if (typeof hook !== \"object\" || hook === null || Array.isArray(hook)) {\n    return false;\n  }\n\n  const { type,",
+    "replace": "  if (typeof hook === \"string\") {\n    return hook === command;\n  }\n\n  if (typeof hook !== \"object\" || hook === null || Array.isArray(hook)) {\n    return false;\n  }\n\n  const { type,",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is text for the hook\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "hooks that are no list run nothing (the installer's copy)",
+    "find": "  return Array.isArray(hooks) && runsForTool(matcher, tool, host) && hooks.some(",
+    "replace": "  return runsForTool(matcher, tool, host) && [hooks].flat().some(",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"does not take a group with hooks that are one entry and no list\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "a group under another matcher does not run the hook (the installer's copy)",
+    "find": "  return Array.isArray(hooks) && runsForTool(matcher, tool, host) && hooks.some(",
+    "replace": "  return Array.isArray(hooks) && hooks.some(",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"does not take a group with a matcher for another tool\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "a group that is a list is no group (the installer's copy)",
+    "find": "  if (typeof group !== \"object\" || group === null || Array.isArray(group)) {\n    return false;\n  }\n\n  const { matcher, hooks }",
+    "replace": "  if (typeof group !== \"object\" || group === null) {\n    return false;\n  }\n\n  const { matcher, hooks = group }",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"does not take a group with the shape of a list\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "a file under .codex is Codex's (the installer's copy)",
+    "find": "  return path.startsWith(\".codex/\") ? \"codex\" : \"claude-code\";",
+    "replace": "  return path.includes(\"codex\") ? \"codex\" : \"claude-code\";",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"knows a file's host from where it is\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "only a list of plain names names tools (the installer's copy)",
+    "find": "  return typeof matcher === \"string\" && NAMES.test(matcher) ? matcher.split(\"|\") : undefined;",
+    "replace": "  return typeof matcher === \"string\" ? matcher.split(\"|\") : undefined;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"knows a file's host from where it is\"",
+    "file": "scripts/lib/hook-registration.mts"
+  },
+  {
+    "name": "a matcher left out runs for every tool (the check's copy)",
+    "find": "  if (matcher === undefined || EVERY_TOOL.includes(matcher as string)) {",
+    "replace": "  if (EVERY_TOOL.includes(matcher as string)) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is left out\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "an empty matcher runs for every tool (the check's copy)",
+    "find": "const EVERY_TOOL = [\"\", \"*\"];",
+    "replace": "const EVERY_TOOL = [\"*\"];",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is empty\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "a star runs for every tool (the check's copy)",
+    "find": "const EVERY_TOOL = [\"\", \"*\"];",
+    "replace": "const EVERY_TOOL = [\"\"];",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a star\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "a matcher that is no text runs for no tool (the check's copy)",
+    "find": "  if (typeof matcher !== \"string\") {\n    return false;\n  }",
+    "replace": "  if (typeof matcher !== \"string\") {\n    return true;\n  }",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a number\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "Codex is not read a comma list (the check's copy)",
+    "find": "  if (host === \"codex\") {",
+    "replace": "  if (host === \"codex!\") {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a list with commas as each host does\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "Codex is not read a pattern (the check's copy)",
+    "find": "    return NAMES.test(matcher) && matcher.split(\"|\").includes(tool);",
+    "replace": "    return matcher.split(\"|\").includes(tool) || new RegExp(matcher).test(tool);",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a pattern that is the whole name\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "Codex is read a list of plain names (the check's copy)",
+    "find": "    return NAMES.test(matcher) && matcher.split(\"|\").includes(tool);",
+    "replace": "    return matcher === tool;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a list that names the tool\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "a list with an empty part is a pattern for Codex (the check's copy)",
+    "find": "const NAMES = /^[A-Za-z0-9_]+(\\|[A-Za-z0-9_]+)*$/;",
+    "replace": "const NAMES = /^[A-Za-z0-9_|]+$/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a list with an empty part\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "Claude Code compares a plain name whole, not as a pattern (the check's copy)",
+    "find": "  if (CLAUDE_LIST.test(matcher)) {",
+    "replace": "  if (CLAUDE_LIST.test(`${matcher}(`)) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a name the tool's only begins like\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "Claude Code splits a list at a comma too (the check's copy)",
+    "find": "      .split(/[|,]/)",
+    "replace": "      .split(/[|]/)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a list with commas as each host does\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "Claude Code drops blanks around a name (the check's copy)",
+    "find": "      .map((name) => name.trim())\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a list with commas and blanks\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "Claude Code compares names in their case (the check's copy)",
+    "find": "      .includes(tool);\n  }\n\n  try {",
+    "replace": "      .some((name) => name.toLowerCase() === tool.toLowerCase());\n  }\n\n  try {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is the name in another case\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "Claude Code tests a pattern anywhere in the name (the check's copy)",
+    "find": "    return new RegExp(matcher).test(tool);",
+    "replace": "    return new RegExp(`^(?:${matcher})$`).test(tool);",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a pattern with a dot\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "a pattern that is none runs for no tool (the check's copy)",
+    "find": "    // Not a pattern the host can read either.\n    return false;",
+    "replace": "    // Not a pattern the host can read either.\n    return true;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a pattern that is none\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "a dash keeps a matcher a list for Claude Code (the check's copy)",
+    "find": "const CLAUDE_LIST = /^[A-Za-z0-9_\\- ,|]+$/;",
+    "replace": "const CLAUDE_LIST = /^[A-Za-z0-9_ ,|]+$/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"reads a matcher that is a list with a dash in one name\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "an entry of another type is not the hook (the check's copy)",
+    "find": "    type === \"command\" &&\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is another type\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "an entry with a longer command is not the hook (the check's copy)",
+    "find": "    has === command &&\n",
+    "replace": "    typeof has === \"string\" &&\n    has.startsWith(command) &&\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is a command that ends in more\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "an entry that only holds the command is not the hook (the check's copy)",
+    "find": "    has === command &&\n",
+    "replace": "    typeof has === \"string\" &&\n    has.includes(command) &&\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is a command that is only printed\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "an entry with an if is not the hook (the check's copy)",
+    "find": "    !(\"if\" in hook) &&\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is an if for the hook\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "an entry with an empty if is not the hook (the check's copy)",
+    "find": "    !(\"if\" in hook) &&\n",
+    "replace": "    !(hook as { if?: unknown }).if &&\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is an if that is empty\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "an entry that runs in the background is not the hook (the check's copy)",
+    "find": "    (inBackground === undefined || inBackground === false) &&\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is a run in the background\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "a background flag that is no yes or no is not the hook (the check's copy)",
+    "find": "    (inBackground === undefined || inBackground === false) &&\n",
+    "replace": "    inBackground !== true &&\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is a background flag that is no yes or no\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "an entry said not to run in the background is the hook (the check's copy)",
+    "find": "(inBackground === undefined || inBackground === false)",
+    "replace": "inBackground === undefined",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is one said not to run in the background\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "a time limit of 0 is not the hook (the check's copy)",
+    "find": "timeout > 0)",
+    "replace": "timeout >= 0)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is a time limit of 0\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "a time limit that is text is not the hook (the check's copy)",
+    "find": "(typeof timeout === \"number\" && Number.isFinite(timeout) && timeout > 0)",
+    "replace": "Number(timeout) > 0",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is a time limit that is text\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "a time limit that is nothing is not the hook (the check's copy)",
+    "find": "(timeout === undefined || (typeof timeout",
+    "replace": "(timeout === undefined || timeout === null || (typeof timeout",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is a time limit that is nothing\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "an entry with no time limit is the hook (the check's copy)",
+    "find": "(timeout === undefined || (typeof timeout",
+    "replace": "((typeof timeout",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is a command hook for the hook\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "text is no entry (the check's copy)",
+    "find": "  if (typeof hook !== \"object\" || hook === null || Array.isArray(hook)) {\n    return false;\n  }\n\n  const { type,",
+    "replace": "  if (typeof hook === \"string\") {\n    return hook === command;\n  }\n\n  if (typeof hook !== \"object\" || hook === null || Array.isArray(hook)) {\n    return false;\n  }\n\n  const { type,",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"takes an entry that is text for the hook\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "hooks that are no list run nothing (the check's copy)",
+    "find": "  return Array.isArray(hooks) && runsForTool(matcher, tool, host) && hooks.some(",
+    "replace": "  return runsForTool(matcher, tool, host) && [hooks].flat().some(",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"does not take a group with hooks that are one entry and no list\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "a group under another matcher does not run the hook (the check's copy)",
+    "find": "  return Array.isArray(hooks) && runsForTool(matcher, tool, host) && hooks.some(",
+    "replace": "  return Array.isArray(hooks) && hooks.some(",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"does not take a group with a matcher for another tool\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "a group that is a list is no group (the check's copy)",
+    "find": "  if (typeof group !== \"object\" || group === null || Array.isArray(group)) {\n    return false;\n  }\n\n  const { matcher, hooks }",
+    "replace": "  if (typeof group !== \"object\" || group === null) {\n    return false;\n  }\n\n  const { matcher, hooks = group }",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"does not take a group with the shape of a list\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "a file under .codex is Codex's (the check's copy)",
+    "find": "  return path.startsWith(\".codex/\") ? \"codex\" : \"claude-code\";",
+    "replace": "  return path.includes(\"codex\") ? \"codex\" : \"claude-code\";",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"knows a file's host from where it is\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "only a list of plain names names tools (the check's copy)",
+    "find": "  return typeof matcher === \"string\" && NAMES.test(matcher) ? matcher.split(\"|\") : undefined;",
+    "replace": "  return typeof matcher === \"string\" ? matcher.split(\"|\") : undefined;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"knows a file's host from where it is\"",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts"
+  },
+  {
+    "name": "the two copies are one text",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/hook-registration.mts",
+    "find": "// \"Registered\" here means:",
+    "replace": "// \"Registered\" here means, for the check:",
+    "test": "pnpm vitest run addons/agent-workflow/tests/hook-registration.test.mts --testNamePattern=\"are one text\""
+  },
+  {
+    "name": "a copy the host would not run is not the hook: its type",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "  return commands.every((command) => tools.every((tool) => groupRuns(existing, command, tool, host)));",
+    "replace": "  return commands.every((command) => tools.every((tool) => groupRuns(existing, command, tool, host) || hookCommands(existing).includes(command)));",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"adds its own group when the project's entry has another type\""
+  },
+  {
+    "name": "a copy the host would not run is not the hook (over generated files)",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "  return commands.every((command) => tools.every((tool) => groupRuns(existing, command, tool, host)));",
+    "replace": "  return commands.every((command) => tools.every((tool) => groupRuns(existing, command, tool, host) || hookCommands(existing).includes(command)));",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"never leaves fewer pairs of a matcher and a command than it found\""
+  },
+  {
+    "name": "adds its group only where the host would not run the hook",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "  return commands.every((command) => tools.every((tool) => groupRuns(existing, command, tool, host)));",
+    "replace": "  return commands.every((command) => tools.every((tool) => groupRuns(existing, command, tool, host) && isObject(existing) && existing.matcher === matcher));",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"never leaves fewer pairs of a matcher and a command than it found\""
+  },
+  {
+    "name": "the matcher is read as the file's host reads it",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "  return mergeAt(current, wanted, retired, hostOf(file), []);",
+    "replace": "  return mergeAt(current, wanted, retired, \"claude-code\", []);",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"reads a matcher as the host of the file reads it\""
+  },
+  {
+    "name": "a group for every tool is covered only by one for every tool",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "    return commands.every((command) => ANY_TOOLS.every((tool) => groupRuns(existing, command, tool, host)));",
+    "replace": "    return commands.every((command) => hookCommands(existing).includes(command));",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"covers a group the add-on wants for every tool only by a group the host runs for every tool\""
+  },
+  {
+    "name": "naming one made-up tool does not cover every tool",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "const ANY_TOOLS = [\"NoSuchTool\", \"AnotherTool\"];",
+    "replace": "const ANY_TOOLS = [\"NoSuchTool\"];",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"covers a group the add-on wants for every tool only by a group the host runs for every tool\""
+  },
+  {
+    "name": "keeps both entries when they differ",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "(wasRewritten || earlier.wasRewritten) && isEqual(earlier.hook, renewedHook)",
+    "replace": "(wasRewritten || earlier.wasRewritten) && isObject(earlier.hook) && earlier.hook.command === renewedHook.command",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"keeps both when the two entries differ\""
+  },
+  {
+    "name": "keeps one when the rewrite leaves the same entry twice",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "(wasRewritten || earlier.wasRewritten) && isEqual(earlier.hook, renewedHook)",
+    "replace": "wasRewritten && earlier.wasRewritten && isEqual(earlier.hook, renewedHook)",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"keeps one when the rewrite leaves the same entry twice in one group\""
+  },
+  {
+    "name": "does not take out what the project has twice by its own hand",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "(wasRewritten || earlier.wasRewritten) && isEqual(earlier.hook, renewedHook)",
+    "replace": "isEqual(earlier.hook, renewedHook)",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"does not take out another command the project has twice in a group where it rewrites the older line\""
+  },
+  {
+    "name": "says what it took out",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "        changed.push(`${path.join(\".\")}: took out a second ${String(renewedHook.command)} from a group that has the same entry already`);\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"keeps one when the rewrite leaves the same entry twice in one group\""
+  },
+  {
+    "name": "says what it rewrote",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "        changed.push(`${path.join(\".\")}: ${String((hook as { command: Json }).command)} is now ${now}`);\n",
+    "replace": "",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"rewrites the command of a hook the project has under an older line\""
+  },
+  {
+    "name": "keeps the entry's other fields",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "hook : { ...hook, command: now };",
+    "replace": "hook : { type: \"command\", command: now };",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"rewrites the command of a hook the project has under an older line\""
+  },
+  {
+    "name": "rewrites the older line where the new one is under another matcher",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "    if (!group.hooks.some((hook) => renewedTo(hook) !== undefined)) {",
+    "replace": "    if (groups.flatMap(hookCommands).includes(registered[0] ?? \"\") || !group.hooks.some((hook) => renewedTo(hook) !== undefined)) {",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"rewrites the older line under Bash where the new line is only under another matcher\""
+  },
+  {
     "name": "the add-on in a project that has the new line under another matcher",
     "file": "scripts/lib/host-settings.mts",
-    "find": "    const rewritten = new Set(group.hooks.flatMap((hook) => renewedTo(hook) ?? []));",
-    "replace": "    const rewritten = new Set(groups.flatMap(hookCommands).includes(registered[0] ?? \"\") ? [] : group.hooks.flatMap((hook) => renewedTo(hook) ?? []));",
+    "find": "    if (!group.hooks.some((hook) => renewedTo(hook) !== undefined)) {",
+    "replace": "    if (groups.flatMap(hookCommands).includes(registered[0] ?? \"\") || !group.hooks.some((hook) => renewedTo(hook) !== undefined)) {",
     "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"rewrites the old registration where it stands, and takes nothing out\""
   },
   {
     "name": "the add-on in a project whose only copy is under a matcher for nothing",
     "file": "scripts/lib/host-settings.mts",
-    "find": "    return commands.length > 0 && coversMatcher(existing, wanted) && commands.every(",
-    "replace": "    return commands.length > 0 && commands.every(",
-    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"adds its Bash group in a project whose only copy of the hook is under a matcher\""
-  },
-  {
-    "name": "fails a hook under a matcher that does not cover the shell tool",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "const registered = everywhere.filter(({ matcher }) => coversShell(matcher)).map(({ command }) => command);",
-    "replace": "const registered = everywhere.map(({ command }) => command);",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"reads a hook under a matcher for nothing\""
-  },
-  {
-    "name": "a matcher that only holds the tool's name does not cover it",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "matcher.split(\"|\").includes(SHELL_TOOL)",
-    "replace": "matcher.includes(SHELL_TOOL)",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"reads a hook under a matcher for a word that only holds the tool's name\""
-  },
-  {
-    "name": "a list that names the tool covers it",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "matcher.split(\"|\").includes(SHELL_TOOL)",
-    "replace": "matcher === SHELL_TOOL",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"reads a hook under a matcher for a list that names the tool\""
-  },
-  {
-    "name": "no matcher runs before every tool",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "  return matcher === undefined || matcher === \"\" || matcher === \"*\" ||",
-    "replace": "  return matcher === \"\" || matcher === \"*\" ||",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"reads a hook under a matcher for every tool, by no matcher\""
-  },
-  {
-    "name": "an empty matcher runs before every tool",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "  return matcher === undefined || matcher === \"\" || matcher === \"*\" ||",
-    "replace": "  return matcher === undefined || matcher === \"*\" ||",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"reads a hook under a matcher for every tool, by an empty matcher\""
-  },
-  {
-    "name": "a star runs before every tool",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "  return matcher === undefined || matcher === \"\" || matcher === \"*\" ||",
-    "replace": "  return matcher === undefined || matcher === \"\" ||",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"reads a hook under a matcher for every tool as one\""
-  },
-  {
-    "name": "says the hook is there but under the wrong matcher, not that it is missing",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "    if (everywhere.length === 0) {",
-    "replace": "    if (registered.length === 0) {",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"reads a hook under a matcher for another tool\""
-  },
-  {
-    "name": "does not count a copy under another matcher as a second registration",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "    if (registered.length > 1) {",
-    "replace": "    if (everywhere.length > 1) {",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"does not count a copy under another matcher as a second registration\""
-  },
-  {
-    "name": "says in its proof why the hook does not run under a matcher for nothing",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "const registered = everywhere.filter(({ matcher }) => coversShell(matcher)).map(({ command }) => command);",
-    "replace": "const registered = everywhere.map(({ command }) => command);",
+    "find": "  return commands.every((command) => tools.every((tool) => groupRuns(existing, command, tool, host)));",
+    "replace": "  return commands.every((command) => hookCommands(existing).includes(command));",
     "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"adds its Bash group in a project whose only copy of the hook is under a matcher\""
   },
   {
     "name": "leaves both settings files byte for byte as they were when it is added a second time",
     "file": "scripts/lib/host-settings.mts",
-    "find": "    return commands.length > 0 && coversMatcher(existing, wanted) && commands.every((command) => hookCommands(existing).includes(command));",
-    "replace": "    return commands.length < 0;",
+    "find": "  return commands.every((command) => tools.every((tool) => groupRuns(existing, command, tool, host)));",
+    "replace": "  return commands.length < 0;",
     "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"leaves both settings files byte for byte as they were when it is added a second time\""
+  },
+  {
+    "name": "counts a hook as there when its command is, under a wider matcher",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "  return commands.every((command) => tools.every((tool) => groupRuns(existing, command, tool, host)));",
+    "replace": "  return isObject(existing) && existing.matcher === matcher && commands.every((command) => tools.every((tool) => groupRuns(existing, command, tool, host)));",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"counts a hook as there when its command is\""
+  },
+  {
+    "name": "says the add-on is not whole when every hook is switched off",
+    "file": "scripts/add-to-project.mts",
+    "find": "switchedOff !== undefined && switchedOff !== false) {",
+    "replace": "switchedOff === true) {",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts --testNamePattern=\"says the add-on is not whole when the settings switch every hook off\""
+  },
+  {
+    "name": "says nothing of the switch when it is false",
+    "file": "scripts/add-to-project.mts",
+    "find": "switchedOff !== undefined && switchedOff !== false) {",
+    "replace": "switchedOff !== undefined) {",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts --testNamePattern=\"says nothing of that switch when it is false\""
+  },
+  {
+    "name": "says nothing of the switch for an add-on with no hook",
+    "file": "scripts/add-to-project.mts",
+    "find": "(wanted as { hooks?: Json }).hooks !== undefined && switchedOff",
+    "replace": "switchedOff",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts --testNamePattern=\"says nothing of that switch when it is false\""
+  },
+  {
+    "name": "gives the merge the file, so the matcher is read as its host reads it",
+    "file": "scripts/add-to-project.mts",
+    "find": "mergeSettings(current, wanted, manifest.retiredHookCommands, path);",
+    "replace": "mergeSettings(current, wanted, manifest.retiredHookCommands);",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts --testNamePattern=\"reads a matcher in Codex's file as Codex reads it\""
+  },
+  {
+    "name": "fails a hook under a matcher the host does not run for the shell tool",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "groups.filter((group) => groupRuns(group, command, SHELL_TOOL, hostOf(path)))",
+    "replace": "groups.filter((group) => groupRuns({ ...(group as object), matcher: undefined }, command, SHELL_TOOL, hostOf(path)))",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"reads a hook under a matcher for nothing\""
+  },
+  {
+    "name": "reads the matcher as the file's host reads it",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "groupRuns(group, command, SHELL_TOOL, hostOf(path))",
+    "replace": "groupRuns(group, command, SHELL_TOOL, \"claude-code\")",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"reads a hook under a matcher for a list with a comma and a blank\""
+  },
+  {
+    "name": "fails an entry the host would not run as the hook",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "    if (registered.length > 0) {\n      report(`PASS ${host}: ${path} runs the hook",
+    "replace": "    if (registered.length > 0 || named) {\n      report(`PASS ${host}: ${path} runs the hook",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when the entry that names the hook has another type\""
+  },
+  {
+    "name": "vouches only for the command lines the add-on registers",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "    const known = [HOOK_COMMANDS[path], `${HOOK_COMMANDS[path]} ${RETIRED_ARGUMENT}`];",
+    "replace": "    const known = [HOOK_COMMANDS[path], `${HOOK_COMMANDS[path]} ${RETIRED_ARGUMENT}`, `${HOOK_COMMANDS[path]} --off`];",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when the entry that names the hook gives the hook an argument nobody registered\""
+  },
+  {
+    "name": "takes the older command line for the hook",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "    const known = [HOOK_COMMANDS[path], `${HOOK_COMMANDS[path]} ${RETIRED_ARGUMENT}`];",
+    "replace": "    const known = [HOOK_COMMANDS[path]];",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"passes, and notes it, when\""
+  },
+  {
+    "name": "says the hook is named but not run, not that it is missing",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "    } else if (named) {",
+    "replace": "    } else if (named && path === \"\") {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when the entry that names the hook only prints the command\""
+  },
+  {
+    "name": "reads the event's name in its case only",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "const groups = (settings.hooks as { PreToolUse?: unknown } | undefined)?.PreToolUse;\n\n  return Array.isArray(groups) ? groups : [];",
+    "replace": "const hooks = (settings.hooks ?? {}) as Record<string, unknown>;\n  const groups = hooks.PreToolUse ?? hooks.pretooluse;\n\n  return Array.isArray(groups) ? groups : [];",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when the hook is under the event's name in another case\""
+  },
+  {
+    "name": "fails when the project's settings switch every hook off",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "switched.disableAllHooks !== undefined && switched.disableAllHooks !== false) {",
+    "replace": "switched.disableAllHooks === true) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when every hook is switched off in the project's settings, by a value that is not false\""
+  },
+  {
+    "name": "passes when the switch is false",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "switched.disableAllHooks !== undefined && switched.disableAllHooks !== false) {",
+    "replace": "switched.disableAllHooks !== undefined) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"passes when that switch is there and set to false\""
+  },
+  {
+    "name": "reads a person's own settings for the switch",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "...(path === CLAUDE_SETTINGS ? [[CLAUDE_LOCAL_SETTINGS, readSettings(root, CLAUDE_LOCAL_SETTINGS)] as const] : [])",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when every hook is switched off in a person's own settings for the project\""
+  },
+  {
+    "name": "the command lines the check looks for are the manifest's (Claude Code)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "  [CLAUDE_SETTINGS]: `node \"$CLAUDE_PROJECT_DIR/${HOOK_SCRIPT}\"`,",
+    "replace": "  [CLAUDE_SETTINGS]: `node $CLAUDE_PROJECT_DIR/${HOOK_SCRIPT}`,",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"registers the hook with the command lines the check looks for\""
+  },
+  {
+    "name": "the command lines the check looks for are the manifest's (Codex)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "  [CODEX_HOOKS]: `node ${HOOK_SCRIPT}`,",
+    "replace": "  [CODEX_HOOKS]: `node ./${HOOK_SCRIPT}`,",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"registers the hook with the command lines the check looks for\""
+  },
+  {
+    "name": "the manifest registers an entry the host would run (its type)",
+    "file": "addons/agent-workflow/addon.json",
+    "find": "\"type\": \"command\",\n                \"command\": \"node tools/agent-workflow",
+    "replace": "\"type\": \"prompt\",\n                \"command\": \"node tools/agent-workflow",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"registers the hook with the command lines the check looks for\""
+  },
+  {
+    "name": "does not count a copy under another matcher as a second registration",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "groups.filter((group) => groupRuns(group, command, SHELL_TOOL, hostOf(path)))",
+    "replace": "groups.filter((group) => groupRuns({ ...(group as object), matcher: undefined }, command, SHELL_TOOL, hostOf(path)))",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"does not count a copy under another matcher as a second registration\""
+  },
+  {
+    "name": "notes the old argument",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "registered.some((command) => command.endsWith(RETIRED_ARGUMENT))",
+    "replace": "registered.some((command) => command.endsWith(`${RETIRED_ARGUMENT}!`))",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"passes, and notes it, when\""
+  },
+  {
+    "name": "does not note an argument that is not there",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "registered.some((command) => command.endsWith(RETIRED_ARGUMENT))",
+    "replace": "registered.some((command) => command.includes(\"node\"))",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"passes, and notes it, when\""
+  },
+  {
+    "name": "notes the old argument in its proof, before the update",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "registered.some((command) => command.endsWith(RETIRED_ARGUMENT))",
+    "replace": "registered.some((command) => command.endsWith(`${RETIRED_ARGUMENT}!`))",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"notes the old argument in its proof before the update\""
+  },
+  {
+    "name": "does not note an argument that is gone after the update",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "registered.some((command) => command.endsWith(RETIRED_ARGUMENT))",
+    "replace": "registered.some((command) => command.includes(\"node\"))",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"passes its proof in such a project\""
+  },
+  {
+    "name": "changes nothing the second time",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "      if (!merged.some((existing) => isSameEntry(existing, entry, path, host))) {",
+    "replace": "      if (merged.length >= 0) {",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"changes nothing the second time\""
+  },
+  {
+    "name": "gives the merge the older command lines",
+    "file": "scripts/add-to-project.mts",
+    "find": "mergeSettings(current, wanted, manifest.retiredHookCommands, path);",
+    "replace": "mergeSettings(current, wanted, {}, path);",
+    "test": "pnpm vitest run scripts/add-to-project.test.mts --testNamePattern=\"brings a hook the project has under an older command line to the new one\""
+  },
+  {
+    "name": "gives the merge the older command lines (the add-on in a project that had the old registration)",
+    "file": "scripts/add-to-project.mts",
+    "find": "mergeSettings(current, wanted, manifest.retiredHookCommands, path);",
+    "replace": "mergeSettings(current, wanted, {}, path);",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"leaves a project that had the old setting and the old registration right\""
+  },
+  {
+    "name": "does not change what it was given",
+    "file": "scripts/lib/host-settings.mts",
+    "find": "hook : { ...hook, command: now };",
+    "replace": "hook : Object.assign(hook, { command: now });",
+    "test": "pnpm vitest run scripts/host-settings.test.mts --testNamePattern=\"rewrites the command of a hook the project has under an older line\""
   },
   {
     "name": "fails when a host's settings exist and do not register the hook",
     "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "const everywhere = registrations(settings).filter(({ command }) => command.includes(HOOK_SCRIPT));",
-    "replace": "const everywhere = registrations(settings);",
+    "find": "    const named = JSON.stringify(groups).includes(HOOK_SCRIPT);",
+    "replace": "    const named = groups.length > 0;",
     "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"does not take another command before a tool call for the hook\""
   }
 ]

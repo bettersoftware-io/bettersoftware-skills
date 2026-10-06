@@ -534,10 +534,17 @@ function planHostSettings(project: string, manifest: AddonManifest): SettingsPla
 
     try {
       const current = existsSync(file) ? parseSettings(readFileSync(file, "utf8"), path) : {};
-      const { merged, added, skipped, changed, unknown } = mergeSettings(current, wanted, manifest.retiredHookCommands);
+      const { merged, added, skipped, changed, unknown } = mergeSettings(current, wanted, manifest.retiredHookCommands, path);
 
       if (added.length > 0 || changed.length > 0) {
         plan.writes.push({ path, content: `${JSON.stringify(merged, null, 2)}\n`, added: [...added, ...changed] });
+      }
+
+      // The merge cannot turn hooks back on: the switch is the project's own value, and it stands.
+      const switchedOff = (merged as { disableAllHooks?: Json }).disableAllHooks;
+
+      if ((wanted as { hooks?: Json }).hooks !== undefined && switchedOff !== undefined && switchedOff !== false) {
+        plan.unmerged.push(`${path} sets disableAllHooks, so the host runs none of the hooks in it, the add-on's included. Take that setting out, or set it to false`);
       }
 
       plan.unknown.push(...unknown.map((entry) => `${path}: ${entry}. If it is this add-on's hook, keep one of the two`));

@@ -5,6 +5,7 @@ import { type Json, mergeSettings, parseSettings, refuseRetired, SettingsError }
 const NOW = "node split.mts";
 const OLDER = "node split.mts --host=x";
 const RETIRED = { [OLDER]: NOW };
+const LIVE = { type: "command", command: NOW };
 const WANTED_HOOK = { hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: NOW }] }] } };
 
 describe("an add-on's older command lines", () => {
@@ -184,34 +185,55 @@ describe("merging an add-on's entries into a host's settings", () => {
     expectSettled(first.merged);
   });
 
-  it("keeps one when the older line is twice in one group, or beside the new line there: the first", () => {
+  it("keeps one when the rewrite leaves the same entry twice in one group, the older line twice or beside the new one", () => {
     const guard = { type: "command", command: "node guard.mts" };
-    const twice = mergeSettings({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: OLDER, timeout: 30 }, guard, { command: OLDER, timeout: 9 }] }] } }, WANTED_HOOK, RETIRED);
-    const beside = mergeSettings({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: NOW, timeout: 7 }, guard, { command: OLDER, timeout: 30 }] }] } }, WANTED_HOOK, RETIRED);
-    const after = mergeSettings({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: OLDER, timeout: 30 }, { command: NOW, timeout: 7 }] }] } }, WANTED_HOOK, RETIRED);
+    const older = { type: "command", command: OLDER, timeout: 30 };
+    const now = { type: "command", command: NOW, timeout: 30 };
+    const took = `hooks.PreToolUse: took out a second ${NOW} from a group that has the same entry already`;
+    const twice = mergeSettings({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [older, guard, older] }] } }, WANTED_HOOK, RETIRED);
+    const beside = mergeSettings({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [now, guard, older] }] } }, WANTED_HOOK, RETIRED);
+    const after = mergeSettings({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [older, now] }] } }, WANTED_HOOK, RETIRED);
 
-    expect(twice.merged).toEqual({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: NOW, timeout: 30 }, guard] }] } });
-    expect(twice.changed).toEqual([`hooks.PreToolUse: ${OLDER} is now ${NOW}`, `hooks.PreToolUse: took out ${OLDER}, which the same group already runs as ${NOW}`]);
-    expect(beside.merged).toEqual({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: NOW, timeout: 7 }, guard] }] } });
-    expect(after.merged).toEqual({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: NOW, timeout: 30 }] }] } });
-    expect(after.changed).toEqual([`hooks.PreToolUse: ${OLDER} is now ${NOW}`, `hooks.PreToolUse: took out ${NOW}, which the same group already runs as ${NOW}`]);
+    expect(twice.merged).toEqual({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [now, guard] }] } });
+    expect(twice.changed).toEqual([`hooks.PreToolUse: ${OLDER} is now ${NOW}`, took]);
+    expect(beside.merged).toEqual({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [now, guard] }] } });
+    expect(beside.changed).toEqual([took]);
+    expect(after.merged).toEqual({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [now] }] } });
+    expect(after.changed).toEqual([`hooks.PreToolUse: ${OLDER} is now ${NOW}`, took]);
 
     for (const { merged } of [twice, beside, after]) {
       expectSettled(merged);
     }
   });
 
+  it.each([
+    ["another time limit", { type: "command", command: NOW, timeout: 9 }],
+    ["another type, which the host does not run as a command", { type: "prompt", command: NOW, timeout: 30 }],
+    ["an if", { type: "command", command: NOW, timeout: 30, if: "Bash(git *)" }],
+  ])("keeps both when the two entries differ: the one beside the older line has %s", (_name, other) => {
+    const older = { type: "command", command: OLDER, timeout: 30 };
+    const now = { type: "command", command: NOW, timeout: 30 };
+
+    for (const hooks of [[other, older], [older, other]]) {
+      const { merged, changed } = mergeSettings({ hooks: { PreToolUse: [{ matcher: "Bash", hooks }] } }, WANTED_HOOK, RETIRED);
+
+      expect(merged).toEqual({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: hooks.map((hook) => (hook === older ? now : hook)) }] } });
+      expect(changed).toEqual([`hooks.PreToolUse: ${OLDER} is now ${NOW}`]);
+      expectSettled(merged);
+    }
+  });
+
   it("does not take out a command the project has twice in a group when no rewrite put it there", () => {
-    const project = { hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: NOW }, { command: NOW }, { command: "node guard.mts" }, { command: "node guard.mts" }] }] } };
+    const project = { hooks: { PreToolUse: [{ matcher: "Bash", hooks: [LIVE, LIVE, { command: "node guard.mts" }, { command: "node guard.mts" }] }] } };
 
     expect(mergeSettings(project, WANTED_HOOK, RETIRED)).toEqual({ merged: project, added: [], skipped: [], changed: [], unknown: [] });
   });
 
   it("does not take out another command the project has twice in a group where it rewrites the older line", () => {
     const guard = { command: "node guard.mts" };
-    const { merged } = mergeSettings({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [guard, { command: OLDER }, guard] }] } }, WANTED_HOOK, RETIRED);
+    const { merged } = mergeSettings({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [guard, { type: "command", command: OLDER }, guard] }] } }, WANTED_HOOK, RETIRED);
 
-    expect(merged).toEqual({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [guard, { command: NOW }, guard] }] } });
+    expect(merged).toEqual({ hooks: { PreToolUse: [{ matcher: "Bash", hooks: [guard, LIVE, guard] }] } });
   });
 
   it("does not rewrite an older line under an event where the add-on registers another hook and not the new line", () => {
@@ -225,12 +247,15 @@ describe("merging an add-on's entries into a host's settings", () => {
     ["a matcher that names another tool", "Edit"],
     ["a matcher that names nothing", "Nothing"],
     ["a matcher that only holds the word", "BashOutput"],
-    ["a pattern it cannot read", "^Ba.*"],
+    ["a pattern that does not match the tool", "^Notebook"],
+    ["a pattern that is none", "Bash("],
+    ["a matcher that is no text", 7],
+    ["a matcher in another case", "bash"],
   ])("adds its own group when the project's only copy of the hook is under %s, and then is done", (_name, matcher) => {
-    const project = { hooks: { PreToolUse: [createGroup(NOW, matcher)] } };
-    const first = mergeSettings(project, WANTED_HOOK, RETIRED);
+    const group = { matcher, hooks: [LIVE] } as Json;
+    const first = mergeSettings({ hooks: { PreToolUse: [group] } }, WANTED_HOOK, RETIRED);
 
-    expect(first.merged).toEqual({ hooks: { PreToolUse: [createGroup(NOW, matcher), createGroup(NOW, "Bash")] } });
+    expect(first.merged).toEqual({ hooks: { PreToolUse: [group, createGroup(NOW, "Bash")] } });
     expect(first.added).toEqual([`hooks.PreToolUse: ${NOW}`]);
     expectSettled(first.merged);
   });
@@ -238,6 +263,8 @@ describe("merging an add-on's entries into a host's settings", () => {
   it.each([
     ["the same matcher", "Bash"],
     ["a list that names it", "Edit|Bash|Shell"],
+    ["a list with commas and blanks, as Claude Code reads one", "Edit, Bash"],
+    ["a pattern that matches it", "^Ba.*"],
     ["a star", "*"],
     ["an empty matcher", ""],
     ["no matcher", undefined],
@@ -245,6 +272,56 @@ describe("merging an add-on's entries into a host's settings", () => {
     const project = { hooks: { PreToolUse: [createGroup(NOW, matcher)] } };
 
     expect(mergeSettings(project, WANTED_HOOK, RETIRED)).toEqual({ merged: project, added: [], skipped: [], changed: [], unknown: [] });
+  });
+
+  it.each([
+    ["has another type", { type: "prompt", command: NOW }],
+    ["has no type", { command: NOW }],
+    ["runs only for some commands", { type: "command", command: NOW, if: "Bash(git *)" }],
+    ["runs in the background", { type: "command", command: NOW, async: true }],
+    ["has a time limit of nothing", { type: "command", command: NOW, timeout: 0 }],
+    ["has a time limit that is no number", { type: "command", command: NOW, timeout: "5" }],
+    ["only ends in the command", { type: "command", command: `echo ${NOW}` }],
+    ["goes on after the command", { type: "command", command: `${NOW} || true` }],
+    ["has the command behind a comment sign", { type: "command", command: `# ${NOW}` }],
+    ["is text and no entry", NOW],
+  ])("adds its own group when the project's entry %s, since the host would not run it as the hook", (_name, entry) => {
+    const group = { matcher: "Bash", hooks: [entry] } as Json;
+    const first = mergeSettings({ hooks: { PreToolUse: [group] } }, WANTED_HOOK, RETIRED);
+
+    expect(first.merged).toEqual({ hooks: { PreToolUse: [group, createGroup(NOW, "Bash")] } });
+    expect(first.added).toEqual([`hooks.PreToolUse: ${NOW}`]);
+    expectSettled(first.merged);
+  });
+
+  it.each([
+    ["whose hooks are no list", { matcher: "Bash", hooks: { command: NOW } }],
+    ["under the event in another case", undefined],
+  ])("adds its own group beside a group %s", (_name, group) => {
+    const project = (group === undefined ? { hooks: { pretooluse: [createGroup(NOW, "Bash")] } } : { hooks: { PreToolUse: [group] } }) as Json;
+    const first = mergeSettings(project, WANTED_HOOK, RETIRED);
+
+    expect((first.merged as { hooks: { PreToolUse: Json[] } }).hooks.PreToolUse.at(-1)).toEqual(createGroup(NOW, "Bash"));
+    expect(first.added).toEqual([`hooks.PreToolUse: ${NOW}`]);
+    expectSettled(first.merged);
+  });
+
+  it("reads a matcher as the host of the file reads it: Codex takes a list of names, and no comma, blank or pattern", () => {
+    const project = (matcher: string): Json => ({ hooks: { PreToolUse: [createGroup(NOW, matcher)] } });
+    const added = (matcher: string, file: string): number => mergeSettings(project(matcher), WANTED_HOOK, RETIRED, file).added.length;
+
+    expect(["Bash", "Edit|Bash", "*", ""].map((matcher) => added(matcher, ".codex/hooks.json"))).toEqual([0, 0, 0, 0]);
+    expect(["Edit, Bash", "^Ba.*", "Bash.*", "Bas", "Edit|Bash "].map((matcher) => added(matcher, ".codex/hooks.json"))).toEqual([1, 1, 1, 1, 1]);
+    expect(["Edit, Bash", "^Ba.*", "Bash.*", "Edit|Bash "].map((matcher) => added(matcher, ".claude/settings.json"))).toEqual([0, 0, 0, 0]);
+    expect(added("Bas", ".claude/settings.json")).toBe(1);
+  });
+
+  it("covers a group the add-on wants for every tool only by a group the host runs for every tool", () => {
+    const wanted = { hooks: { Stop: [createGroup(NOW)] } };
+    const added = (matcher: string | undefined): number => mergeSettings({ hooks: { Stop: [createGroup(NOW, matcher)] } }, wanted).added.length;
+
+    expect([undefined, "", "*", ".*"].map(added)).toEqual([0, 0, 0, 0]);
+    expect(["Bash", "NoSuchTool", "^NoSuchTool"].map(added)).toEqual([1, 1, 1]);
   });
 
   it("adds its Bash group beside an older line it rewrote under another matcher", () => {
@@ -257,8 +334,8 @@ describe("merging an add-on's entries into a host's settings", () => {
   // Whatever the project's file holds, an update leaves every pair of a
   // matcher and a command there, with each older line as its new one, and
   // the hook under a matcher that covers Bash. Never fewer.
-  it("never leaves fewer pairs of a matcher and a command than it found, over generated settings files", () => {
-    const matchers = [undefined, "", "*", "Bash", "Edit", "Nothing", "Bash|Shell", "Write|Edit"];
+  it.each([".claude/settings.json", ".codex/hooks.json"])("never leaves fewer pairs of a matcher and a command than it found, and leaves the hook running for Bash, over generated files at %s", (file) => {
+    const matchers = [undefined, "", "*", "Bash", "Edit", "Nothing", "Bash|Shell", "Write|Edit", "Edit, Bash", "^Bash$", "Notebook.*", "bash", "Bash(", "B.sh"];
     const commands = [NOW, OLDER, `${OLDER} --more`, "node guard.mts", "node other.mts --as=before"];
     const retired = { ...RETIRED, "node other.mts --as=before": "node other.mts" };
     const random = createRandom(20261006);
@@ -268,10 +345,10 @@ describe("merging an add-on's entries into a host's settings", () => {
     for (let round = 0; round < 3000; round += 1) {
       const groups = Array.from({ length: Math.floor(random() * 4) }, () => ({
         ...(random() < 0.2 ? {} : { matcher: pick(matchers) }),
-        hooks: Array.from({ length: Math.floor(random() * 4) }, () => (random() < 0.05 ? "not a hook" : { type: pick(["command", "prompt"]), command: pick(commands), timeout: Math.floor(random() * 60) })),
+        hooks: Array.from({ length: Math.floor(random() * 4) }, () => (random() < 0.05 ? "not a hook" : { type: pick(["command", "command", "prompt"]), command: pick(commands), timeout: pick([0, 5, 30, "5"]), ...(random() < 0.1 ? { if: "Bash(git *)" } : {}), ...(random() < 0.1 ? { async: true } : {}) })),
       }));
       const project = { hooks: { PreToolUse: groups, Stop: [createGroup(OLDER)] } } as unknown as Json;
-      const first = mergeSettings(project, WANTED_HOOK, retired);
+      const first = mergeSettings(project, WANTED_HOOK, retired, file);
       const before = pairsOf(project).map(([matcher, command]) => [matcher, command === OLDER ? NOW : command]);
       const after = pairsOf(first.merged);
       const said = JSON.stringify(groups);
@@ -279,11 +356,13 @@ describe("merging an add-on's entries into a host's settings", () => {
       rewrites += first.changed.length;
 
       expect(before.filter(([matcher, command]) => !after.some(([m, c]) => m === matcher && c === command)), said).toEqual([]);
-      expect(after.some(([matcher, command]) => command === NOW && [undefined, "", "*", "Bash", "Bash|Shell"].includes(matcher)), said).toBe(true);
+      expect(hostWouldRun(first.merged, NOW, "Bash", file), said).toBe(true);
+      // And it added its group only where the host would not have run the hook already.
+      expect(first.added.length, said).toBe(hostWouldRun(renamed(project), NOW, "Bash", file) ? 0 : 1);
       expect(after.some(([, command]) => command === OLDER), said).toBe(false);
       expect((first.merged as { hooks: { PreToolUse: unknown[] } }).hooks.PreToolUse.length, said).toBeGreaterThanOrEqual(groups.length);
       expect((first.merged as { hooks: { Stop: unknown[] } }).hooks.Stop, said).toEqual([createGroup(OLDER)]);
-      expectSettled(first.merged, retired);
+      expectSettled(first.merged, retired, file);
     }
 
     expect(rewrites).toBeGreaterThan(500);
@@ -379,8 +458,8 @@ describe("reading a settings file", () => {
 });
 
 /** A second merge of the result changes nothing. */
-function expectSettled(merged: Json, retired: Record<string, string> = RETIRED): void {
-  expect(mergeSettings(merged, WANTED_HOOK, retired)).toEqual({ merged, added: [], skipped: [], changed: [], unknown: expect.any(Array) });
+function expectSettled(merged: Json, retired: Record<string, string> = RETIRED, file?: string): void {
+  expect(mergeSettings(merged, WANTED_HOOK, retired, file)).toEqual({ merged, added: [], skipped: [], changed: [], unknown: expect.any(Array) });
 }
 
 /** Every matcher and command of the hooks before a tool call. A group with no matcher gives `undefined`. */
@@ -392,6 +471,62 @@ function pairsOf(settings: Json): [string | undefined, string][] {
       typeof (hook as { command?: unknown } | null)?.command === "string" ? [[group.matcher, (hook as { command: string }).command]] : [],
     ),
   );
+}
+
+/**
+ * Whether Claude Code would run the command before the tool, written out here
+ * from its documentation and not taken from the code under test: the matcher
+ * as every tool, a list of exact names, or a pattern; the entry as a command
+ * hook with no `if`, not in the background, with a time limit above zero.
+ */
+function hostWouldRun(settings: Json, command: string, tool: string, file = ".claude/settings.json"): boolean {
+  const groups = (settings as { hooks: { PreToolUse: { matcher?: unknown; hooks?: unknown }[] } }).hooks.PreToolUse;
+  const matches = (matcher: unknown): boolean => {
+    if (matcher === undefined || matcher === "" || matcher === "*") {
+      return true;
+    }
+
+    if (typeof matcher !== "string") {
+      return false;
+    }
+
+    // Codex: a pattern, and only a list of plain names means the same whole or in part.
+    if (file.startsWith(".codex/")) {
+      return /^\w+(\|\w+)*$/.test(matcher) && matcher.split("|").includes(tool);
+    }
+
+    if (/^[A-Za-z0-9_\- ,|]+$/.test(matcher)) {
+      return matcher.split(/[|,]/).some((name) => name.trim() === tool);
+    }
+
+    try {
+      return new RegExp(matcher).test(tool);
+    } catch {
+      return false;
+    }
+  };
+
+  return groups.some(
+    (group) =>
+      typeof group === "object" &&
+      matches(group.matcher) &&
+      Array.isArray(group.hooks) &&
+      group.hooks.some((hook: Record<string, unknown> | string) => {
+        return (
+          typeof hook === "object" &&
+          hook.type === "command" &&
+          hook.command === command &&
+          !("if" in hook) &&
+          hook.async !== true &&
+          (hook.timeout === undefined || (typeof hook.timeout === "number" && hook.timeout > 0))
+        );
+      }),
+  );
+}
+
+/** The settings with each older line written as the new one, which is what the merge does before it looks for the hook. */
+function renamed(settings: Json): Json {
+  return JSON.parse(JSON.stringify(settings).replaceAll(JSON.stringify(OLDER), JSON.stringify(NOW))) as Json;
 }
 
 /** The same numbers on every run, so a failure can be found again. */

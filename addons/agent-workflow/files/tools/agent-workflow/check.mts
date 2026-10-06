@@ -9,6 +9,22 @@
 // and as an older registration starts it. Then it reads each host's settings
 // file to see that the hook is registered there.
 //
+// "Registered" is decided as each host decides whether to run a hook, by
+// `lib/hook-registration.mts`: the group's matcher is read as the host reads
+// it, and the entry must be a command hook with exactly the command line the
+// add-on registers, with nothing that narrows or weakens the run. The
+// installer's merge decides it with a copy of the same file.
+//
+// What is looked at beyond the two files: `.claude/settings.local.json`, for
+// `disableAllHooks` only. What is not: a person's own settings and managed
+// settings, which can add hooks and can switch these off; the `--settings`
+// flag; and whether Codex has been told to trust this project's hooks, which
+// it asks a person once per hook and which no file in the project records.
+//
+// A permission rule counts when its exact text is in `permissions.ask`.
+// Claude Code's documentation says an `ask` rule wins over an `allow` rule,
+// and a `deny` rule is stricter still, so neither is checked here.
+//
 // A host's settings file belongs to the project. What the project chose is
 // reported as a NOTE: so is the rule that asks before an editing tool changes
 // the hook, when the project took it out. These are failures: the hook does not behave (it
@@ -25,7 +41,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { ASK_RULES, CLAUDE_SETTINGS, CODEX_HOOKS, COMMAND_NEEDS, EDIT_ASK_RULES, HOOK_SCRIPT, RETIRED_ARGUMENT, RETIRED_FILES, WIDE_ALLOW } from "./lib/host.mts";
+import { ASK_RULES, CLAUDE_LOCAL_SETTINGS, CLAUDE_SETTINGS, CODEX_HOOKS, COMMAND_NEEDS, EDIT_ASK_RULES, HOOK_COMMANDS, HOOK_SCRIPT, RETIRED_ARGUMENT, RETIRED_FILES, WIDE_ALLOW } from "./lib/host.mts";
+import { groupRuns, hostOf } from "./lib/hook-registration.mts";
 import { isMainModule } from "./lib/main.mts";
 import { installedIn } from "./requires.mts";
 
@@ -98,24 +115,33 @@ export function check({ root, runHook, report }: CheckOptions): number {
       continue;
     }
 
-    const everywhere = registrations(settings).filter(({ command }) => command.includes(HOOK_SCRIPT));
-    const registered = everywhere.filter(({ matcher }) => coversShell(matcher)).map(({ command }) => command);
+    // The command lines the add-on registers for this host, now and before. Any other is not vouched for.
+    const known = [HOOK_COMMANDS[path], `${HOOK_COMMANDS[path]} ${RETIRED_ARGUMENT}`];
+    const groups = groupsBeforeToolUse(settings);
+    const registered = known.flatMap((command) => groups.filter((group) => groupRuns(group, command, SHELL_TOOL, hostOf(path))).map(() => command));
+    const named = JSON.stringify(groups).includes(HOOK_SCRIPT);
 
-    if (everywhere.length === 0) {
-      fail(`${host}: ${path} does not register ${HOOK_SCRIPT} under hooks.PreToolUse. ${FIX}`);
-    } else if (registered.length === 0) {
+    if (registered.length > 0) {
+      report(`PASS ${host}: ${path} runs the hook before each shell command`);
+    } else if (named) {
       fail(
-        `${host}: ${path} registers ${HOOK_SCRIPT} only under a matcher that does not cover ${SHELL_TOOL} (${everywhere.map(({ matcher }) => JSON.stringify(matcher)).join(", ")}), so it does not run before a shell command. ${FIX}`,
+        `${host}: ${path} names ${HOOK_SCRIPT} under hooks.PreToolUse, but not as a hook the host is known to run before a shell command. It needs a group whose matcher covers ${SHELL_TOOL}, and in it an entry of type "command" whose command is exactly \`${HOOK_COMMANDS[path]}\`, with no "if", not "async", and a timeout above 0 or none. ${FIX}`,
       );
     } else {
-      report(`PASS ${host}: ${path} runs the hook before each shell command`);
+      fail(`${host}: ${path} does not register ${HOOK_SCRIPT} under hooks.PreToolUse. ${FIX}`);
+    }
+
+    for (const [file, switched] of [[path, settings], ...(path === CLAUDE_SETTINGS ? [[CLAUDE_LOCAL_SETTINGS, readSettings(root, CLAUDE_LOCAL_SETTINGS)] as const] : [])] as const) {
+      if (typeof switched === "object" && switched.disableAllHooks !== undefined && switched.disableAllHooks !== false) {
+        fail(`${host}: ${file} sets disableAllHooks, so no hook of the project runs, this one included. Take that setting out, or set it to false`);
+      }
     }
 
     if (registered.length > 1) {
       report(`NOTE ${host}: ${path} registers the hook ${registered.length} times, so it runs that often before each command. Keep one`);
     }
 
-    if (registered.some((command) => command.includes(RETIRED_ARGUMENT))) {
+    if (registered.some((command) => command.endsWith(RETIRED_ARGUMENT))) {
       report(`NOTE ${host}: ${path} starts the hook with ${RETIRED_ARGUMENT}, as an older version of the add-on did. The hook ignores it. Remove the argument when you like`);
     }
 
@@ -219,23 +245,11 @@ function readSettings(root: string, path: string): Settings | "absent" | "unread
   }
 }
 
-/** Every command registered to run before a tool call, with the matcher of its group. */
-function registrations(settings: Settings): { command: string; matcher: unknown }[] {
+/** The groups of hooks the settings register to run before a tool call. The event's name is read as the hosts read it: in this case only. */
+function groupsBeforeToolUse(settings: Settings): unknown[] {
   const groups = (settings.hooks as { PreToolUse?: unknown } | undefined)?.PreToolUse;
 
-  return (Array.isArray(groups) ? groups : []).flatMap((group: { hooks?: unknown; matcher?: unknown }) =>
-    (Array.isArray(group?.hooks) ? group.hooks : []).flatMap((hook: { command?: unknown }) => (typeof hook?.command === "string" ? [{ command: hook.command, matcher: group.matcher }] : [])),
-  );
-}
-
-/**
- * Whether a group with this matcher runs before a shell command, as far as
- * that can be told without reading a pattern: no matcher, an empty one or
- * `*`, or a list of names that holds the shell tool's. The installer reads a
- * matcher the same way.
- */
-function coversShell(matcher: unknown): boolean {
-  return matcher === undefined || matcher === "" || matcher === "*" || (typeof matcher === "string" && matcher.split("|").includes(SHELL_TOOL));
+  return Array.isArray(groups) ? groups : [];
 }
 
 /** Runs the shipped hook the way a host does: the payload on its standard input. */

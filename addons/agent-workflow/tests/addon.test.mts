@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 
 import { addToProject } from "../../../scripts/add-to-project.mts";
 import { changelog } from "../files/tools/agent-workflow/changelog.mts";
-import { ASK_RULES, CLAUDE_SETTINGS, CODEX_HOOKS, COMMAND_NEEDS, EDIT_ASK_RULES, HOOK_SCRIPT, RETIRED_ARGUMENT, RETIRED_FILES } from "../files/tools/agent-workflow/lib/host.mts";
+import { groupRuns, hostOf } from "../files/tools/agent-workflow/lib/hook-registration.mts";
+import { ASK_RULES, CLAUDE_SETTINGS, CODEX_HOOKS, COMMAND_NEEDS, EDIT_ASK_RULES, HOOK_COMMANDS, HOOK_SCRIPT, RETIRED_ARGUMENT, RETIRED_FILES } from "../files/tools/agent-workflow/lib/host.mts";
 import { ONCE_ALLOWED, OLD_SETTING_ON } from "./shapes.mts";
 import { ADDON, createFolder, git, readJson, REPOSITORY, writeFile } from "./support.mts";
 
@@ -91,6 +92,15 @@ describe("the add-on's manifest", () => {
   it("ships TypeScript and nothing else that runs", () => {
     expect(FILES.filter((file) => /\.(js|mjs|cjs|jsx|py|sh|bash)$/.test(file))).toEqual([]);
     expect(FILES.filter((file) => file.endsWith(".mts")).length).toBeGreaterThan(5);
+  });
+
+  it("registers the hook with the command lines the check looks for, each as an entry the host would run", () => {
+    for (const path of [CLAUDE_SETTINGS, CODEX_HOOKS]) {
+      const [group] = MANIFEST.hostSettings[path]?.hooks?.PreToolUse ?? [];
+
+      expect(group?.hooks.map((hook) => hook.command)).toEqual([HOOK_COMMANDS[path]]);
+      expect(groupRuns(group, HOOK_COMMANDS[path] as string, "Bash", hostOf(path))).toBe(true);
+    }
   });
 
   it("asks each host for the same entries the project's own check looks for", () => {
@@ -540,7 +550,7 @@ describe("the add-on in a project that has the kit", () => {
     const proof = spawnSync(process.execPath, ["tools/agent-workflow/check.mts"], { cwd: project, encoding: "utf8" });
 
     expect(proof.status).toBe(1);
-    expect(proof.stdout).toContain(`FAIL Claude Code: ${CLAUDE_SETTINGS} registers ${HOOK_SCRIPT} only under a matcher that does not cover Bash ("Nothing"), so it does not run before a shell command.`);
+    expect(proof.stdout).toContain(`FAIL Claude Code: ${CLAUDE_SETTINGS} names ${HOOK_SCRIPT} under hooks.PreToolUse, but not as a hook the host is known to run before a shell command.`);
 
     const updated = addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
 
