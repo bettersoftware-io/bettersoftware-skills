@@ -21,11 +21,18 @@ on 2026-10-05, on pushes to main and on a pull request
 ([the record](github-run-2026-10-05.md),
 [the feature run](demo-feature-2026-10-05.md)). What that did not cover:
 
-- **The three `ci-security` workflows have not run on GitHub** (workflow lint,
-  Dependency Review, Scorecard). They are checked for form only, by actionlint
-  and zizmor. This repository's CI does create a project with each of
-  `format-lint`, `ci-security` and `repo-hygiene` and holds it to `gate:full`,
-  on Linux, and that passes; the add-ons' own workflows are a different thing.
+- **`ci-security` has run on GitHub with everything passing only.** In
+  skills-demo on 2026-10-06: workflow lint and `pnpm audit` on a pull request
+  and on main, Dependency Review on a pull request, Scorecard on main, and
+  Dependabot's update runs (four, all green, no pull request opened yet). Not
+  seen: a Dependabot pull request, Dependency Review refusing a pull request
+  for an advisory or a licence, and what Scorecard's findings look like in the
+  repository's code-scanning page.
+- **Dependency Review fails until the repository's dependency graph is on.**
+  Seen: "Dependency review is not supported on this repository". The add-on's
+  README lists the setting; `gh api -X PUT repos/<owner>/<repo>/vulnerability-alerts`
+  switches it on.
+- **`strict-lint` is not in skills-demo yet.**
 - **No job creates a project with several add-ons at once.** CI adds each one
   alone. All six together, and the recommended three together, pass
   `gate:full` locally.
