@@ -15,12 +15,13 @@ directly by stripping the types, which needs Node 22.18 or later, and
 
 | Part | What it checks | Needs |
 |---|---|---|
-| `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction, the paths the agent instructions name, the task cache, every package's scripts, where the Node floor is declared, the one app harness, test ids, types-only packages | Node; `dependency-cruiser` for the dependency gate |
+| `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction, the paths the agent instructions name, the task cache, every package's scripts, where the Node floor is declared, the hash on the package manager, the one app harness, test ids, types-only packages | Node; `dependency-cruiser` for the dependency gate |
 | `eslint.config.mts` + `eslint-rules/` | Thirteen AST lint rules of its own (naming, reading order, fixtures, page objects, no real sleeps in tests, one import per module), and the settings of ESLint's rules that go with them: function declarations, blank lines, named object types, no CommonJS, React's hook rules | `eslint`, `typescript-eslint`, `eslint-plugin-react-hooks` |
 | `gates/quiet.mts` | Nothing of its own: it runs a gate script of the project and prints only the stage that failed | Node |
 | `check-react-policies.mts` | Every package that imports React is under the lint rules for its role, and a client's `reactCompiler` matches its build | `eslint` |
 | `check-compiler.mts` | The React Compiler still memoizes each function a client lists as relying on it | `@babel/core` and `babel-plugin-react-compiler` in the client |
 | `ci/enable-corepack.mts` | Nothing: it gives a workflow the pnpm that `packageManager` pins, on a Node that no longer ships Corepack | `npm`, which ships with Node |
+| `ci/pin-package-manager.mts` | Nothing: it prints the `packageManager` field with the sha512 hash of its release, and writes it with `--write` | The network |
 | `hooks/after-edit.mts` | Runs the per-file gates on the file an agent just wrote | Claude Code or Codex |
 | `hooks/before-stop.mts` | Refuses to let an agent finish while `gate:full` is red, on any tree that has not already passed it | Claude Code or Codex; git |
 
@@ -40,6 +41,7 @@ A project declares its layers once, in `architecture.config.mts`
 | `task-cache` | A cached task in `turbo.json` has a key that leaves out the packages a package imports; a package's tsconfig extends a file outside the package that is not a global dependency; a package with tests that need a port caches its `test` task |
 | `package-scripts` | A workspace package has no `typecheck` script, or no `test` (or `test:…`) script and no listed reason; a script, the root's or a package's, runs `eslint` without `--max-warnings 0` |
 | `node-floor` | A `package.json`, the root's or a package's, has `engines.node`; the root's has no `devEngines.runtime` that names `node` with a version and `"onFail": "error"` |
+| `package-manager` | The root `package.json` has no `packageManager`, or one that is not an exact version followed by `+sha512.` and the hash of that release |
 | `app-harness` | A test calls the function that builds the whole application, anywhere but the one harness file |
 | `test-ids` | A test id is written as a string literal, in a component, a selector or a query, outside the client's test-ids file |
 | `types-only` | A package declared `typesOnly` exports a runtime value |
@@ -241,6 +243,36 @@ in the repository, and the workflow sets `COREPACK_ENABLE_DOWNLOAD_PROMPT` to
 
 A newer Corepack arrives with a newer kit. A dependency bot does not see the
 pin unless it is told to read `tools/arch/ci/corepack`.
+
+### The package manager is pinned by hash
+
+Corepack downloads the pnpm that the root `package.json` names:
+
+```json
+"packageManager": "pnpm@12.6.0+sha512.3ef68f95…"
+```
+
+With the version alone it runs whatever the registry answers under that
+version. With the hash it compares the download first and stops on another
+file ("Mismatch hashes"). The lockfile pins what pnpm installs; this is the
+only thing that pins pnpm. The `package-manager` gate fails on a field with no
+hash, on a version that is not exact, and on a root with no field. With no
+`package.json` at the root it reports `SKIP`.
+
+To move to a newer pnpm, or to add the hash to a project that has none:
+
+```bash
+node tools/arch/ci/pin-package-manager.mts pnpm@12.7.0 --write
+```
+
+It asks the registry for that release's `dist.integrity` and writes it in the
+hex form Corepack reads. It needs the network, so it is not part of a gate.
+Renovate moves the version and the hash together. A bot that leaves the field
+alone leaves it to a person, who runs the script.
+
+There is no case for leaving the hash out where Corepack provides pnpm. A
+project that provides it another way still names the version it expects, and
+the hash costs it nothing.
 
 ### A lint warning fails
 

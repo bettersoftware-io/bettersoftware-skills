@@ -26,6 +26,12 @@ This needs Node 26 or later. The floor is `devEngines.runtime` in
 host's build reads that field and refuses a range above the Node it offers.
 `.nvmrc` holds the same number for a version manager.
 
+pnpm is pinned in `package.json` too, as `packageManager`: an exact version
+and the sha512 hash of that release, which Corepack checks the download
+against. To move to another pnpm, run
+`node tools/arch/ci/pin-package-manager.mts pnpm@<version> --write` and then
+`pnpm install`. The `package-manager` gate fails when the hash is missing.
+
 The checks live in `tools/arch` and are described in its README.
 
 A project created from this folder does not get this file. Its README is

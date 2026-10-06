@@ -8,6 +8,7 @@
   "task-cache": ["tasksThatReadNothingUpstream"],
   "package-scripts": ["packagesWithoutTests"],
   "node-floor": [],
+  "package-manager": [],
   "app-harness": ["compose", "appHarness"],
   "test-ids": ["testIds"],
   "types-only": ["typesOnly"]

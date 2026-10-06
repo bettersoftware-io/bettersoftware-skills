@@ -129,6 +129,13 @@ root `package.json`. Never add `engines.node` to any `package.json`: a host's
 build (`vercel build`) reads it and refuses a range above the Node it offers,
 so the deploy fails with every check green. The `node-floor` gate holds both.
 
+pnpm is named once, as `packageManager` in the root `package.json`: an exact
+version, then `+sha512.` and the hash of that release. Corepack checks the
+download against it. To move to another pnpm run
+`node tools/arch/ci/pin-package-manager.mts pnpm@<version> --write`, then
+`pnpm install`. Never type or copy the hash by hand, and never delete it to
+get past the `package-manager` gate.
+
 ## How code is written
 
 `pnpm lint` enforces these. `pnpm lint --fix` repairs the ones marked (fix).
