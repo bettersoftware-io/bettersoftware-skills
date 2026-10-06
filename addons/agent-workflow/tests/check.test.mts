@@ -48,6 +48,32 @@ describe("the add-on's check", () => {
     );
   });
 
+  it("says approval is not possible yet in a folder that is in no repository, whatever the setting says", () => {
+    const { status, lines } = runCheck(createProject(), { approval: "off", repository: false });
+
+    expect(status).toBe(0);
+    expect(lines[1]).toMatch(/^NOTE approval: not possible yet\. .* is not in a git repository, and the hook approves only in a checkout or a worktree of the project's own\. Run git init, then this again$/);
+    expect(runCheck(createProject(), { repository: false }).lines[1]).toMatch(/^PASS approval: on\./);
+  });
+
+  it("still fails a hook that refuses the routine step, in a folder that is in no repository", () => {
+    const { status, lines } = runCheck(createProject(), { approved: { status: 0, stdout: DENY }, repository: false });
+
+    expect(status).toBe(1);
+    expect(lines.join("\n")).not.toContain("not possible yet");
+  });
+
+  it("asks the hook the way a host does: a plain Bash call that runs in the project", () => {
+    const root = createProject();
+    const payloads: unknown[] = [];
+
+    runCheck(root, { payloads });
+
+    expect(payloads).toHaveLength(6);
+    expect(payloads[0]).toEqual({ tool_name: "Bash", tool_input: { command: "git add -A && git commit -m wip && git push" }, cwd: root });
+    expect(new Set(payloads.map((payload) => JSON.stringify(Object.keys(payload as object))))).toEqual(new Set(['["tool_name","tool_input","cwd"]']));
+  });
+
   it("says the setting file is missing when that is why approval is off", () => {
     const { status, lines } = runCheck(createProject({ "tools/agent-workflow.config.mts": undefined }), { approval: "off" });
 
@@ -270,6 +296,10 @@ type HookReply = ReturnType<CheckOptions["runHook"]>;
 interface Replies {
   /** Whether the stand-in hook approves the routine step for Claude Code. "on" unless said otherwise. */
   approval?: "on" | "off";
+  /** Whether the project folder is in a git repository. Yes unless said otherwise. */
+  repository?: boolean;
+  /** Every payload the check gave the hook is added here. */
+  payloads?: unknown[];
   refused?: HookReply;
   refusedForCodex?: HookReply;
   unanswered?: HookReply;
@@ -282,6 +312,8 @@ function runCheck(root: string, replies: Replies = {}): { status: number; lines:
   const lines: string[] = [];
   const nothing = { status: 0, stdout: "" };
   const runHook: CheckOptions["runHook"] = (payload, args) => {
+    replies.payloads?.push(payload);
+
     const command = (payload as { tool_input: { command: string } }).tool_input.command;
     const forClaude = args.includes(APPROVING_HOST);
 
@@ -296,7 +328,7 @@ function runCheck(root: string, replies: Replies = {}): { status: number; lines:
     return replies.unanswered ?? nothing;
   };
 
-  return { status: check({ root, runHook, report: (line) => lines.push(line) }), lines };
+  return { status: check({ root, runHook, isRepository: () => replies.repository ?? true, report: (line) => lines.push(line) }), lines };
 }
 
 function runRequires(root: string, addon: string | undefined): { status: number; lines: string[] } {

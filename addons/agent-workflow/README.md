@@ -54,8 +54,8 @@ are refused however they are joined.
 
 It is let through when the outward step is alone: with a pipe into a filter
 (`git push 2>&1 | tail -2`), with redirections, with a `$(cat <<'EOF' … EOF)`
-that only feeds it (the usual way to give `gh pr create` its body), or with
-variables set in front.
+that only feeds it, or with variables set in front. Let through is not
+approved: such a command is not refused, and the host asks about it.
 
 Text is not a step. A commit message, an `echo`, a `grep` pattern, a heredoc
 body or a comment may say `git push && gh pr create` and nothing is refused.
@@ -123,24 +123,45 @@ So the hook approves, from an allowlist of shapes (`lib/approve.mts`). It
 reads the command with a second, strict reader that has a token for only
 what the shapes need. Whatever it has no token for is not approved.
 
+**The reader may only take text that every shell a host may use reads the
+same way**, and that is tested by running the shells, not argued. It was
+argued once. The reader took `"$(cat <<'EOF' … EOF )"` for literal text,
+because a heredoc with a quoted delimiter is literal. bash 3.2, which is
+`/bin/bash` and `/bin/sh` on every Mac, finds the end of `$(…)` by counting
+brackets and does not know the body is literal: a `)` in the body closes
+the substitution, and what follows runs. zsh, dash and bash 5 print the same
+body as text. So the reader has no token for a substitution of any kind,
+and `tests/shells.test.mts` runs every approved command and a set of
+hostile strings through each shell on the machine.
+
 | Token | What it is |
 |---|---|
 | bare | letters, digits and `_ . / -` |
-| `'single'` | any text up to the next single quote; the shell changes none of it |
-| `"double"` | text with no `$`, backtick or backslash, so nothing in it is expanded |
-| heredoc | exactly `"$(cat <<'DELIM'`, lines, `DELIM`, `)"`, the delimiter in single quotes |
+| `'single'` | any text up to the next single quote |
+| `"double"` | text with no `$`, backtick, backslash or `!` |
 | mark | `2>&1` and `\|`, only after the step |
 
-A token ends at a space or at the end, so `a"b"` is not one. There is no
-token for a variable, a glob, a brace list, `~`, a backtick, any other
-substitution, a redirection to a file, `;`, `&`, a comment, or a new line
-outside quotes.
+A quoted token may hold a new line and a tab, and no other control
+character. A token ends at a space, a tab or the end, so `a"b"` is not one.
+A command longer than 20,000 characters is not read. There is no token for
+a variable, a glob, a brace list, `~`, `=word`, a backtick, a substitution,
+a heredoc, a redirection to a file, `;`, `&`, a comment, or a new line
+outside quotes. `!` is kept out of double quotes because an interactive
+shell may expand it there; in single quotes none does.
+
+**A body of several lines** is one quoted token with the lines in it:
+`--body '## Summary
+
+- one
+- two'`. Single quotes when the text has no `'`
+in it, double quotes when it has no `$`, backtick, backslash or `!`. Text
+with both kinds of character is not approved, and asks.
 
 | Shape | Exactly |
 |---|---|
 | Push a work branch | `git push [-u \| --set-upstream] origin worktree-<name>`, all bare. `<name>` is letters and digits joined by single `.`, `_` or `-`; the branch is at most 100 characters |
-| Open a pull request | `gh pr create`, then any of `--title`/`-t` text, `--body`/`-b` text or heredoc, `--base`/`-B` branch, `--head`/`-H` work branch, `--draft`/`-d`, `--fill`/`-f`, each at most once |
-| Merge a pull request | `gh pr merge <number>`, then any of one way to merge (`--merge`/`-m`, `--squash`/`-s`, `--rebase`/`-r`), `--delete-branch`/`-d`, `--subject`/`-t` text, `--body`/`-b` text or heredoc, each at most once |
+| Open a pull request | `gh pr create`, then any of `--title`/`-t` text, `--body`/`-b` text, `--base`/`-B` branch, `--head`/`-H` work branch, `--draft`/`-d`, `--fill`/`-f`, each at most once |
+| Merge a pull request | `gh pr merge <number>`, then any of one way to merge (`--merge`/`-m`, `--squash`/`-s`, `--rebase`/`-r`), `--delete-branch`/`-d`, `--subject`/`-t` text, `--body`/`-b` text, each at most once |
 | After any of them | nothing, `2>&1`, `\| tail -<n>` or `\| head -<n>` (also `-n <n>`), or `2>&1` and then the pipe |
 
 Decisions on the flags:
@@ -159,6 +180,39 @@ Decisions on the flags:
 
 The refusal comes first: a joined command is refused even when it starts as
 an approved shape.
+
+### The call, not only the command
+
+The host runs a tool call, and the command is one field of it. Before the
+text is read, the call itself must be plain (`lib/call.mts`). Each rule is
+an allowlist.
+
+| The call | Approved only when |
+|---|---|
+| `tool_name` | it is exactly `Bash` |
+| `tool_input.command` | it is text. A list of words is not approved |
+| `description`, `timeout` | any value: one is shown to the person, the other changes when the command stops |
+| `run_in_background` | absent or `false`. In the background nobody reads the result before the next step |
+| `dangerouslyDisableSandbox` | absent or `false` |
+| any other field | never. A field added to the tool later approves nothing until someone decides |
+| `cwd` | it is a checkout or a worktree of the repository the hook file sits in. No `cwd` is not approved |
+
+"The same repository" means git names the same common directory for the
+payload's `cwd` and for the hook's own folder (`lib/repository.mts`), so
+another clone of the same remote, a repository inside the project and a
+folder in no repository are all "no". The hook's folder is asked about with
+`GIT_DIR` and its kind taken out of the environment; `cwd` is asked about
+with them left in, so a session that points git elsewhere is not approved.
+
+Claude Code's documentation says of `cwd`: it "is the worktree root after
+Claude enters a worktree, and the new directory after Claude runs `cd`". So
+a session that changed folder earlier is judged by where it is now.
+
+The refusal of a joined command reads less strictly, on purpose: any call
+that carries a command, from any tool, with any field. Being refused more
+often is safe; being approved more often is not. A sweep in the tests joins
+and wraps every approved command and every near-miss, over fifteen thousand
+commands, and the hook approves none that is not approved as a whole.
 
 ### How it meets the host's rules
 
@@ -221,8 +275,22 @@ there and one of these is not.
   clone's `origin` points at, and the hook does not look. An agent that
   first ran `git remote set-url origin …` pushes somewhere else, approved.
   That earlier command is a local one, and asks or not by the host's rules.
-- **It does not check which checkout the push runs in**, or that the branch
-  pushed is the one checked out.
+- **It checks which repository the call runs in, from `cwd`, and nothing
+  finer**: not that the branch pushed is the one checked out there. That
+  `cwd` follows an earlier `cd` is from Claude Code's documentation; no
+  session was run to see it. If it did not, a session that had changed into
+  another clone would be approved for a push from there.
+- **A person's own shell settings are trusted.** The shell tests run each
+  shell with an empty home. An alias or a function named `git`, `gh`,
+  `tail` or `head`, a zsh global alias for a word such as `origin`, or an
+  option that changes how quotes are read (`RC_QUOTES`) is not seen by the
+  hook. Only shells run with `-c` were tried, not interactive ones.
+- **Shells not on the machine were not tried.** Here: bash 3.2 as
+  `/bin/bash` and as `/bin/sh`, zsh 5.9, dash, bash 5.3. Not fish, ksh,
+  busybox, or any shell on Windows. The tests name each shell they skip.
+- **The environment the command runs in is not seen**, beyond `cwd`: a
+  `GIT_DIR` the host sets for the command and not for the hook, a changed
+  `PATH`.
 - **A push starts whatever the branch's workflows start.** A work branch
   that changes a workflow file runs that workflow, where the repository
   lets it.
@@ -342,11 +410,28 @@ against real repositories made in a temporary folder, with another folder as
   `tests/close-week.test.mts`: week arithmetic across years, the three
   checks, the tag on the right commit (first parent, the second before
   Monday), each refusal by GitHub.
-- `tests/approve.test.mts`: 29 commands approved in their exact form, 191
-  near-misses not approved (each tried against the shapes and against the
-  hook), the strict reader, the setting, and the hook run as a program with
-  the arguments each host's registration gives it: `allow` only for Claude
-  Code, never for Codex, nothing with approval off.
+- `tests/approve.test.mts`, with its tables in `tests/shapes.mts`: 30
+  commands approved in their exact form, 207 near-misses not approved (each
+  tried against the shapes and against the hook), the strict reader, each
+  condition on the call, the repository check against real repositories and
+  worktrees, the setting, and the hook run as a program with the arguments
+  each host's registration gives it: `allow` only for Claude Code, never
+  for Codex, nothing with approval off, nothing from another clone.
+- The sweep, in the same file: every approved command and every near-miss
+  joined to others by nine separators in both orders and wrapped ten ways,
+  over fifteen thousand commands. The hook approves exactly the 30 approved
+  commands (and the same with a space in front), and none of them for a
+  call from another folder, another tool or the background.
+- `tests/shells.test.mts`: the 30 approved commands and 31 hostile strings
+  the reader takes, run through each shell on the machine with a program
+  that prints its arguments in place of `git` or `gh`. Each shell must pass
+  on exactly the words the reader read, print nothing else, and leave no
+  file behind. Here that was bash 3.2 as `/bin/bash` and as `/bin/sh`,
+  zsh 5.9, dash and bash 5.3: all agreed on all of them. 19 more strings
+  are shown to be refused. The same file runs the old heredoc form through
+  each shell and requires bash 3.2 to run its body and the others not to,
+  so the test is known to see the difference it is there for. A shell that
+  is absent is skipped by name.
 - `tests/check.test.mts`: the verify command and `requires.mts`.
 - `tests/addon.test.mts`: the manifest, the workflow's standards, the
   commands, the ask rules against a model of the host's matching, and
@@ -355,18 +440,28 @@ against real repositories made in a temporary folder, with another folder as
 - `scripts/host-settings.test.mts`, `scripts/add-to-project.test.mts`: the
   merge and the installer.
 
-Every test was turned red by a mutant of its own and restored: 367 mutants
+Every test was turned red by a mutant of its own and restored: 436 mutants
 in `tests/mutants.json`, run with the coverage add-on's `mutation-check.mts`,
-all killed. Each of its 345 test commands was first seen green and selecting
-at least one test, since a filter that matches no test exits 0 and would
-read as a mutant that survived. Two tests judge a table and not code, and
-were turned red by hand: "ships TypeScript and nothing else that runs" by
-adding a `.sh` file, and "no two the same" by giving a near-miss twice.
+all killed. Each of its test commands was first seen green and selecting at
+least one test, since a filter that matches no test exits 0 and would read
+as a mutant that survived.
+
+Six tests judge a table or a shell and not code, and were turned red by
+hand: no `.sh` file is shipped; no near-miss is given twice; the sweep is
+over five thousand commands; at least one shell is found; the heredoc form
+is refused; bash 3.2 runs the heredoc's body. Three tests are there because
+of the heredoc that was removed (it is not approved, the hook says nothing
+about it, the reader refuses it). No single change to the code as it is now
+brings the heredoc back, so no mutant turns those three red.
 
 For the approval, a mutant removes or loosens one restriction at a time:
-each character the reader has no token for, each rule of the heredoc form,
-each word and count of the push, each flag kept out of the two tables, each
-rule about what may follow. Every one turns a test red.
+each character the reader has no token for, each control character kept out
+of quotes, each word and count of the push, each flag kept out of the two
+tables, each rule about what may follow, each condition on the call, each
+part of the repository check. Every one turns a test red. One row removes
+two guards at once, because the sweep's main property has two: a joined
+command is refused before it is read for approval, and it is then read
+whole. Taking out either alone approves nothing wrong.
 
 What the first runs found, before all were killed:
 
@@ -376,6 +471,11 @@ What the first runs found, before all were killed:
   only the exit code. A near-miss with `--author-email` held an `@`, which
   the reader refuses anyway, so it never reached the flag table. The test of
   the three shapes read its own table and not the code.
+- **The heredoc escape was not found by any of this.** The mutants showed
+  every rule of the heredoc form to be load-bearing, and the form itself was
+  wrong: a mutant asks whether a test notices a rule going missing, not
+  whether the rules are the right ones. It was found by running the text
+  through an old shell, which is now a test.
 - **Near-misses that were missing**: `2>&1 2>&1 tail -2`, which hands `tail`
   to git as a branch; a quoted `'|'`; a heredoc that closes with two other
   characters; a heredoc with no opening quote.
@@ -397,6 +497,11 @@ What the first runs found, before all were killed:
   `tool_input.command` as text, `permissionDecision: "deny"`).
 - **Codex finding the skills** in `.agents/skills`. That is the documented
   place for a repository's skills; no session was run.
+- **Shells and settings beyond those run here.** Five shells, each with an
+  empty home and started with `-c`. Not an interactive shell, not a
+  person's aliases or options, not fish, ksh or busybox, not Windows.
+- **That `cwd` in the payload follows an earlier `cd`.** From Claude Code's
+  documentation; no session was run.
 - **The approval in Claude Code itself.** That an `ask` or `deny` rule wins
   over a hook's `allow` is from its documentation, quoted above; no session
   was run to see it. The ask rules are matched in tests with a model of the

@@ -25,6 +25,7 @@ import { fileURLToPath } from "node:url";
 
 import { APPROVING_HOST, ASK_RULES, CLAUDE_SETTINGS, CODEX_HOOKS, COMMAND_NEEDS, CONFIG_FILE, HOOK_SCRIPT, WIDE_ALLOW } from "./lib/host.mts";
 import { isMainModule } from "./lib/main.mts";
+import { commonDirectory } from "./lib/repository.mts";
 import { installedIn } from "./requires.mts";
 
 const REFUSED_SAMPLE = "git add -A && git commit -m wip && git push";
@@ -39,17 +40,19 @@ export interface CheckOptions {
   root: string;
   /** Runs the hook with a payload on its standard input, started with `args`. */
   runHook: (payload: unknown, args: string[]) => { status: number; stdout: string };
+  /** Whether the project folder is in a git repository. The hook approves only in a checkout of the project's own. */
+  isRepository: (root: string) => boolean;
   report: (line: string) => void;
 }
 
-export function check({ root, runHook, report }: CheckOptions): number {
+export function check({ root, runHook, isRepository, report }: CheckOptions): number {
   let failed = false;
   let judged = 0;
   const fail = (line: string): void => {
     failed = true;
     report(`FAIL ${line}`);
   };
-  const ask = (command: string, args: string[]): Decision => decisionOf(runHook({ tool_name: "Bash", tool_input: { command } }, args));
+  const ask = (command: string, args: string[]): Decision => decisionOf(runHook({ tool_name: "Bash", tool_input: { command }, cwd: root }, args));
   const asClaude = [APPROVING_HOST];
   const asCodex: string[] = [];
 
@@ -74,6 +77,10 @@ export function check({ root, runHook, report }: CheckOptions): number {
 
   if (approval === "allow") {
     report(`PASS approval: on. In Claude Code a routine step in its exact form runs without a prompt (turn it off in ${CONFIG_FILE})`);
+  } else if (approval === "none" && !isRepository(root)) {
+    report(
+      `NOTE approval: not possible yet. ${root} is not in a git repository, and the hook approves only in a checkout or a worktree of the project's own. Run git init, then this again`,
+    );
   } else if (approval === "none") {
     report(
       existsSync(join(root, CONFIG_FILE))
@@ -243,5 +250,10 @@ export function createHookRunner(root: string): CheckOptions["runHook"] {
 if (isMainModule(import.meta.url)) {
   const root = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 
-  process.exitCode = check({ root, runHook: createHookRunner(root), report: (line) => console.log(line) });
+  process.exitCode = check({
+    root,
+    runHook: createHookRunner(root),
+    isRepository: (folder) => commonDirectory(folder) !== undefined,
+    report: (line) => console.log(line),
+  });
 }

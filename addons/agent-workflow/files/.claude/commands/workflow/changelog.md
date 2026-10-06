@@ -90,6 +90,18 @@ never as a pass. Then run `pnpm gate:fast`.
 Commit, then one outward step per call: push the branch, open one pull
 request titled `docs(changelog): 2026-W41`, merge it once its checks pass.
 
+Give the pull request its body as one quoted word with the new lines inside
+the quotes: single quotes when the text has no `'`, double quotes when it
+has no `$`, backtick, backslash or exclamation mark. That form is pre-approved in Claude
+Code. `--body "$(cat <<'EOF' … EOF)"`, `--body-file` and a variable are not:
+they ask.
+
+```bash
+gh pr create --title 'docs(changelog): 2026-W41' --body 'Adds the entry for 2026-W41.
+
+Closes #31'
+```
+
 The `Weekly tag` workflow opens an issue titled `Changelog: write 2026-W41`
 when it tags a finished week. If one is open
 (`gh issue list --search "in:title Changelog: write 2026-W41"`), put

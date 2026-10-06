@@ -7,22 +7,29 @@
 // forbid. So the command is read token by token with a reader that knows
 // only what the shapes need, and anything it does not know is "no".
 //
-// The reader accepts four kinds of token, each followed by a space or the
-// end of the command:
+// The rule for what the reader may know: only text that every shell a host
+// may run it with reads the same way. That is tested, not argued: the tests
+// run every approved example and a set of hostile strings through each shell
+// on the machine and compare the words the shell passes with the reader's.
+// The reader once took `"$(cat <<'EOF' … EOF )"` for literal text. bash 3.2,
+// which is /bin/bash and /bin/sh on every Mac, finds the end of `$(…)` by
+// counting brackets and runs what the heredoc's body holds. So the reader
+// has no token for any substitution at all.
+//
+// It accepts three kinds of token, each followed by a space, a tab or the end
+// of the command:
 //
 //   bare      letters, digits and `_ . / -`, nothing else
-//   'single'  any text up to the next single quote: the shell changes none of it
-//   "double"  text with no `$`, no backtick and no backslash, so nothing in
-//             it is expanded
-//   heredoc   exactly `"$(cat <<'DELIM' … DELIM )"`, with the delimiter in
-//             single quotes, so the body is taken as it is written
+//   'single'  any text up to the next single quote
+//   "double"  text with no `$`, no backtick, no backslash and no `!`
 //
-// and two marks, only at the end: `2>&1` and `|` into `tail` or `head` with a
-// count. A variable, a glob, a backtick, any other substitution, a
-// redirection to a file, a new line outside quotes, `&&` or `;`: the reader
-// has no token for them, so the command is not approved.
+// A quoted token may hold a new line and a tab, and no other control
+// character. And two marks, only at the end: `2>&1` and `|` into `tail` or
+// `head` with a count. A variable, a glob, a backtick, a substitution, a
+// heredoc, a redirection to a file, a new line outside quotes, `&&` or `;`:
+// the reader has no token for them, so the command is not approved.
 
-export type TokenKind = "bare" | "single" | "double" | "heredoc" | "mark";
+export type TokenKind = "bare" | "single" | "double" | "mark";
 
 export interface Token {
   kind: TokenKind;
@@ -31,9 +38,11 @@ export interface Token {
 }
 
 const BARE = /^[A-Za-z0-9_./-]+/;
-const DOUBLE = /^"([^"$`\\]*)"/;
-const SINGLE = /^'([^']*)'/;
-const HEREDOC_OPEN = /^"\$\(cat <<'([A-Za-z_][A-Za-z0-9_]*)'\n/;
+// Control characters other than a new line and a tab are kept out of quoted
+// text: nothing a pull request says needs one, and a terminal or a log that
+// shows the command may not show them.
+const DOUBLE = /^"([^"$`\\!\x00-\x08\x0B-\x1F\x7F]*)"/;
+const SINGLE = /^'([^'\x00-\x08\x0B-\x1F\x7F]*)'/;
 const MARK = /^(?:2>&1|\|)/;
 /** What separates two tokens: spaces and tabs. Not a new line. */
 const GAP = /^[ \t]+/;
@@ -42,9 +51,15 @@ const GAP = /^[ \t]+/;
 const WORK_BRANCH = /^worktree-[A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*$/;
 const BASE_BRANCH = /^[A-Za-z0-9]+(?:[._/-][A-Za-z0-9]+)*$/;
 const LONGEST_BRANCH = 100;
+/** Longer than any real title and body together. Past it nothing is read. */
+const LONGEST_COMMAND = 20_000;
 
 /** The command as tokens, or undefined when any part of it is something the reader has no token for. */
 export function readExact(command: string): Token[] | undefined {
+  if (command.length > LONGEST_COMMAND) {
+    return undefined;
+  }
+
   const tokens: Token[] = [];
   let rest = command;
 
@@ -73,23 +88,6 @@ export function readExact(command: string): Token[] | undefined {
 }
 
 function readToken(text: string): (Token & { length: number }) | undefined {
-  const heredoc = HEREDOC_OPEN.exec(text);
-
-  if (heredoc !== null) {
-    const lines = text.slice(heredoc[0].length).split("\n");
-    // The first line that is the delimiter ends the body, as it does for the shell.
-    const last = lines.indexOf(heredoc[1] as string);
-    const body = lines.slice(0, last).join("\n");
-    const close = ')"';
-
-    // What comes straight after that line must close the whole form.
-    if (last === -1 || !lines.slice(last + 1).join("\n").startsWith(close)) {
-      return undefined;
-    }
-
-    return { kind: "heredoc", value: body, length: heredoc[0].length + lines.slice(0, last + 1).join("\n").length + 1 + close.length };
-  }
-
   for (const [kind, pattern] of [
     ["mark", MARK],
     ["single", SINGLE],
@@ -172,7 +170,6 @@ interface Flag {
 }
 
 const isText = (token: Token): boolean => token.kind === "single" || token.kind === "double" || token.kind === "bare";
-const isBody = (token: Token): boolean => isText(token) || token.kind === "heredoc";
 
 // Left out on purpose. `--body-file` and `--template` post the content of any
 // file this machine can read. `--repo` aims the call at another repository.
@@ -181,8 +178,8 @@ const isBody = (token: Token): boolean => isText(token) || token.kind === "hered
 const CREATE_FLAGS: Record<string, Flag> = {
   "--title": { name: "--title", value: isText },
   "-t": { name: "--title", value: isText },
-  "--body": { name: "--body", value: isBody },
-  "-b": { name: "--body", value: isBody },
+  "--body": { name: "--body", value: isText },
+  "-b": { name: "--body", value: isText },
   "--base": { name: "--base", value: (token) => token.kind === "bare" && BASE_BRANCH.test(token.value) },
   "-B": { name: "--base", value: (token) => token.kind === "bare" && BASE_BRANCH.test(token.value) },
   "--head": { name: "--head", value: (token) => token.kind === "bare" && WORK_BRANCH.test(token.value) },
@@ -209,8 +206,8 @@ const MERGE_FLAGS: Record<string, Flag> = {
   "-d": { name: "--delete-branch" },
   "--subject": { name: "--subject", value: isText },
   "-t": { name: "--subject", value: isText },
-  "--body": { name: "--body", value: isBody },
-  "-b": { name: "--body", value: isBody },
+  "--body": { name: "--body", value: isText },
+  "-b": { name: "--body", value: isText },
 };
 
 /** `gh pr create` with flags from the table, each at most once. */

@@ -1,12 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { addToProject } from "../../../scripts/add-to-project.mts";
 import { changelog } from "../files/tools/agent-workflow/changelog.mts";
 import { APPROVING_HOST, ASK_RULES, CLAUDE_SETTINGS, CODEX_HOOKS, COMMAND_NEEDS, CONFIG_FILE, HOOK_SCRIPT } from "../files/tools/agent-workflow/lib/host.mts";
-import { ADDON, createFolder, readJson, REPOSITORY, writeFile } from "./support.mts";
+import { ADDON, createFolder, git, readJson, REPOSITORY, writeFile } from "./support.mts";
 
 interface HookGroup {
   matcher?: string;
@@ -426,6 +426,19 @@ describe("the add-on in a project that has the kit", () => {
     expect(verify.stdout).toContain("FAIL Codex: .codex/hooks.json does not register");
   });
 
+  it("says in its proof that approval is not possible yet, in a project that is no repository", () => {
+    const project = createProjectWithKit();
+
+    addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
+    rmSync(join(project, ".git"), { recursive: true });
+
+    const verify = spawnSync(process.execPath, ["tools/agent-workflow/check.mts"], { cwd: project, encoding: "utf8" });
+
+    expect(verify.stdout).toContain("NOTE approval: not possible yet.");
+    expect(verify.stdout).not.toContain("FAIL");
+    expect(verify.status).toBe(0);
+  });
+
   it("keeps approval off once the project turns it off, and its proof then says so without failing", () => {
     const project = createProjectWithKit();
 
@@ -491,6 +504,8 @@ function createProjectWithKit(): string {
   });
 
   addToProject({ project, unit: "kit", repository: REPOSITORY });
+  // As after `git init`: the hook approves only in a checkout of the project's own repository.
+  git(project, "init", "--quiet");
 
   return project;
 }

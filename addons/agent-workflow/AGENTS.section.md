@@ -60,14 +60,33 @@ nothing more. Write the closing steps in these forms:
 - `git push -u origin worktree-<name>` (or without `-u`), run from inside
   the worktree.
 - `gh pr create` with `--title`, `--body`, `--base`, `--head`, `--draft`,
-  `--fill` or their short forms. Give text in single quotes, or in double
-  quotes with no `$`, backtick or backslash in it. For a long body use
-  `--body "$(cat <<'EOF'`, the lines, `EOF`, `)"`, with the delimiter in
-  single quotes.
+  `--fill` or their short forms.
 - `gh pr merge <number>` with one of `--merge`, `--squash`, `--rebase`, and
   `--delete-branch`, `--subject`, `--body`.
 
 Each may end in `2>&1`, in `| tail -<n>` or `| head -<n>`, or in both.
+
+Give a title, a subject or a body as one quoted word:
+
+- in single quotes, when the text has no `'` in it;
+- or in double quotes, when it has no `$`, backtick, backslash or `!`.
+
+A body of several lines is the same: put the new lines inside the quotes.
+
+```bash
+gh pr create --title 'Add the price list' --body '## Summary
+
+- Stale prices are greyed out
+- The total no longer counts a row twice'
+```
+
+Do not use `--body "$(cat <<'EOF' … EOF)"`, `--body-file`, a variable or any
+`$(…)`. None is pre-approved: an old bash runs what a heredoc's body holds.
+If the text needs both a `'` and a `$`, reword it (`it is` for `it's`), or
+let the command ask.
+
+The call must be a plain one too: not in the background, and run in this
+project's checkout or one of its worktrees.
 
 Anything else asks: another flag, a second branch, a variable, a file to
 read the body from, another remote, `git -C <dir> push`, a push of a branch

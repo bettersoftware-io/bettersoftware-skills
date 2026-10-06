@@ -19,11 +19,15 @@
 // host's own permission rules still judge it. The refusal orders the work;
 // it is not what keeps a push from happening.
 //
-// And it approves a command that is exactly one routine outward step in
-// exactly one of the forms in `lib/approve.mts`, so that the closing steps of
-// a piece of work do not each wait for a person. It approves only when both
-// of these hold:
+// And it approves a call that is exactly one routine outward step in exactly
+// one of the forms in `lib/approve.mts`, so that the closing steps of a piece
+// of work do not each wait for a person. It approves only when all of these
+// hold:
 //
+//   - the call itself is one that may be approved (`lib/call.mts`): the tool
+//     is `Bash`, its input has no field that changes how or where the
+//     command runs, and it runs in a checkout or a worktree of the repository
+//     this file sits in.
 //   - it was started with `--host=claude-code`. Claude Code's settings start
 //     it so; Codex's do not. Claude Code checks its `deny` and `ask` rules
 //     whatever a hook answers, so an approval never overrides a rule. Codex
@@ -38,10 +42,14 @@
 // read the same reply: `permissionDecision` with a reason, on stdout.
 
 import { readFileSync } from "node:fs";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { approvedShape } from "../lib/approve.mts";
+import { approvableCommand } from "../lib/call.mts";
 import { isMainModule } from "../lib/main.mts";
 import { judgeCommand } from "../lib/outward.mts";
+import { isCheckoutOf } from "../lib/repository.mts";
 
 /** The start-up argument that says the host takes an approval from a hook. */
 export const APPROVING_HOST = "--host=claude-code";
@@ -52,7 +60,15 @@ const CONFIG = new URL("../../agent-workflow.config.mts", import.meta.url);
 /** The fields both hosts send that this hook reads. */
 export interface CommandPayload {
   tool_name?: string;
-  tool_input?: { command?: unknown };
+  tool_input?: { command?: unknown; [field: string]: unknown };
+  /** The folder the call runs in. Claude Code's follows the session: it is the new folder after a `cd`. */
+  cwd?: string;
+}
+
+/** What the hook needs to know to approve. Without it, it approves nothing. */
+export interface Approval {
+  /** Whether a folder is a checkout or a worktree of this project's repository. */
+  isOwnCheckout: (cwd: string) => boolean;
 }
 
 export interface Answer {
@@ -77,7 +93,7 @@ export function commandOf(payload: CommandPayload): string | undefined {
 }
 
 /** The answer to give the host, or undefined to say nothing and leave the call to its own rules. */
-export function judgeCall(payload: CommandPayload, approve = false): Answer | undefined {
+export function judgeCall(payload: CommandPayload, approval?: Approval): Answer | undefined {
   const command = commandOf(payload);
   const verdict = command === undefined ? undefined : judgeCommand(command);
 
@@ -93,8 +109,9 @@ export function judgeCall(payload: CommandPayload, approve = false): Answer | un
     };
   }
 
-  // A list of words was put back together above with a quote round each, and no shape has a quoted program: it is never approved.
-  const shape = approve && command !== undefined ? approvedShape(command) : undefined;
+  // The refusal above reads any call that carries a command. The approval reads only a call that is whole and plain.
+  const approvable = approval === undefined ? undefined : approvableCommand(payload, approval.isOwnCheckout);
+  const shape = approvable === undefined ? undefined : approvedShape(approvable);
 
   return shape === undefined ? undefined : { decision: "allow", reason: `Approved by tools/agent-workflow: ${shape}, in the exact form the project pre-approves.` };
 }
@@ -117,7 +134,9 @@ export async function mayApprove(argv: string[], config: URL = CONFIG): Promise<
 
 if (isMainModule(import.meta.url)) {
   const payload = JSON.parse(readFileSync(0, "utf8") || "{}") as CommandPayload;
-  const answer = judgeCall(payload, await mayApprove(process.argv.slice(2)));
+  const home = dirname(fileURLToPath(import.meta.url));
+  const approval = (await mayApprove(process.argv.slice(2))) ? { isOwnCheckout: (cwd: string) => isCheckoutOf(cwd, home) } : undefined;
+  const answer = judgeCall(payload, approval);
 
   if (answer) {
     console.log(
