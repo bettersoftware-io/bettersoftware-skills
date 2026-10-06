@@ -149,7 +149,8 @@ may be a run of nothing.
 **A filter that matches nothing is the usual cause.** vitest exits 0 when `-t`
 matches no title. It also cuts an `it.each` title at 40 characters, so a filter
 copied from a longer title in the source matches nothing. Filter on the first
-words of the title.
+words of the title. The filter is also a regular expression: a `(` or a
+`[` copied from a title has to be written as `.`.
 
 A spec is code: its `test` commands run in a shell.
 
