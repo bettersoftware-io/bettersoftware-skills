@@ -7,6 +7,11 @@
 // Run it again after this repository changes and the project gets the newer
 // files. A file that was edited in the project is never overwritten unless
 // --force is given: the script stops, lists those files, and changes nothing.
+//
+// A file the project owns (its hook settings, its AGENTS.md, its architecture
+// config, an add-on's starting files) is never overwritten at all. When the
+// template of one changed, the update says so under "Yours to change": which
+// file, what changed, and what to do. See `lib/templates.mts`.
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -24,6 +29,7 @@ import {
   rewriteScope,
   writeProjectFile,
 } from "./lib/install.mts";
+import { describeOwnedChange, findOwnedChanges, type OwnedChange, readTemplates, type Template } from "./lib/templates.mts";
 
 const REPOSITORY = dirname(dirname(fileURLToPath(import.meta.url)));
 const STARTER_SCOPE = "@app";
@@ -33,6 +39,22 @@ export const KIT = "kit";
 
 /** What setting up the kit may create or edit, beyond the kit's own files. */
 const KIT_SETUP_FILES = ["architecture.config.mts", ".claude/settings.json", ".codex/hooks.json", "package.json"];
+
+/**
+ * The files of a project that were written from a template the kit ships, and
+ * where the kit keeps its copy of each template. The first two copies are the
+ * hook files the kit has always installed. The last two have a source outside
+ * `kit/`, and are added to the kit's files under the name given.
+ */
+const KIT_TEMPLATES: (Template & { source?: string })[] = [
+  { owned: ".claude/settings.json", template: "tools/arch/hooks/claude.settings.json" },
+  { owned: ".codex/hooks.json", template: "tools/arch/hooks/codex.hooks.json" },
+  { owned: "AGENTS.md", template: "tools/arch/templates/AGENTS.md.txt", source: "starter/AGENTS.md" },
+  { owned: "architecture.config.mts", template: "tools/arch/templates/architecture.config.mts.txt", source: "kit/architecture.config.example.mts" },
+];
+
+/** The kit's list of its gates, each with the options of `architecture.config.mts` it reads. */
+const GATE_LIST = "tools/arch/gates/gates.json";
 
 /** Never copied from the kit: its own tests and the broken projects they run against. */
 export const SKIPPED_IN_KIT = /(\.test\.mts$|\/gates\/fixtures(\/|$)|\/architecture\.config\.example\.mts$)/;
@@ -58,6 +80,10 @@ export interface AddResult {
   created: string[];
   /** What is still to be done by hand. */
   notes: string[];
+  /** The project's own files whose template this update changed. None was touched. */
+  yours: OwnedChange[];
+  /** Gates this update of the kit brought, each with the options of the architecture config it reads. */
+  newGates: { name: string; options: string[] }[];
   /** A command the add-on asks to be run once, after installing and before anything is checked. */
   firstRun?: string;
   verify?: string;
@@ -110,9 +136,33 @@ export function addToProject({ project, unit, force = false, scope, repository =
       assertInside(destination, path);
     }
 
-    const outcome = installFiles(destination, KIT, files, force);
+    const kitScope = scope ?? scopeIfShared(destination);
 
-    return { unit, files: outcome, agents: "none", ...setUpKit(destination, repository) };
+    for (const { template, source } of KIT_TEMPLATES) {
+      if (source !== undefined && existsSync(join(repository, source))) {
+        // In the project's scope, so the copy can be compared with the project's file, and taken as it is.
+        files.set(template, Buffer.from(readFileSync(join(repository, source), "utf8").replaceAll(`${STARTER_SCOPE}/`, `${kitScope}/`)));
+      }
+    }
+
+    // Read before the update replaces them: the old text is what the new is compared with.
+    const templatesBefore = readTemplates(destination, KIT_TEMPLATES);
+    const gatesBefore = readGateList(readIfThere(join(destination, GATE_LIST)));
+    const outcome = installFiles(destination, KIT, files, force);
+    const gatesNow = readGateList(files.get(GATE_LIST)?.toString("utf8")) ?? {};
+
+    const setup = setUpKit(destination, repository);
+
+    return {
+      unit,
+      files: outcome,
+      agents: "none",
+      // A file the setup has just written from the new template has nothing left to change.
+      yours: findOwnedChanges(destination, KIT_TEMPLATES, templatesBefore, outcome.written).filter(({ owned }) => !setup.created.includes(owned)),
+      // A project whose kit had no list has nothing to compare with: every gate would read as new.
+      newGates: gatesBefore === undefined ? [] : Object.entries(gatesNow).flatMap(([name, options]) => (name in gatesBefore ? [] : [{ name, options }])),
+      ...setup,
+    };
   }
 
   const addon = join(repository, "addons", unit);
@@ -138,6 +188,8 @@ export function addToProject({ project, unit, force = false, scope, repository =
   const files = existsSync(source) ? rewriteScope(readFileSet(source, ""), STARTER_SCOPE, projectScope) : new Map<string, Buffer>();
   const starting = takeStartingFiles(files, manifest.startingFiles ?? []);
   const firstTime = !installedUnits(destination).includes(unit);
+  const templates = keepTemplates(files, starting, unit);
+  const templatesBefore = readTemplates(destination, templates);
 
   for (const path of starting.keys()) {
     assertInside(destination, path);
@@ -162,7 +214,18 @@ export function addToProject({ project, unit, force = false, scope, repository =
     ? writeAgentsSection(destination, unit, readFileSync(section, "utf8").replaceAll(`${STARTER_SCOPE}/`, `${projectScope}/`))
     : "none";
 
-  return { unit, files: outcome, packageChanges: packagePlan.changes, agents, created, notes: [], firstRun: manifest.firstRun, verify: manifest.verify };
+  return {
+    unit,
+    files: outcome,
+    packageChanges: packagePlan.changes,
+    agents,
+    created,
+    notes: [],
+    yours: findOwnedChanges(destination, templates, templatesBefore, outcome.written),
+    newGates: [],
+    firstRun: manifest.firstRun,
+    verify: manifest.verify,
+  };
 }
 
 /**
@@ -235,6 +298,16 @@ function setUpKit(project: string, repository: string): Pick<AddResult, "created
     packageChanges.push("package.json: scripts.gates");
   }
 
+  // The quiet form of a gate the project has. It names the gate and holds no
+  // list of its own, so it never needs editing when the gate changes.
+  for (const gate of ["gate:fast", "gate:full"]) {
+    if (manifest.scripts?.[gate] !== undefined && manifest.scripts[`${gate}:quiet`] === undefined) {
+      manifest.scripts = { ...manifest.scripts, [`${gate}:quiet`]: `node tools/arch/gates/quiet.mts ${gate}` };
+      writeProjectFile(project, "package.json", `${JSON.stringify(manifest, null, 2)}\n`);
+      packageChanges.push(`package.json: scripts.${gate}:quiet`);
+    }
+  }
+
   if (manifest.scripts?.["gate:fast"] === undefined) {
     notes.push('add a "gate:fast" script that runs the gates, lint and typecheck: the stop hook runs it, and so should CI');
   }
@@ -261,6 +334,56 @@ function setUpKit(project: string, repository: string): Pick<AddResult, "created
 
   return { created, notes, packageChanges };
 }
+
+function readIfThere(file: string): string | undefined {
+  return existsSync(file) ? readFileSync(file, "utf8") : undefined;
+}
+
+/** Gate → the options it reads. Undefined when there is no list, or it cannot be read as one. */
+function readGateList(text: string | undefined): Record<string, string[]> | undefined {
+  try {
+    const list: unknown = JSON.parse(text ?? "");
+
+    return typeof list === "object" && list !== null && !Array.isArray(list) ? (list as Record<string, string[]>) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The project's scope when its packages share one, and the starter's when that cannot be told. */
+function scopeIfShared(project: string): string {
+  try {
+    return detectScope(project);
+  } catch {
+    return STARTER_SCOPE;
+  }
+}
+
+/**
+ * Adds a copy of each starting file to the add-on's own files, as the template
+ * that file was written from. The copy is the add-on's, so an update replaces
+ * it, and that is how a later change to a starting file is noticed.
+ *
+ * The copy's name is flat and ends in `.txt`: no tool reads it as source, and
+ * no folder in it can match a line of the project's `.gitignore` (`coverage/`).
+ * A file that is not text (a golden image) gets no copy, and no notice.
+ */
+function keepTemplates(files: Map<string, Buffer>, starting: Map<string, Buffer>, unit: string): Template[] {
+  const templates: Template[] = [];
+
+  for (const [owned, content] of starting) {
+    if (TEXT_STARTING_FILE.test(owned)) {
+      const template = `tools/templates/${unit}.${owned.replaceAll("/", "__")}.txt`;
+
+      files.set(template, content);
+      templates.push({ owned, template });
+    }
+  }
+
+  return templates;
+}
+
+const TEXT_STARTING_FILE = /\.(ts|tsx|mts|json|jsonc|md|yaml|yml|html|css)$|(^|\/)\.gitignore$/;
 
 /** Moves the files the project will own out of `files`, and returns them. */
 function takeStartingFiles(files: Map<string, Buffer>, patterns: string[]): Map<string, Buffer> {
@@ -487,6 +610,8 @@ function describe(result: AddResult, project: string): string {
     lines.push("", "Still to do by hand:", ...result.notes.map((note) => `  - ${note}`));
   }
 
+  lines.push(...describeYours(result));
+
   lines.push("", "Next:", `  cd ${project}`, "  pnpm install");
 
   for (const command of [result.firstRun, result.verify]) {
@@ -498,6 +623,29 @@ function describe(result: AddResult, project: string): string {
   lines.push("  pnpm gate:full");
 
   return lines.join("\n");
+}
+
+/** The section that says what the update left to the project. Empty when it left nothing. */
+export function describeYours({ yours, newGates }: Pick<AddResult, "yours" | "newGates">): string[] {
+  const entries = [
+    ...yours.map(describeOwnedChange),
+    ...newGates.map(({ name, options }) => [
+      `architecture.config.mts: the kit has a new gate, ${name}. ${
+        options.length === 0 ? "It reads no option of this file." : `It reads ${options.join(", ")}: set what this project needs.`
+      }`,
+      "    tools/arch/README.md says what it fails on. Run pnpm gates to see what it says here.",
+    ]),
+  ];
+
+  if (entries.length === 0) {
+    return [];
+  }
+
+  return [
+    "",
+    "Yours to change. These files are the project's, so the update did not touch them:",
+    ...entries.flatMap(([first, ...rest]) => [`  - ${first}`, ...rest.map((line) => `  ${line}`)]),
+  ];
 }
 
 function parseArguments(argv: string[]): AddOptions {

@@ -1,12 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { editedFilesOf, judgeEdit } from "./after-edit.mts";
-import { type GateRun, judgeStop } from "./before-stop.mts";
+import { type GateRun, judgeStop, runGate, type RunLimits } from "./before-stop.mts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const broken = join(here, "..", "gates", "fixtures", "broken");
@@ -84,24 +84,24 @@ describe("before the agent stops", () => {
   const red = () => ({ status: 1, output: "FAIL dumb-ui (1)\n  src/ui/A.tsx:3" });
   const green = () => ({ status: 0, output: "all gates passed." });
 
-  it("sends a red gate back as the next instruction", () => {
-    const reason = judgeStop({ cwd: createProject({ "gate:fast": "false" }) }, red);
+  it("sends a red gate back as the next instruction", async () => {
+    const reason = await judgeStop({ cwd: createProject({ "gate:fast": "false" }) }, red);
 
     expect(reason).toContain("`gate:fast` is red");
     expect(reason).toContain("src/ui/A.tsx:3");
   });
 
-  it("lets the agent finish on a green gate", () => {
-    expect(judgeStop({ cwd: createProject({ "gate:fast": "true" }) }, green)).toBeUndefined();
+  it("lets the agent finish on a green gate", async () => {
+    expect(await judgeStop({ cwd: createProject({ "gate:fast": "true" }) }, green)).toBeUndefined();
   });
 
-  it("lets the agent finish the second time, so a gate it cannot fix does not loop", () => {
-    expect(judgeStop({ cwd: createProject({ "gate:fast": "false" }), stop_hook_active: true }, red)).toBeUndefined();
+  it("lets the agent finish the second time, so a gate it cannot fix does not loop", async () => {
+    expect(await judgeStop({ cwd: createProject({ "gate:fast": "false" }), stop_hook_active: true }, red)).toBeUndefined();
   });
 
-  it("holds the agent to the full gate, the one CI runs, when the project has one", () => {
+  it("holds the agent to the full gate, the one CI runs, when the project has one", async () => {
     const asked: string[] = [];
-    const reason = judgeStop({ cwd: createProject({ "gate:fast": "true", "gate:full": "false" }) }, (_root, script) => {
+    const reason = await judgeStop({ cwd: createProject({ "gate:fast": "true", "gate:full": "false" }) }, (_root, script) => {
       asked.push(script);
 
       return red();
@@ -111,10 +111,10 @@ describe("before the agent stops", () => {
     expect(reason).toContain("`gate:full` is red");
   });
 
-  it("runs the project's own script and reads its exit code", () => {
-    expect(judgeStop({ cwd: createProject({ "gate:full": "node -e \"process.exit(0)\"" }) })).toBeUndefined();
+  it("runs the project's own script and reads its exit code", async () => {
+    expect(await judgeStop({ cwd: createProject({ "gate:full": "node -e \"process.exit(0)\"" }) })).toBeUndefined();
 
-    const reason = judgeStop({
+    const reason = await judgeStop({
       cwd: createProject({ "gate:full": "node -e \"console.log('FAIL dumb-ui (1)'); process.exit(1)\"" }),
     });
 
@@ -122,125 +122,259 @@ describe("before the agent stops", () => {
     expect(reason).toContain("FAIL dumb-ui (1)");
   });
 
-  it("stays out of a project that has no gate", () => {
+  it("sends back the stage that failed and nothing a stage that passed printed", async () => {
+    const reason = await judgeStop({
+      cwd: createProject({
+        lint: "node -e \"console.log('4812 files linted')\"",
+        test: "node -e \"console.log('expected 3 to be 4'); process.exit(1)\"",
+        build: "node -e \"console.log('built')\"",
+        typecheck: "node -e 0",
+        "gate:fast": "pnpm lint && pnpm typecheck",
+        "gate:full": "pnpm gate:fast && pnpm test && pnpm build",
+      }),
+    });
+
+    expect(reason).toContain("`gate:full` is red");
+    expect(reason).toContain("ok    pnpm lint");
+    expect(reason).toContain("FAIL  pnpm test (exit 1");
+    expect(reason).toContain("expected 3 to be 4");
+    expect(reason).not.toContain("4812 files linted");
+    expect(reason).toContain("not run:\n      pnpm build");
+  });
+
+  it("stays out of a project that has no gate", async () => {
     const gate = createCountedGate(red);
-    const reason = judgeStop({ cwd: createProject({ test: "vitest" }) }, gate.run);
+    const reason = await judgeStop({ cwd: createProject({ test: "vitest" }) }, gate.run);
 
     expect(reason).toBeUndefined();
     expect(gate.runs()).toBe(0);
   });
 
-  it("says a gate that did not finish verified nothing, and does not let the agent finish on it", () => {
+  it("says a gate that did not finish verified nothing, and does not let the agent finish on it", async () => {
     const project = createGitProject({ "gate:full": "true" });
     const gate = createCountedGate(() => ({ status: 1, output: "", timedOut: true }));
 
-    expect(judgeStop({ cwd: project }, gate.run)).toContain("did not finish");
-    expect(judgeStop({ cwd: project }, gate.run)).toContain("did not finish");
+    expect(await judgeStop({ cwd: project }, gate.run)).toContain("did not finish");
+    expect(await judgeStop({ cwd: project }, gate.run)).toContain("did not finish");
     expect(gate.runs()).toBe(2);
   });
 });
 
+// A hook the host has to kill blocks nothing. So in every one of these the
+// hook itself must answer, in bounded time, that nothing was verified.
+describe("a gate that does not finish", () => {
+  const RECORD = "node_modules/.cache/arch/last-green-tree";
+
+  it("is reported as not finished, with what its stage had printed, when the runner stops by itself", async () => {
+    const project = createGitProject({ "gate:full": "node slow.mjs" });
+
+    writeFileSync(join(project, "slow.mjs"), "console.log('started the slow tests'); setInterval(() => {}, 1000);\n");
+    spawnSync("git", ["add", "slow.mjs"], { cwd: project });
+
+    const reason = await judgeStop({ cwd: project }, (root, script) => runGate(root, script, { runMs: 1500, stopMs: 15_000, killMs: 2000 }));
+
+    expect(reason).toContain("`gate:full` did not finish in time and was stopped, so nothing is verified. That is not a pass.");
+    expect(reason).toContain("FAIL  node slow.mjs (stopped by SIGTERM");
+    expect(reason).toContain("started the slow tests");
+    expect(existsSync(join(project, RECORD))).toBe(false);
+  }, 30_000);
+
+  it("is reported as not finished when its stage ignores the request and has to be killed by the runner", async () => {
+    const project = createProject({ "gate:full": "node stubborn.mjs" });
+
+    writeFileSync(join(project, "stubborn.mjs"), "process.on('SIGTERM', () => console.log('not stopping')); console.log('started'); setInterval(() => {}, 1000);\n");
+
+    const started = Date.now();
+    const reason = await judgeStop({ cwd: project }, (root, script) => runGate(root, script, { runMs: 1500, stopMs: 15_000, killMs: 2000 }));
+
+    expect(reason).toContain("did not finish in time");
+    expect(reason).toContain("started\nnot stopping");
+    // The runner's own grace period is five seconds; the hook did not have to kill it.
+    expect(Date.now() - started).toBeLessThan(12_000);
+  }, 30_000);
+
+  it("is reported as not finished when the runner itself ignores the request and has to be killed", async () => {
+    const runner = createRunner("process.on('SIGTERM', () => {}); console.log('halfway'); setInterval(() => {}, 1000);\n");
+    const run = await runGate(createProject({}), "gate:full", { runMs: 500, stopMs: 500, killMs: 5000 }, runner);
+
+    expect(run).toEqual({ status: 1, output: "halfway\n", timedOut: true });
+  }, 30_000);
+
+  it("is reported as not finished when the runner cannot be waited for at all", async () => {
+    // Killed, the runner leaves a process behind that holds its output open, so its output never closes.
+    const holder = createRunner("process.on('SIGTERM', () => {}); setTimeout(() => {}, 8000);\n");
+    const runner = createRunner(
+      [
+        "import { spawn } from 'node:child_process';",
+        `spawn(process.execPath, [${JSON.stringify(holder)}], { detached: true, stdio: ['ignore', 'inherit', 'inherit'] }).unref();`,
+        "process.on('SIGTERM', () => {}); console.log('halfway'); setInterval(() => {}, 1000);",
+        "",
+      ].join("\n"),
+    );
+    const started = Date.now();
+    const run = await runGate(createProject({}), "gate:full", { runMs: 500, stopMs: 500, killMs: 500 }, runner);
+
+    expect(run).toEqual({ status: 1, output: "halfway\n\n(the gate did not end when it was killed, and was left behind)", timedOut: true });
+    expect(Date.now() - started).toBeLessThan(5000);
+  }, 30_000);
+
+  it("is not a pass even when the runner, told to stop, exits 0", async () => {
+    const runner = createRunner("process.on('SIGTERM', () => process.exit(0)); setInterval(() => {}, 1000);\n");
+    const project = createGitProject({ "gate:full": "true" });
+    const limits: RunLimits = { runMs: 500, stopMs: 5000, killMs: 1000 };
+
+    expect(await runGate(project, "gate:full", limits, runner)).toEqual({ status: 1, output: "", timedOut: true });
+    expect(await judgeStop({ cwd: project }, (root, script) => runGate(root, script, limits, runner))).toContain("did not finish in time");
+    expect(existsSync(join(project, RECORD))).toBe(false);
+  }, 30_000);
+
+  it("is red, not green, when the runner ends by a signal nobody here sent", async () => {
+    const runner = createRunner("process.kill(process.pid, 'SIGKILL');\n");
+
+    expect(await runGate(createProject({}), "gate:full", { runMs: 10_000, stopMs: 1000, killMs: 1000 }, runner)).toEqual({ status: 1, output: "", timedOut: false });
+  });
+
+  it("does not remember a tree as green on a stopped run that reports status 0", async () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const gate = createCountedGate(() => ({ status: 0, output: "", timedOut: true }));
+
+    expect(await judgeStop({ cwd: project }, gate.run)).toContain("did not finish in time");
+    expect(await judgeStop({ cwd: project }, gate.run)).toContain("did not finish in time");
+    expect(gate.runs()).toBe(2);
+    expect(existsSync(join(project, RECORD))).toBe(false);
+  });
+
+  it("never writes its record through a link out of the project", async () => {
+    const project = createGitProject({ "gate:full": "true" });
+    const outside = join(createProject({}), "important.txt");
+
+    writeFileSync(outside, "must not be overwritten\n");
+    mkdirSync(join(project, "node_modules/.cache/arch"), { recursive: true });
+    symlinkSync(outside, join(project, RECORD));
+
+    expect(await judgeStop({ cwd: project }, () => ({ status: 0, output: "" }))).toBeUndefined();
+    expect(readFileSync(outside, "utf8")).toBe("must not be overwritten\n");
+  });
+
+  it("ends by itself when run as a command, with the reply both hosts read", () => {
+    const project = createProject({ "gate:full": "node -e \"console.log('expected 3 to be 4'); process.exit(1)\"" });
+    const run = spawnSync(process.execPath, [join(here, "before-stop.mts")], { input: JSON.stringify({ cwd: project }), encoding: "utf8", env: { ...process.env, CLAUDE_PROJECT_DIR: "" }, timeout: 20_000 });
+
+    expect(run.status).toBe(0);
+    expect(JSON.parse(run.stdout)).toEqual({ decision: "block", reason: expect.stringContaining("expected 3 to be 4") });
+  });
+});
+
+/** A script that stands in for the quiet runner. */
+function createRunner(source: string): string {
+  const file = join(mkdtempSync(join(tmpdir(), "arch-runner-")), "runner.mjs");
+
+  writeFileSync(file, source);
+
+  return file;
+}
+
 describe("a tree that has already passed", () => {
   const green = () => ({ status: 0, output: "all gates passed." });
 
-  it("is not judged a second time, so an agent that changed nothing does not wait", () => {
+  it("is not judged a second time, so an agent that changed nothing does not wait", async () => {
     const project = createGitProject({ "gate:full": "true" });
     const gate = createCountedGate(green);
 
-    judgeStop({ cwd: project }, gate.run);
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
 
     expect(gate.runs()).toBe(1);
   });
 
-  it("is judged again after a tracked file changes", () => {
+  it("is judged again after a tracked file changes", async () => {
     const project = createGitProject({ "gate:full": "true" });
     const gate = createCountedGate(green);
 
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
     writeFileSync(join(project, "src.ts"), "export const a = 2;\n");
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
 
     expect(gate.runs()).toBe(2);
   });
 
-  it("is judged again after a new file appears, and after one is deleted", () => {
+  it("is judged again after a new file appears, and after one is deleted", async () => {
     const project = createGitProject({ "gate:full": "true" });
     const gate = createCountedGate(green);
 
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
     writeFileSync(join(project, "new.ts"), "export const b = 1;\n");
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
     rmSync(join(project, "src.ts"));
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
 
     expect(gate.runs()).toBe(3);
   });
 
-  it("is judged again after a file is renamed with its content unchanged", () => {
+  it("is judged again after a file is renamed with its content unchanged", async () => {
     const project = createGitProject({ "gate:full": "true" });
     const gate = createCountedGate(green);
 
     writeFileSync(join(project, "draft.ts"), "export const d = 1;\n");
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
     renameSync(join(project, "draft.ts"), join(project, "moved.ts"));
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
 
     expect(gate.runs()).toBe(2);
   });
 
-  it("is judged again when an empty file is deleted, though no content changed", () => {
+  it("is judged again when an empty file is deleted, though no content changed", async () => {
     const project = createGitProject({ "gate:full": "true" });
     const gate = createCountedGate(green);
 
     writeFileSync(join(project, "src.ts"), "");
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
     rmSync(join(project, "src.ts"));
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
 
     expect(gate.runs()).toBe(2);
   });
 
-  it("is judged again when a link is pointed somewhere else", () => {
+  it("is judged again when a link is pointed somewhere else", async () => {
     const project = createGitProject({ "gate:full": "true" });
     const gate = createCountedGate(green);
 
     symlinkSync("src.ts", join(project, "link.ts"));
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
     rmSync(join(project, "link.ts"));
     symlinkSync("package.json", join(project, "link.ts"));
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
 
     expect(gate.runs()).toBe(2);
   });
 
-  it("is not judged again when a file is only staged", () => {
+  it("is not judged again when a file is only staged", async () => {
     const project = createGitProject({ "gate:full": "true" });
     const gate = createCountedGate(green);
 
     writeFileSync(join(project, "added.ts"), "export const c = 1;\n");
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
     spawnSync("git", ["add", "added.ts"], { cwd: project });
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
 
     expect(gate.runs()).toBe(1);
   });
 
-  it("is judged again when an environment file changes, though git ignores it", () => {
+  it("is judged again when an environment file changes, though git ignores it", async () => {
     const project = createGitProject({ "gate:full": "true" });
     const gate = createCountedGate(green);
 
     mkdirSync(join(project, "packages", "web"), { recursive: true });
     writeFileSync(join(project, "packages", "web", ".env.local"), "API=http://localhost:4000\n");
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
     writeFileSync(join(project, "packages", "web", ".env.local"), "API=http://localhost:5000\n");
-    judgeStop({ cwd: project }, gate.run);
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
 
     expect(gate.runs()).toBe(2);
   });
 
-  it("is judged again under another version of Node", () => {
+  it("is judged again under another version of Node", async () => {
     const project = createGitProject({ "gate:full": "true" });
     const gate = createCountedGate(green);
     const version = process.version;
@@ -249,58 +383,58 @@ describe("a tree that has already passed", () => {
       Object.defineProperty(process, "version", { value: version });
     });
 
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
     Object.defineProperty(process, "version", { value: "v99.0.0" });
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
 
     expect(gate.runs()).toBe(2);
   });
 
-  it("is judged every time when it holds a repository of its own, whose files git does not list", () => {
+  it("is judged every time when it holds a repository of its own, whose files git does not list", async () => {
     const project = createGitProject({ "gate:full": "true" });
     const gate = createCountedGate(green);
 
     mkdirSync(join(project, "vendor"));
     spawnSync("git", ["init", "--quiet"], { cwd: join(project, "vendor") });
     writeFileSync(join(project, "vendor", "lib.ts"), "export const v = 1;\n");
-    judgeStop({ cwd: project }, gate.run);
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
 
     expect(gate.runs()).toBe(2);
   });
 
-  it("lets the agent finish on a green gate even where the result cannot be stored", () => {
+  it("lets the agent finish on a green gate even where the result cannot be stored", async () => {
     const project = createGitProject({ "gate:full": "true" });
 
     // A file where the folder for the record would go.
     writeFileSync(join(project, "node_modules"), "");
 
-    expect(judgeStop({ cwd: project }, green)).toBeUndefined();
+    expect(await judgeStop({ cwd: project }, green)).toBeUndefined();
   });
 
-  it("is not judged again for a change git ignores, such as a build's output", () => {
+  it("is not judged again for a change git ignores, such as a build's output", async () => {
     const project = createGitProject({ "gate:full": "true" });
     const gate = createCountedGate(green);
 
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
     mkdirSync(join(project, "dist"));
     writeFileSync(join(project, "dist", "out.js"), "built");
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
 
     expect(gate.runs()).toBe(1);
   });
 
-  it("is not remembered when the gate was red", () => {
+  it("is not remembered when the gate was red", async () => {
     const project = createGitProject({ "gate:full": "true" });
     const gate = createCountedGate(() => ({ status: 1, output: "FAIL" }));
 
-    judgeStop({ cwd: project }, gate.run);
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
 
     expect(gate.runs()).toBe(2);
   });
 
-  it("is judged again when the gate itself rewrote a file, since the tree is now another one", () => {
+  it("is judged again when the gate itself rewrote a file, since the tree is now another one", async () => {
     const project = createGitProject({ "gate:full": "true" });
     let runs = 0;
     const rewriteThenPass = (): GateRun => {
@@ -313,19 +447,19 @@ describe("a tree that has already passed", () => {
       return green();
     };
 
-    judgeStop({ cwd: project }, rewriteThenPass);
-    judgeStop({ cwd: project }, rewriteThenPass);
-    judgeStop({ cwd: project }, rewriteThenPass);
+    await judgeStop({ cwd: project }, rewriteThenPass);
+    await judgeStop({ cwd: project }, rewriteThenPass);
+    await judgeStop({ cwd: project }, rewriteThenPass);
 
     expect(runs).toBe(2);
   });
 
-  it("is judged every time where there is no git to say what changed", () => {
+  it("is judged every time where there is no git to say what changed", async () => {
     const project = createProject({ "gate:full": "true" });
     const gate = createCountedGate(green);
 
-    judgeStop({ cwd: project }, gate.run);
-    judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
+    await judgeStop({ cwd: project }, gate.run);
 
     expect(gate.runs()).toBe(2);
     expect(existsSync(join(project, "node_modules"))).toBe(false);

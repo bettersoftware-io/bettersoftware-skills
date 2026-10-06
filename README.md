@@ -84,7 +84,8 @@ The script records a hash of each file it installs. On a later run an untouched
 file is replaced by the newer version; a file edited in the project is never
 overwritten unless `--force` is given, and files the project is meant to own
 (its scenarios, its goldens, its exclusions) are written once and then left
-alone. [The contract an add-on follows](addons/README.md).
+alone. When the template of such a file changes, the update says which file,
+what changed and what to do. [The contract an add-on follows](addons/README.md).
 
 ## What is in this repository
 

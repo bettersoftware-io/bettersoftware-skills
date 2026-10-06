@@ -55,8 +55,12 @@ In the target folder, in this order:
 ```bash
 git init
 pnpm install
-pnpm gate:full
+pnpm gate:full:quiet
 ```
+
+`gate:full:quiet` runs what `pnpm gate:full` runs and exits with the same
+code. It prints one line for each stage that passed and the whole output of
+the one that failed, so a green run costs a dozen lines of context.
 
 `gate:full` must pass on the untouched project. If it fails, the starter is at
 fault: report the output unchanged and stop. Do not edit the project to make
@@ -102,8 +106,9 @@ Say, in this order:
 1. Where the project is, and that `gate:full` passed (or its output, if not).
 2. The commands: `pnpm dev` (the client on the in-browser simulator, no
    server), `pnpm dev:fs` (the server and the client together),
-   `pnpm gate:fast` (gates, lint, typecheck) and `pnpm gate:full` (the same,
-   then tests and the build: what CI runs).
+   `pnpm gate:fast` (gates, lint, typecheck), `pnpm gate:full` (the same,
+   then tests and the build: what CI runs) and `pnpm gate:full:quiet` (the
+   same again, printing only the stage that failed).
 3. That `AGENTS.md` in the project says where each kind of code goes, and that
    the price list is a worked example to copy, not part of the product.
 4. Which add-ons were added, and which were not, with the command that adds

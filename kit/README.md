@@ -17,6 +17,7 @@ directly by stripping the types, which needs Node 22.18 or later, and
 |---|---|---|
 | `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction, the paths the agent instructions name, the task cache, every package's scripts, the one app harness, test ids, types-only packages | Node; `dependency-cruiser` for the dependency gate |
 | `eslint.config.mts` + `eslint-rules/` | Thirteen AST lint rules of its own (naming, reading order, fixtures, page objects, no real sleeps in tests, one import per module), and the settings of ESLint's rules that go with them: function declarations, blank lines, named object types, no CommonJS, React's hook rules | `eslint`, `typescript-eslint`, `eslint-plugin-react-hooks` |
+| `gates/quiet.mts` | Nothing of its own: it runs a gate script of the project and prints only the stage that failed | Node |
 | `hooks/after-edit.mts` | Runs the per-file gates on the file an agent just wrote | Claude Code or Codex |
 | `hooks/before-stop.mts` | Refuses to let an agent finish while `gate:full` is red, on any tree that has not already passed it | Claude Code or Codex; git |
 
@@ -354,6 +355,43 @@ project has not installed, under "Still to do by hand". Until it is installed
 `eslint` stops with a message that says which package is missing and the
 command that adds it; it does not report a clean run.
 
+### What an update leaves to the project
+
+`add-to-project.mts <project> kit` replaces the kit's own files. Four files
+were written from a template the kit ships and then belong to the project, so
+an update never overwrites them:
+
+| The project's file | The kit's copy of its template |
+|---|---|
+| `.claude/settings.json` | `tools/arch/hooks/claude.settings.json` |
+| `.codex/hooks.json` | `tools/arch/hooks/codex.hooks.json` |
+| `AGENTS.md` | `tools/arch/templates/AGENTS.md.txt` |
+| `architecture.config.mts` | `tools/arch/templates/architecture.config.mts.txt` |
+
+When an update changes one of those templates it says so, under "Yours to
+change": the file, the lines of the template that changed, and what to do.
+
+- A file that is still the old template, word for word, gets the command that
+  takes the new one (`cp …`). The update does not run it.
+- A file with changes of its own gets "make this change by hand".
+- A gate that is new to the project is named with the options of
+  `architecture.config.mts` it reads. The list is `gates/gates.json`.
+
+The copies are ordinary kit files, so the record of what was installed
+already says when one changed, and the copy about to be replaced is the old
+text. Nothing else is stored.
+
+Limits:
+
+- It is said once, by the update that brings the change. A change that was
+  not made then is not repeated by the next update; `diff` the copy against
+  the project's file to see where the two stand.
+- The first update of a project whose kit predates this has no earlier copy
+  of `AGENTS.md` or of the example config to compare with, and no list of
+  gates. It says nothing about those; the two hook files are covered at once.
+- A new option of a gate the project already has shows up only as a changed
+  line of the example config.
+
 ### With a formatter
 
 No rule here is a formatting rule, so there is nothing for
@@ -380,6 +418,10 @@ The stop hook runs the project's `gate:full` script, the one CI runs, so
 "gate:full": "pnpm gate:fast && pnpm test && pnpm build"
 ```
 
+It runs the script through the quiet runner (next section), so a red gate
+sends back the stage that failed. The end of a loud run is whatever was
+printed last, which is often a passing stage.
+
 The full gate takes minutes, so the hook does not run it on a tree that has
 already passed. After a green run it stores a hash in
 `node_modules/.cache/arch/`. While the hash is unchanged the agent finishes at
@@ -401,7 +443,11 @@ of Node.
   file edited by hand inside `node_modules`.
 - A gate that does not finish in nine minutes is reported as "nothing is
   verified", never as a pass. The hook's own timeout in the host's settings is
-  ten minutes.
+  ten minutes, and a hook the host has to kill blocks nothing, so the hook
+  answers by itself whatever the gate does: at nine minutes it tells the
+  runner to stop, twenty seconds later it kills it, and five seconds after
+  that it answers without it. A run that was stopped is never remembered as
+  green, whatever it exited with.
 - It blocks once. If the gate is still red when the agent tries to stop a
   second time, the agent is let through to report the problem, so an
   unfixable finding ends in a message to you and never in a loop.
@@ -409,6 +455,101 @@ of Node.
 It was `gate:fast` until a run with the smallest model stopped there with
 `gate:full` red and reported green
 ([the record](../docs/small-model-2026-10-05.md)).
+
+## A gate that prints failures only
+
+`pnpm gate:full` prints every passing test and every cached task. CI wants
+that. An agent does not: the smallest model ran out of context on it
+([the record](../docs/small-model-2026-10-05.md)).
+
+```json
+"gate:fast:quiet": "node tools/arch/gates/quiet.mts gate:fast",
+"gate:full:quiet": "node tools/arch/gates/quiet.mts gate:full"
+```
+
+```
+ok    pnpm gates (0.6s)
+      SKIP types-only — no package is declared typesOnly, so there was nothing to check
+ok    pnpm lint (9.8s)
+ok    pnpm typecheck (4.1s)
+FAIL  pnpm test (exit 1, 12.3s)
+
+…the whole output of `pnpm test`, and of nothing else…
+
+not run:
+      pnpm build
+      pnpm coverage
+
+gate:full is red.
+```
+
+- **It holds no list of stages.** It reads the script from `package.json` on
+  each run and splits its `&&` chain. A part that runs another chain of the
+  project (`pnpm gate:fast`) is replaced by that chain's parts. A command an
+  add-on joined to a gate is a stage like any other, and there is still one
+  definition of the gate.
+- **It runs what pnpm would run, or it lets pnpm run it.** A part is opened
+  up only when that is certain: `pnpm run <name>` with nothing after it, or
+  `pnpm <name>` where the name holds a colon. `pnpm audit` is pnpm's own
+  command even in a project with an `audit` script, and no command of pnpm
+  has a colon. A part with a flag or an argument, a script with a `pre` or
+  `post` script beside it, and `npm run` or `yarn` are run whole, as written.
+  A stage from an opened script gets the environment pnpm gives that script.
+  A test runs each of these both ways and compares what ran.
+- **A `SKIP` line is kept.** A check that judged nothing says so on a line
+  that starts with `SKIP`, and has not passed. Those lines are printed under
+  the stage's own line, so quiet never turns "not verified" into silence.
+- **The exit code is the failing stage's own**, which is what `pnpm gate:full`
+  exits with. Quiet changes what is printed, never the verdict.
+- **Nothing is lost.** A failing stage's output is printed whole, however
+  long. Everything every stage printed is also in
+  `node_modules/.cache/arch/last-gate.log`, written as it arrives.
+- **A stage that is stopped is a failure, and the runner never waits on
+  one.** Told to terminate (the stop hook's timeout does this), it sends the
+  stage's process group SIGTERM, five seconds later SIGKILL, and two seconds
+  after that goes on without it. It prints what the stage had said and exits
+  with the signal's code, never 0. A second signal ends it at once.
+- **It trusts the project as far as `pnpm run` does.** The commands come from
+  `package.json` and run in a shell. `--root` runs the gate of the folder it
+  names, as `cd` there and `pnpm gate:full` would.
+- **The log is never written through a symbolic link**, at the file or at any
+  folder above it. The same holds for the stop hook's record.
+
+**Why a separate script, and not a flag or the default.** The loud scripts
+stay as they are: they are what add-ons append to, and what CI and a person
+run. An environment variable could not make `pnpm gate:full` quiet without
+turning that script into a call to a runner, and then an add-on would have
+nothing to append to. Quiet as the default would hide output from CI, where
+the full log is the record. So quiet is a second way to run the same script,
+and the two consumers each take the one that suits them: the stop hook calls
+the runner itself, in every project, with no script needed; CI keeps
+`pnpm gate:full`.
+
+Known limits:
+
+- A script that uses the shell for more than `&&` (a pipe, `;`, `||`, a
+  subshell) is run as one stage. The verdict is the same; the report cannot
+  say which part failed.
+- A stage is a line of a script. What a task runner runs inside one stage
+  (`turbo run test` over six packages) is one stage: when it fails, all of
+  its output is printed, the passing packages included.
+- Not run on Windows: a stage is stopped through its process group.
+- A bare `pnpm typecheck` is one stage even when `typecheck` is a chain: a
+  bare word may be a command of pnpm. Write `pnpm run typecheck` in the gate
+  to see its parts.
+- The environment given to a stage was measured on pnpm 12.6: `INIT_CWD`,
+  `PNPM_SCRIPT_SRC_DIR`, `npm_lifecycle_event`, `npm_lifecycle_script`,
+  `npm_package_json`, `npm_package_name`, `npm_package_version`, `NODE`,
+  `npm_node_execpath`, and the project's `node_modules/.bin` first on the
+  PATH. Not set: `npm_execpath` and `npm_config_user_agent`, unless the
+  runner was itself started by pnpm, and pnpm's `script-shell` setting.
+- At most 32 MB of one stage's output is held in memory. Past that a failure
+  shows the end and says the start is in the log. A `SKIP` line is still
+  found anywhere in it.
+- A stage that exits while something it started still holds its output open
+  is waited on for one second, then reported by its exit code.
+- A process that leaves the stage's process group (a daemon in a session of
+  its own) is not stopped with the stage.
 
 ## Tests
 

@@ -117,15 +117,40 @@ pnpm mutation-check mutants.json
 ```
 
 `find` is literal text and must occur exactly once. Each row is `KILLED` (the
-test went red), `SURVIVED` (it stayed green: a finding about the test) or
-`ERROR` (the mutant could not be judged). The tool also:
+test went red), `SURVIVED` (it stayed green: a finding about the test),
+`NO TESTS` (the test command ran no test) or `ERROR` (the mutant could not be
+judged). The exit code is 0 when every mutant was killed, 1 when one survived,
+and 2 for a `NO TESTS` or an `ERROR` row. The tool also:
 
 - runs each test once with no mutant first, and refuses a test that is already
   red, since that test would "kill" anything;
+- refuses, as `NO TESTS`, a command that ran zero tests in that first run. Such
+  a command is green whatever the code does, so every mutant behind it would
+  read `SURVIVED`; with a runner that fails when nothing matched it would read
+  `KILLED`. Nothing is mutated for that row;
 - restores the file in a `finally`, and holds a Ctrl-C or a `SIGTERM` until
   the file is back;
 - counts a test that outlives `--timeout` (300 seconds) as an error, not as
   red.
+
+### How the tests are counted
+
+From a report file, never from what the runner prints.
+
+| The command | How it is counted |
+|---|---|
+| Names `vitest` | The tool adds `--reporter=json --outputFile=…` at the end and reads `numPassedTests + numFailedTests`. A skipped test is not counted |
+| Another runner | The command writes the file itself. Its path is in `MUTATION_CHECK_REPORT`; the file is JSON with `numPassedTests` and `numFailedTests`, which is what jest writes: `jest add --json --outputFile="$MUTATION_CHECK_REPORT"` |
+| A script that only exits 0 or 1 | The row says so, with the reason: `"uncounted": "a script, not a test runner"`. It is judged on its exit code alone |
+
+A command with no count and no `uncounted` is `NO TESTS`: a green run of it
+may be a run of nothing.
+
+**A filter that matches nothing is the usual cause.** vitest exits 0 when `-t`
+matches no title. It also cuts an `it.each` title at 40 characters, so a filter
+copied from a longer title in the source matches nothing. Filter on the first
+words of the title. The filter is also a regular expression: a `(` or a
+`[` copied from a title has to be written as `.`.
 
 A spec is code: its `test` commands run in a shell.
 
@@ -154,7 +179,7 @@ on every push to main, and the page says which commit that was.
 
 ## How it was tested
 
-**The tools.** 159 tests in `tests/`, run with `pnpm vitest run addons/coverage`
+**The tools.** 175 tests in `tests/`, run with `pnpm vitest run addons/coverage`
 from this repository's root. The gate's tests use a stand-in for vitest; the
 mutation-check tests change real files and run real commands; the publisher's
 tests push to a bare git repository in a temporary folder.
@@ -164,8 +189,12 @@ add-on's own tool ran them:
 
 ```bash
 node addons/coverage/files/tools/coverage/mutation-check.mts addons/coverage/tests/mutants.json
-# 156 of 156 killed.
+# 174 of 174 killed.
 ```
+
+Every one of those commands is counted: each ran at least one test before its
+mutant was applied. A row whose `-t` filter matches nothing reads `NO TESTS`
+and the run exits 2.
 
 The first run had one survivor. The mutant moved the merged report to
 `reports/coverage/`, which the starter's `.gitignore` also covers, so the test
@@ -249,6 +278,16 @@ there, and by anyone who runs the gate outside the sandbox.
   folders work.
 - **`kill -9` during `mutation-check` leaves the mutant in the file.** `git diff`
   shows it.
+- **Only vitest is counted without help.** Its flags are added at the end of
+  the command, so they reach vitest only when it is the last program named
+  (`vitest run a && echo done` is not counted). A script that hides the runner
+  (`pnpm test`, when `test` is `turbo run test`) is not counted either. Both
+  read `NO TESTS` until the command writes the report itself or the row says
+  `uncounted`. An `uncounted` row has the old weakness: nothing shows that it
+  ran a test.
+- **The count is asked of the first run only.** A mutant that stops every test
+  from being collected fails the run, and that reads `KILLED`, as it did
+  before.
 - **Not run on Windows.** The tool starts `pnpm` without a shell.
 - **An exclusion that no longer matches a file is not reported.**
 - **Updating the add-on** replaces `tools/coverage/` and leaves

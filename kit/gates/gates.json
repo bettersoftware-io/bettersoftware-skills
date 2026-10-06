@@ -1,0 +1,13 @@
+{
+  "structure": ["packages", "requiredRoles", "role", "npm", "ports", "app", "ui", "entry"],
+  "typescript-only": ["language", "javascriptAllowed"],
+  "dumb-ui": ["streamLibraries", "ui", "uiBridge"],
+  "port-contracts": ["adapters", "contractExempt", "ports"],
+  "dependencies": ["mayImport", "noNodeBuiltins", "mayImportAdapters", "adapters", "frameworks", "vendorOnlyIn"],
+  "agent-docs": ["instructionFiles"],
+  "task-cache": ["tasksThatReadNothingUpstream"],
+  "package-scripts": ["packagesWithoutTests"],
+  "app-harness": ["compose", "appHarness"],
+  "test-ids": ["testIds"],
+  "types-only": ["typesOnly"]
+}

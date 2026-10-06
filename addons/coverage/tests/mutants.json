@@ -30,7 +30,7 @@
   {
     "name": "workspace: says so when the folder has no workspace file",
     "file": "addons/coverage/files/tools/coverage/lib/workspace.mts",
-    "find": "throw new CoverageError(`${WORKSPACE_FILE} not found in ${root} \u2014 run this from the project root`);",
+    "find": "throw new CoverageError(`${WORKSPACE_FILE} not found in ${root} — run this from the project root`);",
     "replace": "return [];",
     "test": "pnpm vitest run addons/coverage/tests/workspace.test.mts -t \"says so when the folder has no workspace file\""
   },
@@ -534,8 +534,8 @@
   {
     "name": "site: lists the ignore comments without a reason",
     "file": "addons/coverage/files/tools/coverage/lib/site.mts",
-    "find": "<li><code>${escapeHtml(file)}:${line}</code> \u2014 an ignore comment",
-    "replace": "<li><code>${escapeHtml(file)}</code> \u2014 an ignore comment",
+    "find": "<li><code>${escapeHtml(file)}:${line}</code> — an ignore comment",
+    "replace": "<li><code>${escapeHtml(file)}</code> — an ignore comment",
     "test": "pnpm vitest run addons/coverage/tests/site.test.mts -t \"lists the ignore comments without a reason\""
   },
   {
@@ -709,8 +709,8 @@
   {
     "name": "mutation-check: reports a mutant as KILLED when its test goes red with the mutant in place",
     "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
-    "find": "if (run === \"red\") {\n      return { status: \"KILLED\", detail: \"\" };",
-    "replace": "if (run === \"green\") {\n      return { status: \"KILLED\", detail: \"\" };",
+    "find": "if (verdict === \"red\") {\n      return { status: \"KILLED\", detail: \"\" };",
+    "replace": "if (verdict === \"green\") {\n      return { status: \"KILLED\", detail: \"\" };",
     "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"reports a mutant as KILLED\""
   },
   {
@@ -751,8 +751,8 @@
   {
     "name": "mutation-check: refuses a mutant whose test is red before anything is changed",
     "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
-    "find": "if (baseline !== \"green\") {",
-    "replace": "if (baseline === \"timed out\") {",
+    "find": "if (baseline.verdict !== \"green\") {",
+    "replace": "if (baseline.verdict === \"timed out\") {",
     "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"refuses a mutant whose test is red before anything is changed\""
   },
   {
@@ -779,8 +779,8 @@
   {
     "name": "mutation-check: counts a test that timed out under the mutant as neither killed nor survived",
     "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
-    "find": "return run === \"green\"\n",
-    "replace": "return run !== \"red\"\n",
+    "find": "return verdict === \"green\"\n",
+    "replace": "return verdict !== \"red\"\n",
     "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"counts a test that timed out under the mutant\""
   },
   {
@@ -842,8 +842,8 @@
   {
     "name": "mutation-check: is 2 when a mutant could not be judged",
     "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
-    "find": "result.status === \"ERROR\")) {\n    return 2;",
-    "replace": "result.status === \"ERROR\")) {\n    return 1;",
+    "find": "if (results.some((result) => result.status === \"ERROR\" || ",
+    "replace": "if (results.some((result) => ",
     "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"is 2 when a mutant could not be judged\""
   },
   {
@@ -1090,5 +1090,131 @@
     "find": "    if (portTestsSkipped && hasPortTests(root, directory)) {",
     "replace": "    if (false) {",
     "test": "pnpm vitest run addons/coverage/tests/run.test.mts"
+  },
+  {
+    "name": "mutation-check: refuses a command that ran zero tests",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "if (baseline.testsRun === 0) {",
+    "replace": "if (baseline.testsRun === -1) {",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"refuses a mutant whose test command ran no test\""
+  },
+  {
+    "name": "mutation-check: zero tests is asked before red or green",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "if (baseline.testsRun === 0) {",
+    "replace": "if (baseline.testsRun === 0 && baseline.verdict === \"green\") {",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"says NO TESTS, not that the test is red\""
+  },
+  {
+    "name": "mutation-check: refuses a command that left no count",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "if (baseline.testsRun === undefined && mutant.uncounted === undefined) {",
+    "replace": "if (baseline.testsRun === -1 && mutant.uncounted === undefined) {",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"refuses a mutant whose test command left no count\""
+  },
+  {
+    "name": "mutation-check: a row that says why it has no count is judged on its exit code",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "baseline.testsRun === undefined && mutant.uncounted === undefined",
+    "replace": "baseline.testsRun === undefined",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"judges a command with no count on its exit code\""
+  },
+  {
+    "name": "mutation-check: uncounted does not excuse a count of zero",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "if (baseline.testsRun === 0) {",
+    "replace": "if (baseline.testsRun === 0 && mutant.uncounted === undefined) {",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"still refuses a row marked uncounted\""
+  },
+  {
+    "name": "mutation-check: each line of a reason is indented under its row",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "detail.split(\"\\n\").map(",
+    "replace": "[detail].map(",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"shows each line of a reason under its row\""
+  },
+  {
+    "name": "mutation-check: the table says what a NO TESTS row means",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "if (results.some((result) => result.status === \"NO TESTS\")) {\n    lines.push",
+    "replace": "if (results.some((result) => result.status === \"ERROR\")) {\n    lines.push",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"shows each line of a reason under its row\""
+  },
+  {
+    "name": "mutation-check: NO TESTS exits 2",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": " || result.status === \"NO TESTS\")) {\n    return 2;",
+    "replace": ")) {\n    return 2;",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"is 2 when a test command ran no test\""
+  },
+  {
+    "name": "mutation-check: an uncounted with no reason is refused",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "mutant.uncounted.trim() === \"\"",
+    "replace": "false",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"that gives no reason\""
+  },
+  {
+    "name": "mutation-check: the report's path is in the command's environment",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": ", env: { ...process.env, [REPORT_VARIABLE]: report } });",
+    "replace": " });",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"counts the tests a command reports in the file\""
+  },
+  {
+    "name": "mutation-check: failed tests count as run",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "? numPassedTests + numFailedTests : undefined",
+    "replace": "? numPassedTests : undefined",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"counts the tests a command reports in the file\""
+  },
+  {
+    "name": "mutation-check: each run has a report of its own",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "const report = join(folder, \"report.json\");",
+    "replace": "const report = join(tmpdir(), \"mutation-check-shared-report.json\");",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"does not carry a count from one run to the next\""
+  },
+  {
+    "name": "mutation-check: vitest is asked for a JSON report",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "return `${command} --reporter=json --outputFile=\"${report}\"`;",
+    "replace": "return command;",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"asks vitest for a JSON report\""
+  },
+  {
+    "name": "mutation-check: a command that names the report variable is left as written",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "command.includes(REPORT_VARIABLE) || ",
+    "replace": "",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"leaves a command alone\""
+  },
+  {
+    "name": "mutation-check: vitest inside another word is not vitest",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "/(^|[\\s/])vitest(\\s|$)/",
+    "replace": "/vitest/",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"leaves a command alone\""
+  },
+  {
+    "name": "mutation-check: a report with no numbers gives no count",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "typeof numPassedTests === \"number\" && typeof numFailedTests === \"number\"",
+    "replace": "numPassedTests !== undefined",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"reads no count from a report\""
+  },
+  {
+    "name": "mutation-check: a real vitest run with no match counts zero",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "return `${command} --reporter=json --outputFile=\"${report}\"`;",
+    "replace": "return command;",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"runs one test for a filter that matches\""
+  },
+  {
+    "name": "mutation-check: the command line prints NO TESTS and exits 2",
+    "file": "addons/coverage/files/tools/coverage/mutation-check.mts",
+    "find": "if (baseline.testsRun === undefined && mutant.uncounted === undefined) {",
+    "replace": "if (baseline.testsRun === -1 && mutant.uncounted === undefined) {",
+    "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"prints NO TESTS and exits 2\""
   }
 ]
