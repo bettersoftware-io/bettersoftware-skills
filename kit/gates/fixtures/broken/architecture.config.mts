@@ -17,5 +17,8 @@ export default {
   },
   vendorOnlyIn: {
     ws: ["packages/checks"],
+    // One word twice: a package, and the scope its adapters are published under. Each has a list of its own.
+    hono: ["packages/checks"],
+    "@hono/": ["packages/checks", "packages/react-bindings"],
   },
 };

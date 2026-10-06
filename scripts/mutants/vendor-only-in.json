@@ -1,0 +1,86 @@
+[
+  {
+    "name": "vendor: a package and a scope of one word get two names (the old naming)",
+    "file": "kit/gates/lib/depcruise.mts",
+    "find": "  return `${vendor.endsWith(\"/\") ? `${vendor}*` : vendor}-only-in-its-packages`;",
+    "replace": "  return `${vendor.replace(/^@/, \"\").replace(/\\/$/, \"\").replace(/\\//g, \"-\")}-only-in-its-packages`;",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"has a name no other entry can have\""
+  },
+  {
+    "name": "vendor: the old naming, seen by a real run: the finding for hono says hono's list",
+    "file": "kit/gates/lib/depcruise.mts",
+    "find": "  return `${vendor.endsWith(\"/\") ? `${vendor}*` : vendor}-only-in-its-packages`;",
+    "replace": "  return `${vendor.replace(/^@/, \"\").replace(/\\/$/, \"\").replace(/\\//g, \"-\")}-only-in-its-packages`;",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"gives each of two entries that share a word a rule of its own\""
+  },
+  {
+    "name": "vendor: a scope is told from a package of the same name",
+    "file": "kit/gates/lib/depcruise.mts",
+    "find": "  return `${vendor.endsWith(\"/\") ? `${vendor}*` : vendor}-only-in-its-packages`;",
+    "replace": "  return `${vendor.replace(/\\/$/, \"\")}-only-in-its-packages`;",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"is named by the entry's own key\""
+  },
+  {
+    "name": "vendor: the name does not depend on the other entries",
+    "file": "kit/gates/lib/depcruise.mts",
+    "find": "      name: vendorRuleName(vendor),",
+    "replace": "      name: `${rules.length}-${vendorRuleName(vendor)}`,",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"keeps its name when other entries come and go\""
+  },
+  {
+    "name": "vendor: each rule carries its own list",
+    "file": "kit/gates/lib/depcruise.mts",
+    "find": "may be imported only from: ${allowed.join(\", \") || \"nowhere\"}.",
+    "replace": "may be imported only from: ${Object.values(config.vendorOnlyIn)[0]?.join(\", \") || \"nowhere\"}.",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"carries its own list for the demo's pair\""
+  },
+  {
+    "name": "vendor: two keys for one thing are refused",
+    "file": "kit/gates/lib/config.mts",
+    "find": "      if (entry.covers === other.covers) {",
+    "replace": "      if (entry.vendor === other.vendor) {",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"refuses two keys for one thing\""
+  },
+  {
+    "name": "vendor: a narrower entry that allows more is refused",
+    "file": "kit/gates/lib/config.mts",
+    "find": "      if (dead.length > 0) {",
+    "replace": "      if (dead.length > 1) {",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"refuses a narrower entry that allows what the wider one refuses\""
+  },
+  {
+    "name": "vendor: the wider entry is found whichever comes first",
+    "file": "kit/gates/lib/config.mts",
+    "find": " : entry.covers.startsWith(`${other.covers}/`) ? [other, entry] : [];",
+    "replace": " : [];",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"refuses a narrower entry that allows what the wider one refuses\""
+  },
+  {
+    "name": "vendor: a narrower entry that only takes away is accepted",
+    "file": "kit/gates/lib/config.mts",
+    "find": "      const dead = narrower.paths.filter((path) => !wider.paths.includes(path));",
+    "replace": "      const dead = wider.paths.filter((path) => !narrower.paths.includes(path));",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"accepts a narrower entry that only takes packages away\""
+  },
+  {
+    "name": "vendor: a name that only begins like another is not inside it",
+    "file": "kit/gates/lib/config.mts",
+    "find": "other.covers.startsWith(`${entry.covers}/`) ? [entry, other]",
+    "replace": "other.covers.startsWith(entry.covers) ? [entry, other]",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"does not read a name that only begins like another\""
+  },
+  {
+    "name": "vendor: a package and a scope of one word are not an overlap",
+    "file": "kit/gates/lib/config.mts",
+    "find": "covers: vendor.replace(/\\/+$/, \"\")",
+    "replace": "covers: vendor.replace(/\\/+$/, \"\").replace(/^@/, \"\")",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"accepts a package and a scope of the same word\""
+  },
+  {
+    "name": "vendor: the gates stop on such a config",
+    "file": "kit/gates/lib/config.mts",
+    "find": "      vendorOnlyIn: readVendorEntries(found, declared.vendorOnlyIn ?? {}),",
+    "replace": "      vendorOnlyIn: declared.vendorOnlyIn ?? {},",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"stops the gates with that message\""
+  }
+]

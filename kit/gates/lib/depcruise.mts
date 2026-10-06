@@ -47,6 +47,17 @@ const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\
 const anyOf = (paths: string[]): string => `^(${paths.map(escape).join("|")})/`;
 const slug = (path: string): string => path.replace(/^.*\//, "");
 
+/**
+ * The name of the rule for one entry of `vendorOnlyIn`. It is the entry's own
+ * key, with a scope written `@scope/*`, so two entries can never share a name
+ * and an entry's name does not depend on which others there are. A finding is
+ * given its message by this name: `hono` and `@hono/` once both became
+ * `hono-only-in-its-packages`, and a finding for one said the other's list.
+ */
+export function vendorRuleName(vendor: string): string {
+  return `${vendor.endsWith("/") ? `${vendor}*` : vendor}-only-in-its-packages`;
+}
+
 export function buildRules(config: ResolvedConfig, workspace: WorkspacePackage[]): Rule[] {
   const declared = declaredPackages(config);
   const everyPackage = [...new Set([...declared.map(({ path }) => path), ...workspace.map(({ path }) => path)])];
@@ -114,7 +125,7 @@ export function buildRules(config: ResolvedConfig, workspace: WorkspacePackage[]
     const name = escape(vendor.replace(/\/$/, ""));
 
     rules.push({
-      name: `${vendor.replace(/^@/, "").replace(/\/$/, "").replace(/\//g, "-")}-only-in-its-packages`,
+      name: vendorRuleName(vendor),
       severity: "error",
       comment: `"${vendor}" may be imported only from: ${allowed.join(", ") || "nowhere"}. Keeping a library in the packages that own it is what lets it be replaced by changing those alone. Reach it through what one of them exports, or extend vendorOnlyIn in architecture.config.mts deliberately.`,
       from: { path: anyOf(everyPackage), ...(allowed.length > 0 ? { pathNot: anyOf(allowed) } : {}) },

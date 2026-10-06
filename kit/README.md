@@ -409,6 +409,25 @@ vendorOnlyIn: {
 A name that ends in `/` covers a whole scope. An import that names only types
 is not counted.
 
+Each entry is a rule named by its own key: `ws-only-in-its-packages`,
+`@hono/node-server-only-in-its-packages`, and `@hono/*-only-in-its-packages`
+for the scope `"@hono/"`. So no two entries share a name, and an entry keeps
+its name whatever the others are. A finding takes its message from that
+name. Until 2026-10-06 `hono` and `@hono/` were both
+`hono-only-in-its-packages`, and a finding for one could say the other's
+list.
+
+Two entries that cannot both mean what they say stop the gates (exit 2) with
+the two keys and what to do:
+
+- Two keys for one thing: `"@hono"` and `"@hono/"`, or `"ws"` and `"ws/"`.
+- A key inside another (`"@hono/node-server"` under `"@hono/"`) that allows a
+  package the wider one does not. The wider entry would still refuse that
+  import.
+
+A narrower entry that only takes packages away is fine. So are a package and
+a scope of the same word (`hono` and `@hono/`), each with its own list.
+
 ### A package of types exports no value
 
 A package declared `typesOnly: true` is safe to import from anywhere because
