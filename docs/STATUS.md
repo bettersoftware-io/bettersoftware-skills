@@ -63,10 +63,13 @@ on 2026-10-05, on pushes to main and on a pull request
   [actions/runner-images#14748](https://github.com/actions/runner-images/issues/14748).
   Every workflow here uses that label: this repository's `ci.yml`, the
   starter's `ci.yml`, and the add-ons' `coverage.yml`, `visual.yml`,
-  `update-visual-goldens.yml` and `perf.yml`. Decide whether to pin a version
-  (`ubuntu-24.04`) or to move with the label. Either way, re-run this
-  repository's CI once the change lands. The visual tests are the least
-  exposed, since they run inside a pinned Playwright container.
+  `update-visual-goldens.yml`, `perf.yml`, `e2e.yml`, `ci-security.yml`,
+  `dependency-review.yml`, `scorecard.yml` and `weekly-tag.yml`. A project
+  created from the starter has the same label in every workflow it was given.
+  Decide whether to pin a version (`ubuntu-24.04`) or to move with the label.
+  Either way, re-run this repository's CI once the change lands. The visual
+  and end-to-end tests are the least exposed, since they run inside a pinned
+  Playwright container.
 
 ## Open decisions
 
