@@ -29,6 +29,30 @@ export function listPackages(root: string): string[] {
   return [...new Set(packages)].sort();
 }
 
+const PLAYWRIGHT_CONFIG = ["playwright.config.ts", "playwright.config.mts"];
+
+/**
+ * The Playwright config of a package whose tests are Playwright's and nothing
+ * else: one at the package's root, in a package with no `test` script.
+ * Undefined for every other package.
+ *
+ * Such a package drives a built application in a browser, in another process.
+ * This tool runs each package's tests under vitest: it would have nothing to
+ * measure there, and would load specs written for another runner. A package
+ * that has a `test` script as well is measured like any other.
+ */
+export function findPlaywrightOnly(root: string, directory: string): string | undefined {
+  const config = PLAYWRIGHT_CONFIG.find((name) => existsSync(join(root, directory, name)));
+
+  if (config === undefined) {
+    return undefined;
+  }
+
+  const { scripts = {} } = JSON.parse(readFileSync(join(root, directory, "package.json"), "utf8")) as { scripts?: Record<string, string> };
+
+  return Object.keys(scripts).some((name) => /^test(:|$)/.test(name)) ? undefined : config;
+}
+
 /** The entries of the top-level `packages:` list. */
 export function readPackagePatterns(yaml: string): string[] {
   const patterns: string[] = [];

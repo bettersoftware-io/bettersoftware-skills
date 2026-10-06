@@ -28,7 +28,7 @@ import { findMisplacedExclusions, measurePackage } from "./lib/measure.mts";
 import type { Build } from "./lib/report.mts";
 import { formatMarkdown, formatResults } from "./lib/report.mts";
 import { buildReport } from "./lib/site.mts";
-import { listPackages } from "./lib/workspace.mts";
+import { findPlaywrightOnly, listPackages } from "./lib/workspace.mts";
 
 export interface CheckOptions {
   root: string;
@@ -71,6 +71,16 @@ export function checkCoverage({
   }
 
   return (packages?.length ? packages : inWorkspace).map((directory) => {
+    // Before it is announced: nothing is run in it.
+    const playwrightConfig = findPlaywrightOnly(root, directory);
+
+    if (playwrightConfig !== undefined) {
+      return skipPackage(
+        directory,
+        `its tests are Playwright's (${playwrightConfig}, and no test script): they drive the built application in a browser, in another process, so there is nothing here for this tool to run or to measure`,
+      );
+    }
+
     announce?.(directory);
 
     // Measured without the tests that need a port, the package would read

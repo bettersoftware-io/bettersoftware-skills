@@ -65,6 +65,46 @@ describe("the coverage gate", () => {
     expect(results.map(({ directory, verdict }) => ({ directory, verdict }))).toEqual([{ directory: "packages/server", verdict: "PASS" }]);
   });
 
+  it("skips a package whose tests are Playwright's, by name, and runs nothing in it", () => {
+    const root = createWorkspace(["packages/e2e", "packages/strong"], {
+      "packages/e2e/playwright.config.ts": "",
+      "packages/e2e/src/sim/prices.spec.ts": "",
+    });
+    const measured: string[] = [];
+    const announced: string[] = [];
+
+    const results = checkCoverage({
+      root,
+      config: createConfig(),
+      announce: (directory) => {
+        announced.push(directory);
+      },
+      run: (directory, ...rest) => {
+        measured.push(basename(directory));
+
+        return createVitestRun(root)(directory, ...rest);
+      },
+    });
+
+    expect(results.map(({ directory, verdict }) => ({ directory, verdict }))).toEqual([
+      { directory: "packages/e2e", verdict: "SKIP" },
+      { directory: "packages/strong", verdict: "PASS" },
+    ]);
+    expect(results[0]?.reason).toContain("its tests are Playwright's (playwright.config.ts, and no test script)");
+    expect(measured).toEqual(["strong"]);
+    expect(announced).toEqual(["packages/strong"]);
+  });
+
+  it("measures a package that has a Playwright config and a test script of its own", () => {
+    const root = createWorkspace(["packages/strong"], { "packages/strong/playwright.config.ts": "" });
+
+    writeFileSync(join(root, "packages/strong/package.json"), JSON.stringify({ name: "strong", scripts: { "test:unit": "vitest run" } }));
+
+    const results = checkCoverage({ root, config: createConfig(), run: createVitestRun(root) });
+
+    expect(results.map(({ verdict }) => verdict)).toEqual(["PASS"]);
+  });
+
   it("refuses a folder that is not a workspace package", () => {
     const root = createWorkspace(["packages/strong"]);
     const check = (): unknown => checkCoverage({ root, config: createConfig(), packages: ["packages/strnog"], run: createVitestRun(root) });
