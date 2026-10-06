@@ -6,8 +6,8 @@ name: Dependency Review
 #
 #   - `pnpm audit --prod` reads the whole tree, but only production
 #     dependencies. Build tools and test runners are the code that runs in CI.
-#   - Dependabot's cooldown is about how new a release is, not what is known
-#     about it, and its security updates act after the version is on main.
+#   - The update bot's cooldown is about how new a release is, not what is
+#     known about it, and security updates act after the version is on main.
 #   - Nothing else reads licences.
 #
 # It asks GitHub for the difference between the two dependency graphs, so it

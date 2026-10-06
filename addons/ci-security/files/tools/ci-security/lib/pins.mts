@@ -10,8 +10,8 @@
 //   gh api repos/rhysd/actionlint/releases/tags/v<VERSION> --jq '.assets[] | "\(.name) \(.digest)"'
 //   gh api repos/zizmorcore/zizmor/releases/tags/v<VERSION> --jq '.assets[] | "\(.name) \(.digest)"'
 //
-// Dependabot does not manage these pins. Leave a release a week before you
-// take it, as the Dependabot config does for everything else.
+// No update bot manages these pins. Leave a release a week before you take
+// it, as the bot's config does for everything else.
 
 export interface Asset {
   url: string;
