@@ -243,15 +243,19 @@ describe("the hook", () => {
   });
 
   it("refuses a chain and says which step is outward and what to do", () => {
-    const reason = judgeCall({ tool_name: "Bash", tool_input: { command: "git add -A && git commit -m wip && git push" } });
+    const answer = judgeCall({ tool_name: "Bash", tool_input: { command: "git add -A && git commit -m wip && git push" } });
 
-    expect(reason).toContain("Refused");
-    expect(reason).toContain("(git push)");
-    expect(reason).toContain("a tool call of its own");
+    expect(answer?.decision).toBe("deny");
+    expect(answer?.reason).toContain("Refused");
+    expect(answer?.reason).toContain("(git push)");
+    expect(answer?.reason).toContain("a tool call of its own");
   });
 
   it("refuses a chain sent as a list of words", () => {
-    expect(judgeCall({ tool_input: { command: ["bash", "-lc", "git commit -m \"it's done\" && git push"] } })).toContain("git push");
+    const answer = judgeCall({ tool_input: { command: ["bash", "-lc", "git commit -m \"it's done\" && git push"] } });
+
+    expect(answer?.decision).toBe("deny");
+    expect(answer?.reason).toContain("git push");
   });
 
   it("says nothing about a lone outward step, a local chain, or a tool that runs no command", () => {

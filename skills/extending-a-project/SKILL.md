@@ -31,7 +31,7 @@ node <plugin root>/scripts/add-to-project.mts --list
 | `coverage` | A per-file coverage gate, a ranked list of gaps, a mutation check, a published report |
 | `visual` | Screenshot tests of the UI against committed golden images |
 | `performance` | A static check of animations and transitions, a runtime motion audit, a guide |
-| `agent-workflow` | A hook that keeps each push and pull request step in a call of its own, permission rules, a worktree script, a weekly tag, a checked changelog |
+| `agent-workflow` | A hook that keeps each push and pull request step in a call of its own and approves the routine ones by exact shape, a worktree script, a weekly tag, a checked changelog |
 
 Adding a unit a project already has updates it.
 

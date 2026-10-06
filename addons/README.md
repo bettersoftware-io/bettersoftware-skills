@@ -36,7 +36,7 @@ addons/<name>/
   },
   "gates": { "fast": ["pnpm perf:check"], "full": [] },
   "startingFiles": ["packages/client-react/tests/visual/scenarios.ts", "packages/client-react/tests/visual/goldens/"],
-  "hostSettings": { ".claude/settings.json": { "permissions": { "allow": ["Bash(gh pr create *)"] } } },
+  "hostSettings": { ".claude/settings.json": { "permissions": { "ask": ["Bash(git push *--force*)"] } } },
   "verify": "pnpm coverage"
 }
 ```

@@ -3,15 +3,17 @@
 //
 //   node tools/agent-workflow/check.mts
 //
-// It runs the hook on two commands, one it must refuse and one it must let
-// through, and then reads each host's settings file to see that the hook is
-// registered there and, for Claude Code, that the permission rules are in.
+// It runs the hook on three commands: one it must refuse, one it must leave
+// to the host, and one routine step that it approves when approval is on and
+// the host is Claude Code, and never otherwise. Then it reads each host's
+// settings file to see that the hook is registered there.
 //
-// A host's settings file belongs to the project. A missing "allow" rule is
-// therefore reported as a NOTE, not a failure: the project may prefer to be
-// asked. Two things are failures: the hook is not registered in a settings
-// file that exists, and a push is pre-approved while a forced push is not
-// set to ask.
+// A host's settings file belongs to the project, and so does the setting
+// that turns approval off. What the project chose is reported as a NOTE.
+// These are failures: the hook does not behave; it is not registered in a
+// settings file that exists; Codex would be sent an approval; an `allow`
+// rule with a `*` pre-approves a push or a merge while the `ask` rules that
+// catch a forced or destructive one are missing.
 //
 // Exit 0: nothing failed. Exit 1: a FAIL line says what and how to fix it.
 // Exit 2: no host settings file exists, so there was nothing to judge.
@@ -21,20 +23,22 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { ALLOW_RULES, ASK_RULES, CLAUDE_SETTINGS, CODEX_HOOKS, COMMAND_NEEDS, HOOK_SCRIPT } from "./lib/host.mts";
+import { APPROVING_HOST, ASK_RULES, CLAUDE_SETTINGS, CODEX_HOOKS, COMMAND_NEEDS, CONFIG_FILE, HOOK_SCRIPT, WIDE_ALLOW } from "./lib/host.mts";
 import { isMainModule } from "./lib/main.mts";
 import { installedIn } from "./requires.mts";
 
 const REFUSED_SAMPLE = "git add -A && git commit -m wip && git push";
-const ALLOWED_SAMPLE = "git push -u origin worktree-sample 2>&1 | tail -2";
+const UNANSWERED_SAMPLE = "git push origin main";
+const APPROVED_SAMPLE = "git push -u origin worktree-sample 2>&1 | tail -2";
 const FIX = "Run the installer again (add-to-project.mts <project> agent-workflow): it merges what is missing and removes nothing";
 
 type Settings = Record<string, unknown>;
+type Decision = "deny" | "allow" | "none" | "broken";
 
 export interface CheckOptions {
   root: string;
-  /** Runs the hook with a payload on its standard input. */
-  runHook: (payload: unknown) => { status: number; stdout: string };
+  /** Runs the hook with a payload on its standard input, started with `args`. */
+  runHook: (payload: unknown, args: string[]) => { status: number; stdout: string };
   report: (line: string) => void;
 }
 
@@ -45,16 +49,39 @@ export function check({ root, runHook, report }: CheckOptions): number {
     failed = true;
     report(`FAIL ${line}`);
   };
+  const ask = (command: string, args: string[]): Decision => decisionOf(runHook({ tool_name: "Bash", tool_input: { command } }, args));
+  const asClaude = [APPROVING_HOST];
+  const asCodex: string[] = [];
 
-  const refused = runHook({ tool_name: "Bash", tool_input: { command: REFUSED_SAMPLE } });
-  const allowed = runHook({ tool_name: "Bash", tool_input: { command: ALLOWED_SAMPLE } });
+  // What the hook must do whatever the project chose.
+  const fixed: [string, string[], Decision][] = [
+    [REFUSED_SAMPLE, asClaude, "deny"],
+    [REFUSED_SAMPLE, asCodex, "deny"],
+    [UNANSWERED_SAMPLE, asClaude, "none"],
+    [UNANSWERED_SAMPLE, asCodex, "none"],
+    [APPROVED_SAMPLE, asCodex, "none"],
+  ];
+  const wrong = fixed.map(([command, args, expected]) => ({ command, args, expected, got: ask(command, args) })).filter(({ expected, got }) => got !== expected);
+  const approval = ask(APPROVED_SAMPLE, asClaude);
 
-  if (refused.status !== 0 || !refused.stdout.includes('"permissionDecision":"deny"')) {
-    fail(`hook: it did not refuse \`${REFUSED_SAMPLE}\` (exit ${refused.status}, printed ${JSON.stringify(refused.stdout.trim())})`);
-  } else if (allowed.status !== 0 || allowed.stdout.trim() !== "") {
-    fail(`hook: it did not let \`${ALLOWED_SAMPLE}\` through (exit ${allowed.status}, printed ${JSON.stringify(allowed.stdout.trim())})`);
+  for (const { command, args, expected, got } of wrong) {
+    fail(`hook: \`${command}\` started ${args.length === 0 ? "with no argument" : `with ${args.join(" ")}`} answered "${got}", not "${expected}"`);
+  }
+
+  if (wrong.length === 0) {
+    report("PASS hook: refuses an outward step joined to others, says nothing about a push to main, and never approves without --host=claude-code");
+  }
+
+  if (approval === "allow") {
+    report(`PASS approval: on. In Claude Code a routine step in its exact form runs without a prompt (turn it off in ${CONFIG_FILE})`);
+  } else if (approval === "none") {
+    report(
+      existsSync(join(root, CONFIG_FILE))
+        ? `NOTE approval: off. ${CONFIG_FILE} does not set approveExactShapes to true, so every push and pull request step asks. That is the project's choice`
+        : `NOTE approval: off. There is no ${CONFIG_FILE}, so nothing is approved and every push and pull request step asks`,
+    );
   } else {
-    report("PASS hook: refuses an outward step joined to others, lets a lone one through");
+    fail(`hook: \`${APPROVED_SAMPLE}\` started with ${APPROVING_HOST} answered "${approval}"; it may only approve or say nothing`);
   }
 
   for (const [host, path] of [
@@ -75,13 +102,25 @@ export function check({ root, runHook, report }: CheckOptions): number {
       continue;
     }
 
-    if (hookCommands(settings).some((command) => command.includes(HOOK_SCRIPT))) {
-      report(`PASS ${host}: ${path} runs the hook before each shell command`);
-    } else {
+    const registered = hookCommands(settings).filter((command) => command.includes(HOOK_SCRIPT));
+
+    if (registered.length === 0) {
       fail(`${host}: ${path} does not register ${HOOK_SCRIPT} under hooks.PreToolUse. ${FIX}`);
+    } else {
+      report(`PASS ${host}: ${path} runs the hook before each shell command`);
+    }
+
+    const approving = registered.some((command) => command.includes(APPROVING_HOST));
+
+    if (path === CODEX_HOOKS && approving) {
+      fail(`${host}: ${path} starts the hook with ${APPROVING_HOST}. Codex does not take an approval from a hook: remove that argument there`);
     }
 
     if (path === CLAUDE_SETTINGS) {
+      if (registered.length > 0 && !approving) {
+        report(`NOTE ${host}: ${path} starts the hook without ${APPROVING_HOST}, so it approves nothing there`);
+      }
+
       failed = judgePermissions(settings, report) || failed;
     }
   }
@@ -116,17 +155,16 @@ function judgePermissions(settings: Settings, report: (line: string) => void): b
   const permissions = (settings.permissions ?? {}) as { allow?: unknown; ask?: unknown };
   const allow = Array.isArray(permissions.allow) ? (permissions.allow as unknown[]) : [];
   const ask = Array.isArray(permissions.ask) ? (permissions.ask as unknown[]) : [];
-  const missingAllow = ALLOW_RULES.filter((rule) => !allow.includes(rule));
   const missingAsk = ASK_RULES.filter((rule) => !ask.includes(rule));
-  const preApprovedPushes = allow.filter((rule) => typeof rule === "string" && rule.startsWith("Bash(git push"));
+  const wide = allow.filter((rule): rule is string => typeof rule === "string" && WIDE_ALLOW.test(rule));
 
-  for (const rule of missingAllow) {
-    report(`NOTE Claude Code: ${rule} is not in permissions.allow, so that step asks each time. That is the project's choice`);
+  for (const rule of wide) {
+    report(`NOTE Claude Code: the allow rule ${rule} pre-approves more than its words say: a "*" also matches a second branch, another flag, a "$(…)". The hook approves the exact forms without it`);
   }
 
-  if (missingAsk.length > 0 && preApprovedPushes.length > 0) {
+  if (missingAsk.length > 0 && wide.length > 0) {
     report(
-      `FAIL Claude Code: a push is pre-approved (${preApprovedPushes.join(", ")}) and a forced push is not set to ask. Missing from permissions.ask: ${missingAsk.join(", ")}. ${FIX}`,
+      `FAIL Claude Code: ${wide.join(", ")} pre-approves by pattern, and a forced or destructive form is not set to ask. Missing from permissions.ask: ${missingAsk.join(", ")}. ${FIX}`,
     );
 
     return true;
@@ -134,11 +172,30 @@ function judgePermissions(settings: Settings, report: (line: string) => void): b
 
   report(
     missingAsk.length === 0
-      ? `PASS Claude Code: ${ALLOW_RULES.length - missingAllow.length} of ${ALLOW_RULES.length} routine steps pre-approved, a forced push always asks`
-      : "PASS Claude Code: no push is pre-approved, so every push asks",
+      ? `PASS Claude Code: all ${ASK_RULES.length} ask rules are in, so a forced or destructive push and an --admin merge ask whatever else allows them`
+      : `NOTE Claude Code: ${missingAsk.length} of ${ASK_RULES.length} ask rules are not in permissions.ask. No allow rule pre-approves a push or a merge by pattern, so those forms ask anyway`,
   );
 
   return false;
+}
+
+/** What a run of the hook answered: its decision, nothing, or something that is neither. */
+function decisionOf({ status, stdout }: { status: number; stdout: string }): Decision {
+  if (status !== 0) {
+    return "broken";
+  }
+
+  if (stdout.trim() === "") {
+    return "none";
+  }
+
+  try {
+    const decision = (JSON.parse(stdout) as { hookSpecificOutput?: { permissionDecision?: unknown } }).hookSpecificOutput?.permissionDecision;
+
+    return decision === "deny" || decision === "allow" ? decision : "broken";
+  } catch {
+    return "broken";
+  }
 }
 
 function readSettings(root: string, path: string): Settings | "absent" | "unreadable" {
@@ -170,14 +227,14 @@ function hookCommands(settings: Settings): string[] {
 
 /** Runs the shipped hook the way a host does: the payload on its standard input. */
 export function createHookRunner(root: string): CheckOptions["runHook"] {
-  return (payload) => {
+  return (payload, args) => {
     const file = join(root, HOOK_SCRIPT);
 
     if (!existsSync(file)) {
       return { status: 127, stdout: `${HOOK_SCRIPT} does not exist` };
     }
 
-    const ran = spawnSync(process.execPath, [file], { cwd: root, input: JSON.stringify(payload), encoding: "utf8" });
+    const ran = spawnSync(process.execPath, [file, ...args], { cwd: root, input: JSON.stringify(payload), encoding: "utf8" });
 
     return { status: ran.status ?? 1, stdout: ran.stdout ?? "" };
   };

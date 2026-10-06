@@ -364,27 +364,6 @@
     "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"refuses a chain sent as a list of words\""
   },
   {
-    "name": "says nothing about a lone outward step",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
-    "find": "if (verdict === undefined || !verdict.chained) {",
-    "replace": "if (verdict === undefined || verdict.outward.length === 0) {",
-    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"says nothing about a lone outward step\""
-  },
-  {
-    "name": "replies in the shape both hosts read",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
-    "find": "permissionDecision: \"deny\", permissionDecisionReason",
-    "replace": "permissionDecision: \"block\", permissionDecisionReason",
-    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"replies in the shape both hosts read\""
-  },
-  {
-    "name": "prints nothing for a command it lets through",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
-    "find": "  if (reason) {\n    console.log(",
-    "replace": "  if (reason || true) {\n    console.log(",
-    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"prints nothing for a command it lets through\""
-  },
-  {
     "name": "lets a call through when it is sent nothing at all",
     "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
     "find": "readFileSync(0, \"utf8\") || \"{}\"",
@@ -910,153 +889,6 @@
     "test": "pnpm vitest run addons/agent-workflow/tests/new-worktree.test.mts --testNamePattern=\"which names no worktree\""
   },
   {
-    "name": "passes a project that has the hook in both hosts' settings",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "command.includes(HOOK_SCRIPT))",
-    "replace": "command === HOOK_SCRIPT)",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"passes a project that has the hook in both hosts' settings\""
-  },
-  {
-    "name": "says a command is usable once the add-on it needs is recorded",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "needs !== undefined && !installed.includes(needs)",
-    "replace": "needs !== undefined",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"says a command is usable once the add-on it needs is recorded\""
-  },
-  {
-    "name": "settings exist and do not register the hook",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "      fail(`${host}: ${path} does not register",
-    "replace": "      report(`${host}: ${path} does not register",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"settings exist and do not register the hook\""
-  },
-  {
-    "name": "does not take a hook registered for another event as registered",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "| undefined)?.PreToolUse;",
-    "replace": "| undefined)?.[\"PostToolUse\" as \"PreToolUse\"];",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"does not take a hook registered for another event as registered\""
-  },
-  {
-    "name": "fails a settings file that holds no JSON object",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "      fail(`${host}: ${path} is not a JSON object",
-    "replace": "      report(`FAIL ${host}: ${path} is not a JSON object",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails a settings file that holds no JSON object\""
-  },
-  {
-    "name": "skips a host whose settings file is not there",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "      report(`SKIP ${host}: there is no",
-    "replace": "      fail(`SKIP ${host}: there is no",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"skips a host whose settings file is not there\""
-  },
-  {
-    "name": "does not pass when neither host has a settings file",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "  if (judged === 0) {",
-    "replace": "  if (judged < 0) {",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"does not pass when neither host has a settings file\""
-  },
-  {
-    "name": "notes a routine step the project chose not to pre-approve",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "if (missingAsk.length > 0 && preApprovedPushes.length > 0) {",
-    "replace": "if (missingAllow.length > 0 || (missingAsk.length > 0 && preApprovedPushes.length > 0)) {",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"notes a routine step the project chose not to pre-approve\""
-  },
-  {
-    "name": "fails when a push is pre-approved and a forced push is not set to ask",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "if (missingAsk.length > 0 && preApprovedPushes.length > 0) {",
-    "replace": "if (missingAsk.length > 1 && preApprovedPushes.length > 0) {",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when a push is pre-approved and a forced push is not set to ask\""
-  },
-  {
-    "name": "fails when a push is pre-approved (exit code)",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "      failed = judgePermissions(settings, report) || failed;",
-    "replace": "      judgePermissions(settings, report);",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when a push is pre-approved and a forced push is not set to ask\""
-  },
-  {
-    "name": "passes a project that pre-approves no push and has no ask rule",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "if (missingAsk.length > 0 && preApprovedPushes.length > 0) {",
-    "replace": "if (missingAsk.length > 0) {",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"passes a project that pre-approves no push and has no ask rule\""
-  },
-  {
-    "name": "fails when the hook does not refuse the chain",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "refused.status !== 0 || !refused.stdout.includes('\"permissionDecision\":\"deny\"')",
-    "replace": "refused.status !== 0",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when the hook does not refuse the chain\""
-  },
-  {
-    "name": "fails when the hook crashes after it replied",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "refused.status !== 0 || !refused.stdout.includes('\"permissionDecision\":\"deny\"')",
-    "replace": "!refused.stdout.includes('\"permissionDecision\":\"deny\"')",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when the hook crashes after it replied\""
-  },
-  {
-    "name": "fails when the hook refuses a lone push",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "allowed.status !== 0 || allowed.stdout.trim() !== \"\"",
-    "replace": "allowed.status !== 0",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when the hook refuses a lone push\""
-  },
-  {
-    "name": "fails when a command file is gone",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "if (!existsSync(join(root, \".claude/commands/workflow\", `${command}.md`))) {",
-    "replace": "if (command === \"\") {",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when a command file is gone\""
-  },
-  {
-    "name": "says the hook is missing when it is asked to run one that is not there",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
-    "find": "    if (!existsSync(file)) {\n      return { status: 127",
-    "replace": "    if (file === \"\") {\n      return { status: 127",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"says the hook is missing when it is asked to run one that is not there\""
-  },
-  {
-    "name": "answers from the installer's record",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/requires.mts",
-    "find": "? Object.keys(record) : undefined",
-    "replace": "? [] : undefined",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"answers from the installer's record\""
-  },
-  {
-    "name": "stops, and says how to add it, when the add-on is not there",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/requires.mts",
-    "find": "if (!installed.includes(addon)) {",
-    "replace": "if (installed.includes(\"\")) {",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"stops, and says how to add it, when the add-on is not there\""
-  },
-  {
-    "name": "stops when the record is a list",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/requires.mts",
-    "find": " && !Array.isArray(record)",
-    "replace": "",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"stops when the record is a list\""
-  },
-  {
-    "name": "stops when the record is missing",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/requires.mts",
-    "find": "  if (installed === undefined) {",
-    "replace": "  if (installed === null) {",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"stops when the record is missing\""
-  },
-  {
-    "name": "stops when it is not told which add-on",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/requires.mts",
-    "find": "if (addon === undefined || addon === \"\") {",
-    "replace": "if (addon === \"\") {",
-    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"stops when it is not told which add-on\""
-  },
-  {
     "name": "is offered, not recommended",
     "file": "addons/agent-workflow/addon.json",
     "find": "\"recommended\": false",
@@ -1078,32 +910,11 @@
     "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"installs no package and joins no gate\""
   },
   {
-    "name": "leaves CHANGELOG.md to the project once it is written",
-    "file": "addons/agent-workflow/addon.json",
-    "find": "\"CHANGELOG.md\"\n  ],",
-    "replace": "\"CHANGELOG.md\", \"tools/agent-workflow/lib/host.mts\"\n  ],",
-    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"leaves CHANGELOG\\\\.md to the project once it is written\""
-  },
-  {
-    "name": "asks each host for the same entries the project's own check looks for",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
-    "find": "  \"Bash(gh pr merge *)\",\n",
-    "replace": "",
-    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"asks each host for the same entries the project's own check looks for\""
-  },
-  {
     "name": "asks each host for the same entries (codex command)",
     "file": "addons/agent-workflow/addon.json",
     "find": "\"command\": \"node tools/agent-workflow/hooks/split-outward-commands.mts\"",
     "replace": "\"command\": \"node \\\"$CLAUDE_PROJECT_DIR/tools/agent-workflow/hooks/split-outward-commands.mts\\\" \"",
     "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"asks each host for the same entries the project's own check looks for\""
-  },
-  {
-    "name": "runs without a prompt: git push origin worktree-rates-filter",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
-    "find": "  \"Bash(git push origin worktree-*)\",\n",
-    "replace": "",
-    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"runs without a prompt: git push origin worktree-rates-filter\""
   },
   {
     "name": "always asks: git push -f origin worktree-a",
@@ -1132,20 +943,6 @@
     "find": "  \"Bash(git push *:*)\",\n",
     "replace": "",
     "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"always asks: git push origin worktree-a:main\""
-  },
-  {
-    "name": "is left to the host's own judgement: git push origin main",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
-    "find": "\"Bash(git push origin worktree-*)\"",
-    "replace": "\"Bash(git push origin *)\"",
-    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"is left to the host's own judgement: git push origin main\""
-  },
-  {
-    "name": "does not ask about a branch only because its name holds the letters of a flag",
-    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
-    "find": "\"Bash(git push * -f*)\"",
-    "replace": "\"Bash(git push *-f*)\"",
-    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"does not ask about a branch only because its name holds the letters of a flag\""
   },
   {
     "name": "pins every action by a full commit hash",
@@ -1302,13 +1099,6 @@
     "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"points at command files that are shipped\""
   },
   {
-    "name": "states each pre-approved form as the rules have it",
-    "file": "addons/agent-workflow/AGENTS.section.md",
-    "find": "`gh pr merge …`",
-    "replace": "`gh pr squash …`",
-    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"states each pre-approved form as the rules have it\""
-  },
-  {
     "name": "has no week yet, and passes its own check",
     "file": "addons/agent-workflow/files/CHANGELOG.md",
     "find": "Every merged pull request is cited by its number",
@@ -1356,13 +1146,6 @@
     "find": "      fail(`${host}: ${path} does not register",
     "replace": "      report(`${host}: ${path} does not register",
     "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"fails that proof once the hook is taken out\""
-  },
-  {
-    "name": "writes the changelog once, the commands, the skills for Codex and the workflow",
-    "file": "addons/agent-workflow/addon.json",
-    "find": "\"CHANGELOG.md\"\n  ],",
-    "replace": "\"CHANGELOG\"\n  ],",
-    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"writes the changelog once, the commands, the skills for Codex and the workflow\""
   },
   {
     "name": "adds a rule the list lacks, after the ones the project has",
@@ -1524,5 +1307,1265 @@
     "find": "[\"EPERM\", \"EACCES\", \"EROFS\"].includes(",
     "replace": "[\"EROFS\"].includes(",
     "test": "pnpm vitest run scripts/add-to-project.test.mts --testNamePattern=\"goes on, and says so, when the host does not let it write a hook file\""
+  },
+  {
+    "name": "says nothing about a lone outward step",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "  if (verdict?.chained) {",
+    "replace": "  if (verdict !== undefined && verdict.outward.length > 0) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"says nothing about a lone outward step\""
+  },
+  {
+    "name": "replies in the shape both hosts read",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "hookEventName: \"PreToolUse\", permissionDecision: answer.decision",
+    "replace": "hookEventName: \"PreTool\", permissionDecision: answer.decision",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"replies in the shape both hosts read\""
+  },
+  {
+    "name": "replies in the shape both hosts read (the decision)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "decision: \"deny\",\n      reason: [",
+    "replace": "decision: \"allow\",\n      reason: [",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"replies in the shape both hosts read\""
+  },
+  {
+    "name": "prints nothing for a command it lets through",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "  if (answer) {\n    console.log(",
+    "replace": "  if (answer || payload) {\n    console.log(",
+    "test": "pnpm vitest run addons/agent-workflow/tests/outward.test.mts --testNamePattern=\"prints nothing for a command it lets through\""
+  },
+  {
+    "name": "has no token for a variable",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const BARE = /^[A-Za-z0-9_./-]+/;",
+    "replace": "const BARE = /^[A-Za-z0-9_./$-]+/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"has no token for a variable\""
+  },
+  {
+    "name": "is not approved: a bare variable for the title",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const BARE = /^[A-Za-z0-9_./-]+/;",
+    "replace": "const BARE = /^[A-Za-z0-9_./$-]+/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a bare variable for the title\""
+  },
+  {
+    "name": "has no token for a glob",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const BARE = /^[A-Za-z0-9_./-]+/;",
+    "replace": "const BARE = /^[A-Za-z0-9_./*-]+/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"has no token for a glob\""
+  },
+  {
+    "name": "has no token for a tilde",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const BARE = /^[A-Za-z0-9_./-]+/;",
+    "replace": "const BARE = /^[A-Za-z0-9_./~-]+/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"has no token for a tilde\""
+  },
+  {
+    "name": "has no token for a backslash",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const BARE = /^[A-Za-z0-9_./-]+/;",
+    "replace": "const BARE = /^[A-Za-z0-9_./\\\\-]+/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"has no token for a backslash\""
+  },
+  {
+    "name": "has no token for a colon",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const BARE = /^[A-Za-z0-9_./-]+/;",
+    "replace": "const BARE = /^[A-Za-z0-9_./:-]+/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"has no token for a colon\""
+  },
+  {
+    "name": "has no token for a brace",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const BARE = /^[A-Za-z0-9_./-]+/;",
+    "replace": "const BARE = /^[A-Za-z0-9_./{},-]+/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"has no token for a brace\""
+  },
+  {
+    "name": "has no token for an equals sign",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const BARE = /^[A-Za-z0-9_./-]+/;",
+    "replace": "const BARE = /^[A-Za-z0-9_./=-]+/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"has no token for an equals sign\""
+  },
+  {
+    "name": "is not approved: --title with =",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const BARE = /^[A-Za-z0-9_./-]+/;",
+    "replace": "const BARE = /^[A-Za-z0-9_./=-]+/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"has no token for an equals sign\""
+  },
+  {
+    "name": "is not approved: a variable in the title",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const DOUBLE = /^\"([^\"$`\\\\]*)\"/;",
+    "replace": "const DOUBLE = /^\"([^\"`\\\\]*)\"/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a variable in the title\""
+  },
+  {
+    "name": "is not approved: backticks in the title",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const DOUBLE = /^\"([^\"$`\\\\]*)\"/;",
+    "replace": "const DOUBLE = /^\"([^\"$\\\\]*)\"/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: backticks in the title\""
+  },
+  {
+    "name": "has no token for a backslash in double quotes",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const DOUBLE = /^\"([^\"$`\\\\]*)\"/;",
+    "replace": "const DOUBLE = /^\"([^\"$`]*)\"/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"has no token for a backslash in double quotes\""
+  },
+  {
+    "name": "is not approved: a substitution in the body",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const DOUBLE = /^\"([^\"$`\\\\]*)\"/;",
+    "replace": "const DOUBLE = /^\"([^\"`\\\\]*)\"/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a substitution in the body\""
+  },
+  {
+    "name": "knows four kinds of token and two marks",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const MARK = /^(?:2>&1|\\|)/;",
+    "replace": "const MARK = /^(?:2>&1)/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"knows four kinds of token and two marks\""
+  },
+  {
+    "name": "has no token for a semicolon",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const MARK = /^(?:2>&1|\\|)/;",
+    "replace": "const MARK = /^(?:2>&1|\\||;)/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"has no token for a semicolon\""
+  },
+  {
+    "name": "is not approved: a heredoc with a bare delimiter",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "<<'([A-Za-z_][A-Za-z0-9_]*)'\\n/;",
+    "replace": "<<'?([A-Za-z_][A-Za-z0-9_]*)'?\\n/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a heredoc with a bare delimiter\""
+  },
+  {
+    "name": "is not approved: a heredoc with a double-quoted delimiter",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "<<'([A-Za-z_][A-Za-z0-9_]*)'\\n/;",
+    "replace": "<<['\"]([A-Za-z_][A-Za-z0-9_]*)['\"]\\n/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a heredoc with a double-quoted delimiter\""
+  },
+  {
+    "name": "is not approved: a heredoc that strips tabs",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "\\(cat <<'",
+    "replace": "\\(cat <<-?'",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a heredoc that strips tabs\""
+  },
+  {
+    "name": "is not approved: a heredoc fed to a shell",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "\\(cat <<'",
+    "replace": "\\(\\w+ <<'",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a heredoc fed to a shell\""
+  },
+  {
+    "name": "is not approved: a heredoc with a file beside it",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "\\(cat <<'",
+    "replace": "\\(cat [^<]*<<'",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a heredoc with a file beside it\""
+  },
+  {
+    "name": "is not approved: a heredoc for the title",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "  \"--title\": { name: \"--title\", value: isText },",
+    "replace": "  \"--title\": { name: \"--title\", value: isBody },",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a heredoc for the title\""
+  },
+  {
+    "name": "has no token for a new line",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const GAP = /^[ \\t]+/;",
+    "replace": "const GAP = /^\\s+/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"has no token for a new line\""
+  },
+  {
+    "name": "is not approved: a new line",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const GAP = /^[ \\t]+/;",
+    "replace": "const GAP = /^\\s+/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a new line\""
+  },
+  {
+    "name": "has no token for two quotes joined",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "    if (rest !== \"\" && !GAP.test(rest)) {",
+    "replace": "    if (rest === \"x\") {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"has no token for two quotes joined\""
+  },
+  {
+    "name": "is not approved: gh pr merge spelled longer",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "    if (rest !== \"\" && !GAP.test(rest)) {",
+    "replace": "    if (rest === \"x\") {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"has no token for a mark joined to a word\""
+  },
+  {
+    "name": "has no token for a redirection with a space after it",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const MARK = /^(?:2>&1|\\|)/;",
+    "replace": "const MARK = /^(?:2>&1|\\||>)/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"has no token for a redirection with a space after it\""
+  },
+  {
+    "name": "is not approved: a heredoc that ends early, and a command in what follows",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "lines.indexOf(heredoc[1] as string)",
+    "replace": "lines.lastIndexOf(heredoc[1] as string)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a heredoc that ends early, and a command in what follows\""
+  },
+  {
+    "name": "is not approved: a heredoc that never ends, closed at once",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "    if (last === -1 || !lines",
+    "replace": "    if (!lines",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a heredoc that never ends, closed at once\""
+  },
+  {
+    "name": "is not approved: a heredoc with no opening quote",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const HEREDOC_OPEN = /^\"\\$\\(cat",
+    "replace": "const HEREDOC_OPEN = /^\"?\\$\\(cat",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a heredoc with no opening quote\""
+  },
+  {
+    "name": "reads the heredoc form as one token, with its body as written",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const body = lines.slice(0, last).join(\"\\n\");",
+    "replace": "const body = lines.slice(0, last).join(\"\\n\").trim();",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"reads the heredoc form as one token, with its body as written\""
+  },
+  {
+    "name": "reads the heredoc form as one token (its length)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": ".join(\"\\n\").length + 1 + close.length };",
+    "replace": ".join(\"\\n\").length + close.length };",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"reads the heredoc form as one token, with its body as written\""
+  },
+  {
+    "name": "does not take a line that only starts with the delimiter for its end",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "lines.indexOf(heredoc[1] as string)",
+    "replace": "lines.findIndex((line) => line.startsWith(heredoc[1] as string))",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"does not take a line that only starts with the delimiter for its end\""
+  },
+  {
+    "name": "is not approved: 2>&1 in place of the pipe",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "    pipe.value === \"|\" &&\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: 2>&1 in place of the pipe\""
+  },
+  {
+    "name": "is not approved: a heredoc with two other characters where it should close",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "    if (last === -1 || !lines.slice(last + 1).join(\"\\n\").startsWith(close)) {",
+    "replace": "    if (last === -1) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a heredoc with two other characters where it should close\""
+  },
+  {
+    "name": "is not approved: a pipe into a shell",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "  if (firstMark !== -1 && !isOutputFilter(tokens.slice(firstMark))) {",
+    "replace": "  if (firstMark === -2) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a pipe into a shell\""
+  },
+  {
+    "name": "is not approved: a pipe into a shell with a count",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "[\"tail\", \"head\"].includes(program.value) &&",
+    "replace": "[\"tail\", \"head\", \"sh\"].includes(program.value) &&",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a pipe into a shell with a count\""
+  },
+  {
+    "name": "is not approved: a pipe into tail with a file",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "/^(?:-n \\d+|-\\d+)$/.test(",
+    "replace": "/^(?:-n \\d+|-\\d+)/.test(",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a pipe into tail with a file\""
+  },
+  {
+    "name": "is not approved: a pipe into tail -f",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "/^(?:-n \\d+|-\\d+)$/.test(",
+    "replace": "/^(?:-n \\d+|-\\w+)$/.test(",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a pipe into tail -f\""
+  },
+  {
+    "name": "is not approved: a pipe into tail with no count",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "/^(?:-n \\d+|-\\d+)$/.test(",
+    "replace": "/^(?:-n \\d+|-\\d+)?$/.test(",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a pipe into tail with no count\""
+  },
+  {
+    "name": "is not approved: a count in quotes",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "    count.every((token) => token.kind === \"bare\") &&\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a count in quotes\""
+  },
+  {
+    "name": "is not approved: tail in quotes",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "    program?.kind === \"bare\" &&\n",
+    "replace": "    program !== undefined &&\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: tail in quotes\""
+  },
+  {
+    "name": "is not approved: a quoted pipe, which is a word for git",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "    pipe?.kind === \"mark\" &&\n",
+    "replace": "    pipe !== undefined &&\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a quoted pipe, which is a word for git\""
+  },
+  {
+    "name": "is approved: git push origin worktree-a | tail -2",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "  if (rest.length === 0) {\n    return true;\n  }\n\n  const [pipe",
+    "replace": "  if (rest.length === 0) {\n    return true;\n  }\n\n  if (tokens.length === rest.length) {\n    return false;\n  }\n\n  const [pipe",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is approved: git push origin worktree-a \\\\| tail -2\""
+  },
+  {
+    "name": "is approved: git push origin worktree-a 2>&1",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "  if (rest.length === 0) {\n    return true;\n  }",
+    "replace": "  if (rest.length === 0) {\n    return false;\n  }",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is approved: git push origin worktree-a 2>&1\""
+  },
+  {
+    "name": "is not approved: the branch in double quotes",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "  if (tokens.some((token) => token.kind !== \"bare\")) {\n    return undefined;\n  }\n\n  const words",
+    "replace": "  const words",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: the branch in double quotes\""
+  },
+  {
+    "name": "does not approve words it put together itself",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "  if (tokens.some((token) => token.kind !== \"bare\")) {\n    return undefined;\n  }\n\n  const words",
+    "replace": "  const words",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"does not approve words it put together itself\""
+  },
+  {
+    "name": "is not approved: a path to git",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "    words[0] === \"git\" &&\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a path to git\""
+  },
+  {
+    "name": "is not approved: another git command with the same words after it",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "    words[1] === \"push\" &&\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: another git command with the same words after it\""
+  },
+  {
+    "name": "is not approved: another remote",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "    words[2 + upstream] === \"origin\" &&\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: another remote\""
+  },
+  {
+    "name": "is not approved: a second refspec",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "words.length === 4 + upstream &&",
+    "replace": "words.length >= 4 + upstream &&",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a second refspec\""
+  },
+  {
+    "name": "is not approved: --force",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "words[2] === \"-u\" || words[2] === \"--set-upstream\" ? 1 : 0",
+    "replace": "words[2]?.startsWith(\"-\") ? 1 : 0",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: --force\""
+  },
+  {
+    "name": "is not approved: main",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const WORK_BRANCH = /^worktree-[A-Za-z0-9]+",
+    "replace": "const WORK_BRANCH = /^[A-Za-z0-9]+",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: main\""
+  },
+  {
+    "name": "is not approved: a branch that only contains worktree-",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const WORK_BRANCH = /^worktree-[A-Za-z0-9]+",
+    "replace": "const WORK_BRANCH = /worktree-[A-Za-z0-9]+",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a branch that only contains worktree-\""
+  },
+  {
+    "name": "is not approved: worktree- and no name",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const WORK_BRANCH = /^worktree-[A-Za-z0-9]+",
+    "replace": "const WORK_BRANCH = /^worktree-[A-Za-z0-9]*",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: worktree- and no name\""
+  },
+  {
+    "name": "is not approved: a name with a slash",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "(?:[._-][A-Za-z0-9]+)*$/;\nconst BASE",
+    "replace": "(?:[._/-][A-Za-z0-9]+)*$/;\nconst BASE",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a name with a slash\""
+  },
+  {
+    "name": "is not approved: a name with two dots",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "(?:[._-][A-Za-z0-9]+)*$/;\nconst BASE",
+    "replace": "(?:[._-]+[A-Za-z0-9]+)*$/;\nconst BASE",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a name with two dots\""
+  },
+  {
+    "name": "is not approved: a name that ends in a dot",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "(?:[._-][A-Za-z0-9]+)*$/;\nconst BASE",
+    "replace": "(?:[._-][A-Za-z0-9]+)*[.]?$/;\nconst BASE",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a name that ends in a dot\""
+  },
+  {
+    "name": "is not approved: a name that holds a flag",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "(?:[._-][A-Za-z0-9]+)*$/;\nconst BASE",
+    "replace": "(?:[._-]+[A-Za-z0-9]+)*$/;\nconst BASE",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a name that holds a flag\""
+  },
+  {
+    "name": "is not approved: a name longer than any real one",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "branch.length <= LONGEST_BRANCH &&",
+    "replace": "branch.length <= 1000 &&",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a name longer than any real one\""
+  },
+  {
+    "name": "is approved: git push origin worktree-aaaa",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const LONGEST_BRANCH = 100;",
+    "replace": "const LONGEST_BRANCH = 99;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is approved: git push origin worktree-aaaaaaaa\""
+  },
+  {
+    "name": "is approved: git push --set-upstream origin",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "words[2] === \"-u\" || words[2] === \"--set-upstream\" ? 1 : 0",
+    "replace": "words[2] === \"-u\" ? 1 : 0",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is approved: git push --set-upstream origin\""
+  },
+  {
+    "name": "is not approved: gh in quotes",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "words.every((word, index) => tokens[index]?.kind === \"bare\" && tokens[index]?.value === word)",
+    "replace": "words.every((word, index) => tokens[index]?.value === word)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: gh in quotes\""
+  },
+  {
+    "name": "is not approved: gh issue create",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "words.every((word, index) => tokens[index]?.kind === \"bare\" && tokens[index]?.value === word)",
+    "replace": "words.every((_word, index) => tokens[index]?.kind === \"bare\")",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: gh issue create\""
+  },
+  {
+    "name": "is not approved: a word every object has",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "token.kind === \"bare\" && Object.hasOwn(flags, token.value) ? flags[token.value] : undefined",
+    "replace": "token.kind === \"bare\" ? flags[token.value] : undefined",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a word every object has\""
+  },
+  {
+    "name": "is not approved: a flag in quotes",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "token.kind === \"bare\" && Object.hasOwn(flags, token.value) ? flags[token.value] : undefined",
+    "replace": "Object.hasOwn(flags, token.value) ? flags[token.value] : undefined",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a flag in quotes\""
+  },
+  {
+    "name": "is not approved: --title twice",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "    if (flag === undefined || seen.has(flag.name)) {",
+    "replace": "    if (flag === undefined) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: --title twice\""
+  },
+  {
+    "name": "is not approved: --title and its short form",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "  \"-t\": { name: \"--title\", value: isText },",
+    "replace": "  \"-t\": { name: \"-t\", value: isText },",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: --title and its short form\""
+  },
+  {
+    "name": "is not approved: --title with nothing after it",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "      if (value === undefined || !flag.value(value)) {",
+    "replace": "      if (value !== undefined && !flag.value(value)) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: --title with nothing after it\""
+  },
+  {
+    "name": "is not approved: a word that is not a flag",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "    if (flag === undefined || seen.has(flag.name)) {",
+    "replace": "    if (flag === undefined) {\n      continue;\n    }\n\n    if (seen.has(flag.name)) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a word that is not a flag\""
+  },
+  {
+    "name": "is not approved: --body-file",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const CREATE_FLAGS: Record<string, Flag> = {\n",
+    "replace": "const CREATE_FLAGS: Record<string, Flag> = {\n  \"--body-file\": { name: \"--body-file\", value: isText },\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: --body-file\""
+  },
+  {
+    "name": "is not approved: -F from standard input",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const CREATE_FLAGS: Record<string, Flag> = {\n",
+    "replace": "const CREATE_FLAGS: Record<string, Flag> = {\n  \"-F\": { name: \"--body-file\", value: isText },\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: -F from standard input\""
+  },
+  {
+    "name": "is not approved: --template",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const CREATE_FLAGS: Record<string, Flag> = {\n",
+    "replace": "const CREATE_FLAGS: Record<string, Flag> = {\n  \"--template\": { name: \"--template\", value: isText },\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: --template\""
+  },
+  {
+    "name": "is not approved: --repo",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const CREATE_FLAGS: Record<string, Flag> = {\n",
+    "replace": "const CREATE_FLAGS: Record<string, Flag> = {\n  \"--repo\": { name: \"--repo\", value: isText },\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: --repo\""
+  },
+  {
+    "name": "is not approved: -R",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const CREATE_FLAGS: Record<string, Flag> = {\n",
+    "replace": "const CREATE_FLAGS: Record<string, Flag> = {\n  \"-R\": { name: \"--repo\", value: isText },\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: -R\""
+  },
+  {
+    "name": "is not approved: --web",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const CREATE_FLAGS: Record<string, Flag> = {\n",
+    "replace": "const CREATE_FLAGS: Record<string, Flag> = {\n  \"--web\": { name: \"--web\" },\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: --web\""
+  },
+  {
+    "name": "is not approved: --reviewer",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const CREATE_FLAGS: Record<string, Flag> = {\n",
+    "replace": "const CREATE_FLAGS: Record<string, Flag> = {\n  \"--reviewer\": { name: \"--reviewer\", value: isText },\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: --reviewer\""
+  },
+  {
+    "name": "is not approved: --dry-run",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const CREATE_FLAGS: Record<string, Flag> = {\n",
+    "replace": "const CREATE_FLAGS: Record<string, Flag> = {\n  \"--dry-run\": { name: \"--dry-run\" },\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: --dry-run\""
+  },
+  {
+    "name": "is not approved: a head branch that is not a work branch",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "  \"--head\": { name: \"--head\", value: (token) => token.kind === \"bare\" && WORK_BRANCH.test(token.value) },",
+    "replace": "  \"--head\": { name: \"--head\", value: (token) => token.kind === \"bare\" && BASE_BRANCH.test(token.value) },",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a head branch that is not a work branch\""
+  },
+  {
+    "name": "is not approved: a head in another fork",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "  \"--head\": { name: \"--head\", value: (token) => token.kind === \"bare\" && WORK_BRANCH.test(token.value) },",
+    "replace": "  \"--head\": { name: \"--head\", value: isText },",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a head branch that is not a work branch\""
+  },
+  {
+    "name": "is not approved: a base in quotes",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "  \"--base\": { name: \"--base\", value: (token) => token.kind === \"bare\" && BASE_BRANCH.test(token.value) },",
+    "replace": "  \"--base\": { name: \"--base\", value: (token) => BASE_BRANCH.test(token.value) },",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a base in quotes\""
+  },
+  {
+    "name": "is not approved: a base that is a flag",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "  \"--base\": { name: \"--base\", value: (token) => token.kind === \"bare\" && BASE_BRANCH.test(token.value) },",
+    "replace": "  \"--base\": { name: \"--base\", value: (token) => token.kind === \"bare\" },",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a base that is a flag\""
+  },
+  {
+    "name": "is not approved: a base with two dots",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const BASE_BRANCH = /^[A-Za-z0-9]+(?:[._/-][A-Za-z0-9]+)*$/;",
+    "replace": "const BASE_BRANCH = /^[A-Za-z0-9]+(?:[._/-]+[A-Za-z0-9]+)*$/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a base with two dots\""
+  },
+  {
+    "name": "is approved: gh pr create --fill --base release/1.x",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const BASE_BRANCH = /^[A-Za-z0-9]+(?:[._/-][A-Za-z0-9]+)*$/;",
+    "replace": "const BASE_BRANCH = /^[A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*$/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is approved: gh pr create --fill --base release/1\\\\.x\""
+  },
+  {
+    "name": "is approved: gh pr create -f -d",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "  \"-f\": { name: \"--fill\" },\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is approved: gh pr create -f -d\""
+  },
+  {
+    "name": "is approved: gh pr create --title T --body B",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const isText = (token: Token): boolean => token.kind === \"single\" || token.kind === \"double\" || token.kind === \"bare\";",
+    "replace": "const isText = (token: Token): boolean => token.kind === \"single\" || token.kind === \"double\";",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is approved: gh pr create --title T --body B\""
+  },
+  {
+    "name": "is approved: gh pr create --title \"feat: prices\" --body",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const isBody = (token: Token): boolean => isText(token) || token.kind === \"heredoc\";",
+    "replace": "const isBody = (token: Token): boolean => isText(token);",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is approved: gh pr create --title x --body\""
+  },
+  {
+    "name": "is not approved: --admin",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const MERGE_FLAGS: Record<string, Flag> = {\n",
+    "replace": "const MERGE_FLAGS: Record<string, Flag> = {\n  \"--admin\": { name: \"--admin\" },\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: --admin\""
+  },
+  {
+    "name": "is not approved: --auto",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const MERGE_FLAGS: Record<string, Flag> = {\n",
+    "replace": "const MERGE_FLAGS: Record<string, Flag> = {\n  \"--auto\": { name: \"--auto\" },\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: --auto\""
+  },
+  {
+    "name": "is not approved: --disable-auto",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const MERGE_FLAGS: Record<string, Flag> = {\n",
+    "replace": "const MERGE_FLAGS: Record<string, Flag> = {\n  \"--disable-auto\": { name: \"--disable-auto\" },\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: --disable-auto\""
+  },
+  {
+    "name": "is not approved: --match-head-commit",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const MERGE_FLAGS: Record<string, Flag> = {\n",
+    "replace": "const MERGE_FLAGS: Record<string, Flag> = {\n  \"--match-head-commit\": { name: \"--match-head-commit\", value: isText },\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: --match-head-commit\""
+  },
+  {
+    "name": "is not approved: --author-email",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const MERGE_FLAGS: Record<string, Flag> = {\n",
+    "replace": "const MERGE_FLAGS: Record<string, Flag> = {\n  \"--author-email\": { name: \"--author-email\", value: isText },\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: --author-email\""
+  },
+  {
+    "name": "is not approved: no number",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "    number?.kind === \"bare\" &&\n    /^[1-9]\\d*$/.test(number.value) &&\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: no number\""
+  },
+  {
+    "name": "is not approved: the number in quotes",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "    number?.kind === \"bare\" &&\n",
+    "replace": "    number !== undefined &&\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: the number in quotes\""
+  },
+  {
+    "name": "is not approved: zero",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "/^[1-9]\\d*$/.test(number.value) &&",
+    "replace": "/^\\d+$/.test(number.value) &&",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: zero\""
+  },
+  {
+    "name": "is not approved: a branch in place of the number",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "/^[1-9]\\d*$/.test(number.value) &&",
+    "replace": "/^[A-Za-z1-9][\\w-]*$/.test(number.value) &&",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a branch in place of the number\""
+  },
+  {
+    "name": "is not approved: a negative number",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "/^[1-9]\\d*$/.test(number.value) &&",
+    "replace": "/^-?[1-9]\\d*$/.test(number.value) &&",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a negative number\""
+  },
+  {
+    "name": "is not approved: two ways to merge",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "  \"--squash\": { name: \"method\" },",
+    "replace": "  \"--squash\": { name: \"--squash\" },",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: two ways to merge\""
+  },
+  {
+    "name": "is not approved: one way to merge, twice",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "  \"-m\": { name: \"method\" },",
+    "replace": "  \"-m\": { name: \"-m\" },",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: one way to merge, twice\""
+  },
+  {
+    "name": "is not approved: --delete-branch twice",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "  \"-d\": { name: \"--delete-branch\" },",
+    "replace": "  \"-d\": { name: \"-d\" },",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: --delete-branch twice\""
+  },
+  {
+    "name": "is not approved: a substitution in the subject",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const DOUBLE = /^\"([^\"$`\\\\]*)\"/;",
+    "replace": "const DOUBLE = /^\"([^\"`\\\\]*)\"/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved: a substitution in the subject\""
+  },
+  {
+    "name": "is approved: gh pr merge 7 --rebase",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "  \"--rebase\": { name: \"method\" },\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is approved: gh pr merge 7 --rebase\""
+  },
+  {
+    "name": "is approved: gh pr merge 12 -m -d",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "  \"-d\": { name: \"--delete-branch\" },\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is approved: gh pr merge 12 -m -d\""
+  },
+  {
+    "name": "covers the three shapes",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "[pushOfWorkBranch, pullRequestCreation, pullRequestMerge]",
+    "replace": "[pushOfWorkBranch, pullRequestCreation]",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"covers the three shapes\""
+  },
+  {
+    "name": "is one outward step and no chain, as the refusal reads it",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/outward.mts",
+    "find": "(steps > 1 || outward.length > 1)",
+    "replace": "(steps > 0 || outward.length > 1)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is one outward step and no chain, as the refusal reads it\""
+  },
+  {
+    "name": "meets no ask rule, so the approval is not undone by one",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "\"Bash(git push *:*)\"",
+    "replace": "\"Bash(git push *o*)\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"meets no ask rule, so the approval is not undone by one\""
+  },
+  {
+    "name": "is not approved by the hook either: --admin",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/approve.mts",
+    "find": "const MERGE_FLAGS: Record<string, Flag> = {\n",
+    "replace": "const MERGE_FLAGS: Record<string, Flag> = {\n  \"--admin\": { name: \"--admin\" },\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is not approved by the hook either: --admin\""
+  },
+  {
+    "name": "approves an exact shape when it may, and says what it approved",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "in the exact form the project pre-approves.` };",
+    "replace": "in an exact form.` };",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"approves an exact shape when it may, and says what it approved\""
+  },
+  {
+    "name": "says nothing about the same command when it may not approve",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "const shape = approve && command !== undefined ? approvedShape(command) : undefined;",
+    "replace": "const shape = command !== undefined ? approvedShape(command) : undefined;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"says nothing about the same command when it may not approve\""
+  },
+  {
+    "name": "refuses a chain whether it may approve or not",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "  if (verdict?.chained) {",
+    "replace": "  if (verdict?.chained && !approve) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"refuses a chain whether it may approve or not\""
+  },
+  {
+    "name": "says nothing about an outward step that is alone and not one of the shapes",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "return shape === undefined ? undefined : {",
+    "replace": "return shape === undefined && !approve ? undefined : {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"says nothing about an outward step that is alone and not one of the shapes\""
+  },
+  {
+    "name": "needs the host's argument and the project's setting, both",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "  if (!argv.includes(APPROVING_HOST)) {",
+    "replace": "  if (argv.includes(\"--never\")) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"needs the host's argument and the project's setting, both\""
+  },
+  {
+    "name": "needs the host's argument (exactly)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "  if (!argv.includes(APPROVING_HOST)) {",
+    "replace": "  if (!argv.some((argument) => argument.startsWith(APPROVING_HOST))) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"needs the host's argument and the project's setting, both\""
+  },
+  {
+    "name": "does not approve when the setting is set to false",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "    return loaded.approveExactShapes === true;",
+    "replace": "    return loaded.approveExactShapes !== undefined;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"does not approve when the setting is set to false\""
+  },
+  {
+    "name": "does not approve when the setting is set to a word",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "    return loaded.approveExactShapes === true;",
+    "replace": "    return Boolean(loaded.approveExactShapes);",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"does not approve when the setting is set to a word\""
+  },
+  {
+    "name": "does not approve when the setting is not set",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "    return loaded.approveExactShapes === true;",
+    "replace": "    return loaded.approveExactShapes !== false;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"does not approve when the setting is not set\""
+  },
+  {
+    "name": "does not approve when the setting is a file that throws",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "    // No setting that can be read is not a yes.\n    return false;",
+    "replace": "    // No setting that can be read is not a yes.\n    return true;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"does not approve when the setting is a file that throws\""
+  },
+  {
+    "name": "does not approve when there is no setting file",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "    // No setting that can be read is not a yes.\n    return false;",
+    "replace": "    // No setting that can be read is not a yes.\n    return true;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"does not approve when there is no setting file\""
+  },
+  {
+    "name": "is on in the file a project starts with",
+    "file": "addons/agent-workflow/files/tools/agent-workflow.config.mts",
+    "find": "export const approveExactShapes: boolean = true;",
+    "replace": "export const approveExactShapes: boolean = false;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is on in the file a project starts with\""
+  },
+  {
+    "name": "is on in the file a project starts with (where the hook looks)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "new URL(\"../../agent-workflow.config.mts\", import.meta.url)",
+    "replace": "new URL(\"../agent-workflow.config.mts\", import.meta.url)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is on in the file a project starts with\""
+  },
+  {
+    "name": "is spelled the same where the hook reads it and where the check looks for it",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "export const APPROVING_HOST = \"--host=claude-code\";",
+    "replace": "export const APPROVING_HOST = \"--host=claude\";",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is spelled the same where the hook reads it and where the check looks for it\""
+  },
+  {
+    "name": "is started with the approving argument by Claude Code's settings, and without it by Codex's",
+    "file": "addons/agent-workflow/addon.json",
+    "find": "split-outward-commands.mts\\\" --host=claude-code\"",
+    "replace": "split-outward-commands.mts\\\"\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is started with the approving argument by Claude Code's settings, and without it by Codex's\""
+  },
+  {
+    "name": "is started with the approving argument (Codex)",
+    "file": "addons/agent-workflow/addon.json",
+    "find": "\"command\": \"node tools/agent-workflow/hooks/split-outward-commands.mts\"",
+    "replace": "\"command\": \"node tools/agent-workflow/hooks/split-outward-commands.mts --host=claude-code\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"is started with the approving argument by Claude Code's settings, and without it by Codex's\""
+  },
+  {
+    "name": "answers Claude Code: allow for an exact shape",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "  const answer = judgeCall(payload, await mayApprove(process.argv.slice(2)));",
+    "replace": "  const answer = judgeCall(payload, false && (await mayApprove(process.argv.slice(2))));",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"answers Claude Code: allow for an exact shape\""
+  },
+  {
+    "name": "never answers Codex with allow",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "  const answer = judgeCall(payload, await mayApprove(process.argv.slice(2)));",
+    "replace": "  const answer = judgeCall(payload, await mayApprove([APPROVING_HOST]));",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"never answers Codex with allow\""
+  },
+  {
+    "name": "answers Codex with nothing for every approved command",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "  const answer = judgeCall(payload, await mayApprove(process.argv.slice(2)));",
+    "replace": "  const answer = judgeCall(payload, await mayApprove([APPROVING_HOST]));",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"answers Codex with nothing for every approved command\""
+  },
+  {
+    "name": "approves nothing once the project turns approval off, and still refuses a chain",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "    return loaded.approveExactShapes === true;",
+    "replace": "    return loaded.approveExactShapes !== undefined;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"approves nothing once the project turns approval off, and still refuses a chain\""
+  },
+  {
+    "name": "approves nothing when the setting file is gone, and still refuses a chain",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "    // No setting that can be read is not a yes.\n    return false;",
+    "replace": "    // No setting that can be read is not a yes.\n    return true;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"approves nothing when the setting file is gone, and still refuses a chain\""
+  },
+  {
+    "name": "prints one line of JSON with the reason when it approves, and exits 0",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "permissionDecisionReason: answer.reason },",
+    "replace": "permissionDecisionReason: answer.reason, approved: true },",
+    "test": "pnpm vitest run addons/agent-workflow/tests/approve.test.mts --testNamePattern=\"prints one line of JSON with the reason when it approves, and exits 0\""
+  },
+  {
+    "name": "passes a project that has the hook in both hosts' settings, approval on and the ask rules in",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "filter((command) => command.includes(HOOK_SCRIPT));",
+    "replace": "filter((command) => command === HOOK_SCRIPT);",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"passes a project that has the hook in both hosts' settings, approval on and the ask rules in\""
+  },
+  {
+    "name": "says a command is usable once the add-on it needs is recorded",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "needs !== undefined && !installed.includes(needs)",
+    "replace": "needs !== undefined",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"says a command is usable once the add-on it needs is recorded\""
+  },
+  {
+    "name": "notes that approval is off when the project turned it off, and does not fail for it",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "  } else if (approval === \"none\") {",
+    "replace": "  } else if (approval === \"deny\") {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"notes that approval is off when the project turned it off, and does not fail for it\""
+  },
+  {
+    "name": "says the setting file is missing when that is why approval is off",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "      existsSync(join(root, CONFIG_FILE))\n        ?",
+    "replace": "      root !== \"\"\n        ?",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"says the setting file is missing when that is why approval is off\""
+  },
+  {
+    "name": "fails when the hook does not refuse the chain",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "    [REFUSED_SAMPLE, asClaude, \"deny\"],\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when the hook does not refuse the chain\""
+  },
+  {
+    "name": "fails when the hook does not refuse the chain for Codex",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "    [REFUSED_SAMPLE, asCodex, \"deny\"],\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when the hook does not refuse the chain for Codex\""
+  },
+  {
+    "name": "fails when the hook approves a chain",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "    [REFUSED_SAMPLE, asClaude, \"deny\"],\n",
+    "replace": "    [REFUSED_SAMPLE, asClaude, \"allow\"],\n",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when the hook approves a chain\""
+  },
+  {
+    "name": "fails when the hook crashes after it replied",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "  if (status !== 0) {\n    return \"broken\";\n  }\n\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when the hook crashes after it replied\""
+  },
+  {
+    "name": "fails when the hook prints something that is no answer",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "  } catch {\n    return \"broken\";\n  }\n}\n\nfunction readSettings",
+    "replace": "  } catch {\n    return \"deny\";\n  }\n}\n\nfunction readSettings",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when the hook prints something that is no answer\""
+  },
+  {
+    "name": "fails when the hook prints a decision it does not have",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "return decision === \"deny\" || decision === \"allow\" ? decision : \"broken\";",
+    "replace": "return decision === \"allow\" ? decision : \"deny\";",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when the hook prints a decision it does not have\""
+  },
+  {
+    "name": "fails when the hook approves a push to main",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "    [UNANSWERED_SAMPLE, asClaude, \"none\"],\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when the hook approves a push to main\""
+  },
+  {
+    "name": "fails when the hook refuses a push to main",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "    [UNANSWERED_SAMPLE, asClaude, \"none\"],\n    [UNANSWERED_SAMPLE, asCodex, \"none\"],\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when the hook refuses a push to main\""
+  },
+  {
+    "name": "fails when the hook approves for Codex",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "    [APPROVED_SAMPLE, asCodex, \"none\"],\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when the hook approves for Codex\""
+  },
+  {
+    "name": "fails when the hook refuses the routine step it is there to approve",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "    fail(`hook: \\`${APPROVED_SAMPLE}\\` started with",
+    "replace": "    report(`hook: \\`${APPROVED_SAMPLE}\\` started with",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when the hook refuses the routine step it is there to approve\""
+  },
+  {
+    "name": "settings exist and do not register the hook",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "      fail(`${host}: ${path} does not register",
+    "replace": "      report(`${host}: ${path} does not register",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"settings exist and do not register the hook\""
+  },
+  {
+    "name": "does not take a hook registered for another event as registered",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "| undefined)?.PreToolUse;",
+    "replace": "| undefined)?.[\"PostToolUse\" as \"PreToolUse\"];",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"does not take a hook registered for another event as registered\""
+  },
+  {
+    "name": "fails when Codex's settings start the hook with the argument that lets it approve",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "    if (path === CODEX_HOOKS && approving) {",
+    "replace": "    if (path === CLAUDE_SETTINGS && !approving) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when Codex's settings start the hook with the argument that lets it approve\""
+  },
+  {
+    "name": "notes that the hook approves nothing when Claude Code's settings start it without the argument",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "      if (registered.length > 0 && !approving) {",
+    "replace": "      if (registered.length > 0 && approving) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"notes that the hook approves nothing when Claude Code's settings start it without the argument\""
+  },
+  {
+    "name": "fails a settings file that holds no JSON object",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "      fail(`${host}: ${path} is not a JSON object",
+    "replace": "      report(`FAIL ${host}: ${path} is not a JSON object",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails a settings file that holds no JSON object\""
+  },
+  {
+    "name": "skips a host whose settings file is not there",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "      report(`SKIP ${host}: there is no",
+    "replace": "      fail(`SKIP ${host}: there is no",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"skips a host whose settings file is not there\""
+  },
+  {
+    "name": "does not pass when neither host has a settings file",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "  if (judged === 0) {",
+    "replace": "  if (judged < 0) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"does not pass when neither host has a settings file\""
+  },
+  {
+    "name": "notes ask rules the project took out, and does not fail while no allow rule approves by pattern",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "  if (missingAsk.length > 0 && wide.length > 0) {",
+    "replace": "  if (missingAsk.length > 0) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"notes ask rules the project took out, and does not fail while no allow rule approves by pattern\""
+  },
+  {
+    "name": "notes an allow rule with a star for a step the hook approves by shape",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "  for (const rule of wide) {",
+    "replace": "  for (const rule of wide.slice(1)) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"notes an allow rule with a star for a step the hook approves by shape\""
+  },
+  {
+    "name": "fails when such a rule is there and an ask rule that backs it is not",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "  if (missingAsk.length > 0 && wide.length > 0) {",
+    "replace": "  if (missingAsk.length > 1 && wide.length > 0) {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when such a rule is there and an ask rule that backs it is not\""
+  },
+  {
+    "name": "fails when such a rule is there (exit code)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "      failed = judgePermissions(settings, report) || failed;",
+    "replace": "      judgePermissions(settings, report);",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when such a rule is there and an ask rule that backs it is not\""
+  },
+  {
+    "name": "fails when a command file is gone",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "if (!existsSync(join(root, \".claude/commands/workflow\", `${command}.md`))) {",
+    "replace": "if (command === \"\") {",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"fails when a command file is gone\""
+  },
+  {
+    "name": "says the hook is missing when it is asked to run one that is not there",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/check.mts",
+    "find": "    if (!existsSync(file)) {\n      return { status: 127",
+    "replace": "    if (file === \"\") {\n      return { status: 127",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"says the hook is missing when it is asked to run one that is not there\""
+  },
+  {
+    "name": "an allow rule that approves by pattern is Bash(gh pr merge *)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "(?:git push|gh pr create|gh pr merge)\\b",
+    "replace": "(?:git push|gh pr create)\\b",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"is Bash\\\\(gh pr merge \\\\*\\\\)\""
+  },
+  {
+    "name": "an allow rule that approves by pattern is not Bash(git push origin worktree-fix)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "\\b.*\\*.*\\)$/;",
+    "replace": "\\b.*\\)$/;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"is not Bash\\\\(git push origin worktree-fix\\\\)\""
+  },
+  {
+    "name": "an allow rule that approves by pattern is not Bash(git pushd *)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "(?:git push|gh pr create|gh pr merge)\\b",
+    "replace": "(?:git push|gh pr create|gh pr merge)",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"is not Bash\\\\(git pushd \\\\*\\\\)\""
+  },
+  {
+    "name": "an allow rule that approves by pattern is not Read(git push *)",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "export const WIDE_ALLOW = /^Bash\\(",
+    "replace": "export const WIDE_ALLOW = /\\(",
+    "test": "pnpm vitest run addons/agent-workflow/tests/check.test.mts --testNamePattern=\"is not Read\\\\(git push \\\\*\\\\)\""
+  },
+  {
+    "name": "leaves CHANGELOG.md and the setting file to the project once they are written",
+    "file": "addons/agent-workflow/addon.json",
+    "find": "\"CHANGELOG.md\",\n    \"tools/agent-workflow.config.mts\"",
+    "replace": "\"CHANGELOG.md\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"leaves CHANGELOG\\\\.md and the setting file to the project once they are written\""
+  },
+  {
+    "name": "asks each host for the same entries the project's own check looks for",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "  \"Bash(git push *--prune*)\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"asks each host for the same entries the project's own check looks for\""
+  },
+  {
+    "name": "are ask rules only",
+    "file": "addons/agent-workflow/addon.json",
+    "find": "\"permissions\": {\n        \"ask\": [",
+    "replace": "\"permissions\": {\n        \"allow\": [\"Bash(gh pr create *)\"],\n        \"ask\": [",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"are ask rules only\""
+  },
+  {
+    "name": "always asks: git push origin worktree-a --delete main",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "  \"Bash(git push *--delete*)\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"always asks: git push origin worktree-a --delete main\""
+  },
+  {
+    "name": "always asks: git push -d origin worktree-a",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "  \"Bash(git push -d*)\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"always asks: git push -d origin worktree-a\""
+  },
+  {
+    "name": "always asks: git push origin -d worktree-a",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "  \"Bash(git push * -d*)\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"always asks: git push origin -d worktree-a\""
+  },
+  {
+    "name": "always asks: git push --mirror origin",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "  \"Bash(git push *--mirror*)\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"always asks: git push --mirror origin\""
+  },
+  {
+    "name": "always asks: git push --all origin",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "  \"Bash(git push *--all*)\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"always asks: git push --all origin\""
+  },
+  {
+    "name": "always asks: git push --tags",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "  \"Bash(git push *--tags*)\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"always asks: git push --tags\""
+  },
+  {
+    "name": "always asks: git push --prune origin worktree-a",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "  \"Bash(git push *--prune*)\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"always asks: git push --prune origin worktree-a\""
+  },
+  {
+    "name": "always asks: gh pr merge 12 --admin",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "  \"Bash(gh pr merge *--admin*)\",\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"always asks: gh pr merge 12 --admin\""
+  },
+  {
+    "name": "says nothing about: git push origin worktree-f-key-fix",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "\"Bash(git push * -f*)\"",
+    "replace": "\"Bash(git push *-f*)\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"says nothing about: git push origin worktree-f-key-fix\""
+  },
+  {
+    "name": "says nothing about: git push origin worktree-delete-button",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "\"Bash(git push *--delete*)\"",
+    "replace": "\"Bash(git push *-delete*)\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"says nothing about: git push origin worktree-delete-button\""
+  },
+  {
+    "name": "says nothing about: git pushd --force",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/lib/host.mts",
+    "find": "\"Bash(git push *--force*)\"",
+    "replace": "\"Bash(git push*--force*)\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"says nothing about: git pushd --force\""
+  },
+  {
+    "name": "says where approval is turned off, and names no pattern rule as what approves",
+    "file": "addons/agent-workflow/AGENTS.section.md",
+    "find": "`approveExactShapes` in `tools/agent-workflow.config.mts`",
+    "replace": "`approveExactShapes` in the setting file",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"says where approval is turned off, and names no pattern rule as what approves\""
+  },
+  {
+    "name": "keeps approval off once the project turns it off, and its proof then says so without failing",
+    "file": "addons/agent-workflow/files/tools/agent-workflow/hooks/split-outward-commands.mts",
+    "find": "    return loaded.approveExactShapes === true;",
+    "replace": "    return loaded.approveExactShapes !== undefined;",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"keeps approval off once the project turns it off, and its proof then says so without failing\""
+  },
+  {
+    "name": "writes the changelog once, the commands, the skills for Codex and the workflow",
+    "file": "addons/agent-workflow/addon.json",
+    "find": "\"CHANGELOG.md\",\n    \"tools/agent-workflow.config.mts\"",
+    "replace": "\"CHANGELOG\",\n    \"tools/agent-workflow.config.mts\"",
+    "test": "pnpm vitest run addons/agent-workflow/tests/addon.test.mts --testNamePattern=\"writes the changelog once, the commands, the skills for Codex and the workflow\""
   }
 ]

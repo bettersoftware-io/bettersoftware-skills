@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { addToProject } from "../../../scripts/add-to-project.mts";
 import { changelog } from "../files/tools/agent-workflow/changelog.mts";
-import { ALLOW_RULES, ASK_RULES, CLAUDE_SETTINGS, CODEX_HOOKS, COMMAND_NEEDS, HOOK_SCRIPT } from "../files/tools/agent-workflow/lib/host.mts";
+import { APPROVING_HOST, ASK_RULES, CLAUDE_SETTINGS, CODEX_HOOKS, COMMAND_NEEDS, CONFIG_FILE, HOOK_SCRIPT } from "../files/tools/agent-workflow/lib/host.mts";
 import { ADDON, createFolder, readJson, REPOSITORY, writeFile } from "./support.mts";
 
 interface HookGroup {
@@ -58,8 +58,9 @@ describe("the add-on's manifest", () => {
     expect(MANIFEST.gates).toEqual({ fast: [], full: [] });
   });
 
-  it("leaves CHANGELOG.md to the project once it is written", () => {
-    expect(MANIFEST.startingFiles).toEqual(["CHANGELOG.md"]);
+  it("leaves CHANGELOG.md and the setting file to the project once they are written", () => {
+    expect(MANIFEST.startingFiles).toEqual(["CHANGELOG.md", CONFIG_FILE]);
+    expect(existsSync(join(ADDON, "files", CONFIG_FILE))).toBe(true);
   });
 
   it("ships TypeScript and nothing else that runs", () => {
@@ -72,9 +73,9 @@ describe("the add-on's manifest", () => {
     const codex = MANIFEST.hostSettings[CODEX_HOOKS];
 
     expect(Object.keys(MANIFEST.hostSettings)).toEqual([CLAUDE_SETTINGS, CODEX_HOOKS]);
-    expect(claude?.permissions).toEqual({ allow: ALLOW_RULES, ask: ASK_RULES });
+    expect(claude?.permissions).toEqual({ ask: ASK_RULES });
     expect(claude?.hooks).toEqual({
-      PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: `node "$CLAUDE_PROJECT_DIR/${HOOK_SCRIPT}"`, timeout: 5 }] }],
+      PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: `node "$CLAUDE_PROJECT_DIR/${HOOK_SCRIPT}" ${APPROVING_HOST}`, timeout: 5 }] }],
     });
     expect(Object.keys(codex ?? {})).toEqual(["hooks"]);
     expect(codex?.hooks?.PreToolUse).toHaveLength(1);
@@ -89,13 +90,10 @@ describe("the add-on's manifest", () => {
 // is not the host's own code, so what it proves is that the rules say what
 // they are meant to say, not that a given version of the host reads them so.
 describe("the permission rules, read the way the host documents them", () => {
-  it.each([
-    "git push -u origin worktree-rates-filter",
-    "git push origin worktree-rates-filter",
-    "gh pr create --title t --body b",
-    "gh pr merge 12 --merge --delete-branch",
-  ])("runs without a prompt: %s", (command) => {
-    expect(decide(command)).toBe("allow");
+  it("are ask rules only: what runs without a prompt is the hook's to decide, by exact shape", () => {
+    expect(MANIFEST.hostSettings[CLAUDE_SETTINGS]?.permissions).toEqual({ ask: ASK_RULES });
+    expect(JSON.stringify(MANIFEST.hostSettings)).not.toContain('"allow"');
+    expect(JSON.stringify(MANIFEST.hostSettings)).not.toContain('"deny"');
   });
 
   it.each([
@@ -103,6 +101,7 @@ describe("the permission rules, read the way the host documents them", () => {
     "git push -u origin worktree-a --force",
     "git push origin worktree-a --force-with-lease",
     "git push --force-with-lease=worktree-a origin worktree-a",
+    "git push --force-if-includes origin worktree-a",
     "git push -f origin worktree-a",
     "git push origin worktree-a -f",
     "git push -u origin worktree-a -fu",
@@ -110,26 +109,36 @@ describe("the permission rules, read the way the host documents them", () => {
     "git push -u origin +worktree-a",
     "git push origin worktree-a:main",
     "git push origin worktree-a +main",
+    "git push origin worktree-a --delete main",
+    "git push origin --delete worktree-a",
+    "git push -d origin worktree-a",
+    "git push origin -d worktree-a",
+    "git push --mirror origin",
+    "git push origin --mirror",
+    "git push --all origin",
+    "git push origin --all",
+    "git push origin worktree-a --tags",
+    "git push --tags",
+    "git push --prune origin worktree-a",
+    "gh pr merge 12 --admin",
+    "gh pr merge 12 --merge --admin --delete-branch",
   ])("always asks: %s", (command) => {
-    expect(decide(command)).toBe("ask");
+    expect(asks(command)).toBe(true);
   });
 
   it.each([
     "git push",
     "git push origin main",
-    "git push -u origin main",
-    "git push origin feature-x",
-    "git -C ../other push origin worktree-a",
-    "git push upstream worktree-a",
-    "gh pr edit 12 --title t",
-    "gh workflow run ci.yml",
-  ])("is left to the host's own judgement: %s", (command) => {
-    expect(decide(command)).toBe("default");
-  });
-
-  it("does not ask about a branch only because its name holds the letters of a flag", () => {
-    expect(decide("git push origin worktree-f-key-fix")).toBe("allow");
-    expect(decide("git push -u origin worktree-force-refresh")).toBe("allow");
+    "git push -u origin worktree-rates-filter",
+    "git push origin worktree-f-key-fix",
+    "git push -u origin worktree-force-refresh",
+    "git push origin worktree-delete-button",
+    "git push origin worktree-all-tags",
+    "gh pr merge 12 --merge --delete-branch",
+    "gh pr create --title t --body b",
+    "git pushd --force",
+  ])("says nothing about: %s", (command) => {
+    expect(asks(command)).toBe(false);
   });
 });
 
@@ -279,12 +288,10 @@ describe("the section for AGENTS.md", () => {
     }
   });
 
-  it("states each pre-approved form as the rules have it", () => {
-    for (const rule of ALLOW_RULES) {
-      const form = rule.slice("Bash(".length, -1).replace(/ ?\*$/, "");
-
-      expect(SECTION.replace(/\s+/g, " "), rule).toContain(form);
-    }
+  it("says where approval is turned off, and names no pattern rule as what approves", () => {
+    expect(SECTION).toContain(`\`${CONFIG_FILE}\``);
+    expect(SECTION).toContain("approveExactShapes");
+    expect(SECTION).not.toMatch(/worktree-\*|pr merge \*|pr create \*/);
   });
 });
 
@@ -318,11 +325,11 @@ describe("the add-on in a project that has the kit", () => {
     expect(claude.hooks?.PostToolUse).toEqual(kitClaude.hooks?.PostToolUse);
     expect(claude.hooks?.Stop).toEqual(kitClaude.hooks?.Stop);
     expect(claude.hooks?.PreToolUse).toEqual(MANIFEST.hostSettings[CLAUDE_SETTINGS]?.hooks?.PreToolUse);
-    expect(claude.permissions).toEqual({ allow: ALLOW_RULES, ask: ASK_RULES });
+    expect(claude.permissions).toEqual({ ask: ASK_RULES });
     expect(codex.description).toBe(kitCodex.description);
     expect(codex.hooks?.Stop).toEqual(kitCodex.hooks?.Stop);
     expect(codex.hooks?.PreToolUse).toEqual(MANIFEST.hostSettings[CODEX_HOOKS]?.hooks?.PreToolUse);
-    expect(result.settingsChanges).toHaveLength(ALLOW_RULES.length + ASK_RULES.length + 2);
+    expect(result.settingsChanges).toHaveLength(ASK_RULES.length + 2);
     expect(result.notes).toEqual([]);
   });
 
@@ -360,13 +367,13 @@ describe("the add-on in a project that has the kit", () => {
 
     expect(final.model).toBe("opus");
     expect(final.permissions).toEqual({
-      allow: ["Bash(make *)", ...ALLOW_RULES, "Bash(pnpm test)"],
+      allow: ["Bash(make *)", "Bash(pnpm test)"],
       deny: ["Bash(rm -rf *)"],
       ask: ["Bash(npm publish *)", ...ASK_RULES],
     });
     expect(final.hooks?.PreToolUse?.map((group) => group.hooks[0]?.command)).toEqual([
       "node tools/own/guard.mts",
-      `node "$CLAUDE_PROJECT_DIR/${HOOK_SCRIPT}"`,
+      `node "$CLAUDE_PROJECT_DIR/${HOOK_SCRIPT}" ${APPROVING_HOST}`,
     ]);
     expect(final.hooks?.Stop).toEqual(own.hooks.Stop);
   });
@@ -378,12 +385,12 @@ describe("the add-on in a project that has the kit", () => {
 
     const settings = readJson<HostSettings>(project, CLAUDE_SETTINGS);
 
-    settings.permissions = { ...settings.permissions, allow: ALLOW_RULES.filter((rule) => !rule.includes("gh pr merge")) };
+    settings.permissions = { ...settings.permissions, ask: ASK_RULES.filter((rule) => !rule.includes("--tags")) };
     writeFile(project, CLAUDE_SETTINGS, JSON.stringify(settings));
 
     const again = addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
 
-    expect(again.settingsChanges).toEqual([`${CLAUDE_SETTINGS}: permissions.allow: Bash(gh pr merge *)`]);
+    expect(again.settingsChanges).toEqual([`${CLAUDE_SETTINGS}: permissions.ask: Bash(git push *--tags*)`]);
   });
 
   it("proves itself in the project it was just added to, with the command the manifest names", () => {
@@ -395,8 +402,9 @@ describe("the add-on in a project that has the kit", () => {
     const verify = spawnSync(process.execPath, script.replace(/^node /, "").split(" "), { cwd: project, encoding: "utf8" });
 
     expect(MANIFEST.verify).toBe("pnpm agent-workflow:check");
-    expect(verify.stdout).toContain("PASS hook: refuses an outward step joined to others, lets a lone one through");
-    expect(verify.stdout).toContain("PASS Claude Code: 4 of 4 routine steps pre-approved, a forced push always asks");
+    expect(verify.stdout).toContain("PASS hook: refuses an outward step joined to others, says nothing about a push to main, and never approves without --host=claude-code");
+    expect(verify.stdout).toContain("PASS approval: on.");
+    expect(verify.stdout).toContain("PASS Claude Code: all 13 ask rules are in");
     expect(verify.stdout).toContain("PASS Codex: .codex/hooks.json runs the hook before each shell command");
     expect(verify.stdout).not.toContain("FAIL");
     expect(verify.status).toBe(0);
@@ -418,11 +426,27 @@ describe("the add-on in a project that has the kit", () => {
     expect(verify.stdout).toContain("FAIL Codex: .codex/hooks.json does not register");
   });
 
+  it("keeps approval off once the project turns it off, and its proof then says so without failing", () => {
+    const project = createProjectWithKit();
+
+    addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
+    writeFile(project, CONFIG_FILE, "export const approveExactShapes: boolean = false;\n");
+    addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
+
+    const verify = spawnSync(process.execPath, ["tools/agent-workflow/check.mts"], { cwd: project, encoding: "utf8" });
+
+    expect(readFileSync(join(project, CONFIG_FILE), "utf8")).toBe("export const approveExactShapes: boolean = false;\n");
+    expect(verify.stdout).toContain("NOTE approval: off. tools/agent-workflow.config.mts does not set approveExactShapes to true");
+    expect(verify.stdout).toContain("PASS hook: refuses an outward step joined to others");
+    expect(verify.stdout).not.toContain("FAIL");
+    expect(verify.status).toBe(0);
+  });
+
   it("writes the changelog once, the commands, the skills for Codex and the workflow", () => {
     const project = createProjectWithKit();
     const result = addToProject({ project, unit: "agent-workflow", repository: REPOSITORY, scope: "@acme" });
 
-    expect(result.created).toEqual(["CHANGELOG.md"]);
+    expect(result.created).toEqual(["CHANGELOG.md", CONFIG_FILE]);
     expect(result.files.written).toEqual(expect.arrayContaining([".github/workflows/weekly-tag.yml", ".claude/commands/workflow/changelog.md", ".agents/skills/workflow-changelog/SKILL.md", HOOK_SCRIPT]));
 
     writeFile(project, "CHANGELOG.md", "# Changelog\n\n## 2026-W40 — the project's own entry\n");
@@ -432,21 +456,13 @@ describe("the add-on in a project that has the kit", () => {
   });
 });
 
-type Decision = "allow" | "ask" | "default";
-
-/** What the rules decide for a command: `ask` wins over `allow`, and no match is the host's default. */
-function decide(command: string): Decision {
-  const matches = (rule: string): boolean => {
+/** Whether an ask rule matches the command. */
+function asks(command: string): boolean {
+  return ASK_RULES.some((rule) => {
     const pattern = /^Bash\((.*)\)$/.exec(rule)?.[1] ?? "";
 
     return new RegExp(`^${pattern.split("*").map(escapeForRegExp).join(".*")}$`).test(command);
-  };
-
-  if (ASK_RULES.some(matches)) {
-    return "ask";
-  }
-
-  return ALLOW_RULES.some(matches) ? "allow" : "default";
+  });
 }
 
 function escapeForRegExp(text: string): string {

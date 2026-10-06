@@ -9,7 +9,7 @@ pnpm worktree <name> [--ready]     # a worktree beside the project, on worktree-
 pnpm changelog weeks               # the weeks CHANGELOG.md has no entry for
 pnpm changelog prs <week>          # what was merged in a week (reads GitHub)
 pnpm changelog check <week>        # every merged pull request cited, every citation defined
-pnpm agent-workflow:check          # the hook works and is registered; the permission rules are in
+pnpm agent-workflow:check          # the hook works and is registered; whether approval is on
 ```
 
 ### An outward step is a call of its own
@@ -54,15 +54,33 @@ for a push now.
 
 ### What runs without a prompt
 
-In Claude Code these exact forms are pre-approved: `git push -u origin
-worktree-<name>` and `git push origin worktree-<name>` run from inside the
-worktree, `gh pr create …`, `gh pr merge …`. A forced push in any spelling
-(`--force`, `--force-with-lease`, `-f`, `+branch`) and a push written as
-`source:target` always ask. So does a push of any branch not named
-`worktree-…`, and `git -C <dir> push`. Do not try another spelling to avoid
-the question: it is there for a person to answer.
+In Claude Code the hook approves a command that is exactly one of these and
+nothing more. Write the closing steps in these forms:
 
-Codex has no such rules in the project. Its own approval settings decide.
+- `git push -u origin worktree-<name>` (or without `-u`), run from inside
+  the worktree.
+- `gh pr create` with `--title`, `--body`, `--base`, `--head`, `--draft`,
+  `--fill` or their short forms. Give text in single quotes, or in double
+  quotes with no `$`, backtick or backslash in it. For a long body use
+  `--body "$(cat <<'EOF'`, the lines, `EOF`, `)"`, with the delimiter in
+  single quotes.
+- `gh pr merge <number>` with one of `--merge`, `--squash`, `--rebase`, and
+  `--delete-branch`, `--subject`, `--body`.
+
+Each may end in `2>&1`, in `| tail -<n>` or `| head -<n>`, or in both.
+
+Anything else asks: another flag, a second branch, a variable, a file to
+read the body from, another remote, `git -C <dir> push`, a push of a branch
+not named `worktree-…`. Do not try another spelling to avoid the question:
+it is there for a person to answer. Never use `--admin`, `--force` or
+`--delete` unless the user asked for exactly that.
+
+Whether the hook approves at all is the project's choice:
+`approveExactShapes` in `tools/agent-workflow.config.mts`. Do not change
+that file unless the user asks. With it off every push and pull request
+step asks, and the hook still refuses a joined command.
+
+Codex is not told to approve anything. Its own approval settings decide.
 
 ### Start every change in a worktree
 
