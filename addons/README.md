@@ -17,6 +17,7 @@ It applies to everyone who works on the project, in any harness and in CI.
 addons/<name>/
   addon.json           what to add to package.json files, and how to prove it works
   files/               copied into the project, at the same relative paths
+  choice/<option>/files/   one set of starting files per option, when the add-on offers a choice
   AGENTS.section.md    appended to the project's AGENTS.md
   README.md            for readers of this repository: what it adds, how it was tested, its limits
   tests/               tests of the add-on's own scripts; run by this repository, never copied
@@ -37,6 +38,7 @@ addons/<name>/
   "gates": { "fast": ["pnpm perf:check"], "full": [] },
   "startingFiles": ["packages/client-react/tests/visual/scenarios.ts", "packages/client-react/tests/visual/goldens/"],
   "hostSettings": { ".claude/settings.json": { "permissions": { "ask": ["Bash(git push *--force*)"] } } },
+  "choice": { "default": "dependabot", "options": { "dependabot": "One line.", "renovate": "One line." } },
   "verify": "pnpm coverage"
 }
 ```
@@ -61,6 +63,13 @@ addons/<name>/
   under "Yours to change" and shows the lines that changed. For that it keeps
   a copy of each text starting file in `tools/templates/`; an image gets no
   copy and no notice.
+  A starting file that a later version of the add-on is the first to ship is
+  written by the update, when the project has no file there. The update tells
+  it from a file the project deleted by its template being new to the
+  project. A project whose copy of the add-on keeps no template yet is not
+  given the file: there a missing file may have been deleted.
+- `choice` is for an add-on that has two ways to do one job, of which a
+  project has exactly one: one update bot or another. See "A choice" below.
 - `verify` is the one command that proves the add-on works in a project that
   has just received it.
 - `hostSettings` holds entries to merge into a host's settings file
@@ -79,6 +88,42 @@ addons/<name>/
   `format-lint` asks for its fixer, because a package scope of another length
   moves where an import line wraps.
 
+## A choice
+
+```bash
+node scripts/add-to-project.mts <project> ci-security:renovate
+node scripts/create-project.mts <target> --with coverage,ci-security:renovate
+```
+
+An option is a set of starting files, in `choice/<option>/files/`, laid out
+as `files/` is. `choice.options` gives each option one line that says what it
+is, and `choice.default` names the one a project gets when none is asked
+for. A project has one option at a time, and `tools/installed.json` records
+which.
+
+| Command | What the project gets |
+|---|---|
+| `<add-on>`, first time | The default option's files |
+| `<add-on>:<option>`, first time | That option's files, and no other option's |
+| `<add-on>`, later | An update. The option the project has is kept |
+| `<add-on>:<other>`, later | The other option's files are written. Each file of the option it leaves is removed if the project never changed it. One it changed is left where it is, and the script says to move the changes over and delete it |
+
+"Never changed" means the file is equal to the copy in `tools/templates/`,
+which is the file as it was installed. A file with no such copy (an image, or
+a project from before templates were kept) is left, and the script says it
+could not tell.
+
+An option changes starting files and nothing else: no script, no dependency,
+no gate, no section of `AGENTS.md`. Those are the same for every option, so
+the add-on's own text must hold for each of them. That is the whole
+mechanism, and it is this small on purpose. The other design that was
+weighed is a second add-on that replaces a file of the first. It needs a way
+to remove an add-on to go back, which nothing here has, and a rule between
+two add-ons; a choice inside one add-on needs neither.
+
+Do not add an option for a difference a project can make by editing a
+starting file. An option is for two files that must not both exist.
+
 A file under `.claude/`, `.codex/` or `.agents/` is in a host's own folder.
 Codex's sandbox keeps the last two read-only, so that an agent cannot give
 itself hooks or skills. When such a file cannot be written the rest of the
@@ -92,7 +137,9 @@ it again outside the sandbox.
    `package.json` files and a host's settings file (both through
    `addon.json`, and both by adding entries only). If something seems to need
    an edit, find the way that does not: a command-line flag, a new config file
-   that extends the old one, a workflow file of its own.
+   that extends the old one, a workflow file of its own. It removes one kind
+   of file: a starting file of an option the project moves away from, and
+   only when the project never changed it.
 2. **The project still passes `pnpm gate:full` with the add-on in it.** That
    includes the `typescript-only` gate: no `.js`, `.mjs` or `.cjs` file.
 3. **Tooling lives in `tools/<name>/`** as `.mts` files that plain `node` runs:

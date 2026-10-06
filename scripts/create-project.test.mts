@@ -94,6 +94,38 @@ describe("creating a project from the starter", () => {
     expect(firstRuns).toEqual(["pnpm biome:fix"]);
   });
 
+  it("passes an option on with its add-on, and names the add-on with it", () => {
+    const added: string[] = [];
+    const { addons } = createProject({ target: createTarget("price-desk"), addons: ["visual:dark", "coverage"] }, createStepsThatRecord(added));
+
+    expect(added).toEqual(["visual:dark", "coverage"]);
+    expect(addons).toEqual(["visual:dark", "coverage"]);
+  });
+
+  it("adds an add-on once when it is named twice, with the option that was asked for, in the place it was first named", () => {
+    const added: string[] = [];
+
+    createProject({ target: createTarget("price-desk"), addons: ["visual", "coverage", "visual:dark", "coverage"] }, createStepsThatRecord(added));
+
+    expect(added).toEqual(["visual:dark", "coverage"]);
+  });
+
+  it("refuses an option the add-on does not have, an option of an add-on with none, and two options of one choice, before writing anything", () => {
+    const target = createTarget("price-desk");
+    const create = (addons: string[]) => (): unknown => createProject({ target, addons }, createStepsThatRecord([]));
+
+    expect(create(["visual:sepia"])).toThrow('the add-on "visual" has no option "sepia" — it has: light, dark');
+    expect(create(["coverage:fast"])).toThrow('the add-on "coverage" has no options, so "coverage:fast" means nothing');
+    expect(create(["visual:light", "visual:dark"])).toThrow('"visual:light" and "visual:dark" are two options of one choice');
+    expect(readdirSync(target)).toEqual([]);
+  });
+
+  it("says in the README which option the project was created with, and what the add-on says about it", () => {
+    const { destination } = createProject({ target: createTarget("price-desk"), addons: ["visual:dark"] }, createStepsThatRecord([]));
+
+    expect(readReadme(destination)).toContain("- `visual:dark`: Goldens. Dark goldens.\n");
+  });
+
   it("adds none unless asked", () => {
     const added: string[] = [];
 
@@ -240,13 +272,13 @@ function readReadme(project: string): string {
   return readFileSync(join(project, "README.md"), "utf8");
 }
 
-/** Steps with three add-ons to choose from, two of them recommended, that record what was added. */
+/** Steps with three add-ons to choose from, two of them recommended and one with a choice, that record what was added. */
 function createStepsThatRecord(added: string[]): Partial<ProjectSteps> {
   return {
     listAddons: () => [
       { name: "coverage", summary: "A coverage gate.", recommended: true },
       { name: "format-lint", summary: "A formatter and a linter.", recommended: true },
-      { name: "visual", summary: "", recommended: false },
+      { name: "visual", summary: "Goldens.", recommended: false, choice: { default: "light", options: { light: "Light goldens.", dark: "Dark goldens." } } },
     ],
     addAddon: (_project, name) => {
       added.push(name);

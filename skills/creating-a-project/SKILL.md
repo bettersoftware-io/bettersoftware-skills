@@ -97,7 +97,9 @@ gate:full` once more, and a second commit, so the add-ons are their own diff. If
 as in step 4.
 
 When the choice is known before the project is created, `create-project.mts`
-takes it directly: `--with recommended`, or `--with coverage,format-lint`.
+takes it directly: `--with recommended`, or `--with coverage,format-lint`. An
+add-on with a choice takes its option after a colon
+(`--with ci-security:renovate`); without one it gets its default.
 
 ## 6. Report
 

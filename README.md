@@ -87,7 +87,10 @@ overwritten unless `--force` is given, and files the project is meant to own
 (its scenarios, its goldens, its exclusions) are written once and then left
 alone. When the template of such a file changes, the update says which file,
 what changed and what to do. A host's settings file is merged into, never
-written over. [The contract an add-on follows](addons/README.md).
+written over. An add-on may offer a choice between two sets of such files
+(`ci-security:renovate`); the project has one, and moving to the other removes
+the first only if the project never changed it.
+[The contract an add-on follows](addons/README.md).
 
 ## What is in this repository
 

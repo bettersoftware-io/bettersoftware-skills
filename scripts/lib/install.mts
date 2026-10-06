@@ -29,7 +29,11 @@ export interface InstallOutcome {
 }
 
 interface InstalledRecord {
-  [unit: string]: { files: Record<string, string> };
+  [unit: string]: {
+    files: Record<string, string>;
+    /** The option of the add-on's choice the project has, when the add-on offers one. */
+    choice?: string;
+  };
 }
 
 const RECORD = "tools/installed.json";
@@ -46,7 +50,7 @@ export function isRefusal(error: unknown): boolean {
   return ["EPERM", "EACCES", "EROFS"].includes((error as NodeJS.ErrnoException).code ?? "");
 }
 
-const TEXT_FILE = /\.(ts|tsx|mts|json|md|yaml|yml|html|css)$|^\.gitignore$/;
+const TEXT_FILE = /\.(ts|tsx|mts|json|json5|md|yaml|yml|html|css)$|^\.gitignore$/;
 
 export function listFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -92,9 +96,10 @@ export function rewriteScope(files: FileSet, from: string, to: string): FileSet 
 
 /**
  * Installs `files` as the unit `unit` (the kit, or an add-on's name), replacing
- * whatever that unit installed before.
+ * whatever that unit installed before. `choice` is the option of the add-on's
+ * choice the project has from now on, recorded beside the files.
  */
-export function installFiles(project: string, unit: string, files: FileSet, force = false): InstallOutcome {
+export function installFiles(project: string, unit: string, files: FileSet, force = false, choice?: string): InstallOutcome {
   const record = readRecord(project);
   const before = record[unit]?.files ?? {};
   const conflicts: string[] = [];
@@ -173,6 +178,8 @@ export function installFiles(project: string, unit: string, files: FileSet, forc
         .map(([path, content]) => [path, hash(content)])
         .sort(),
     ),
+    // Written with every install, so an update that names no option must pass the one the project has.
+    ...(choice === undefined ? {} : { choice }),
   };
   writeRecord(project, record);
 
@@ -224,6 +231,11 @@ export function writeProjectFile(project: string, path: string, content: string 
 
 export function installedUnits(project: string): string[] {
   return Object.keys(readRecord(project));
+}
+
+/** The option the project has of a unit's choice. Undefined: none was ever recorded. */
+export function installedChoice(project: string, unit: string): string | undefined {
+  return readRecord(project)[unit]?.choice;
 }
 
 function readRecord(project: string): InstalledRecord {
