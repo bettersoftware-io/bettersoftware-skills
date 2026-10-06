@@ -78,6 +78,24 @@ syncpack:
   ✗ Issues found
 ```
 
+Each kind of finding carries the advice that fits it. Names that are out of
+order are told to be put in order, and that no version changes:
+
+```
+FAIL versions
+
+manypkg:
+  @zeta/e2e's dependencies are unsorted, this can cause large diffs when packages are added, resulting in dependencies being sorted
+    Put the names in each dependency map of that package.json in order. No version changes. The order is by character code, so every `@scope/…` name comes before a plain one, and `@types/…` before `@zeta/…`.
+```
+
+Until 2026-10-06 every failure ended with "Give every package the same
+range", which says nothing about order. That sentence now follows a range
+finding only. A kind of manypkg finding with no advice written for it says
+so. The order finding itself came from this repository: a `package.json`
+written for `@app` was out of order under a scope that sorts later, and the
+installer now sorts after it renames.
+
 `syncpack.json` ships with one version group. It ignores the workspace's own
 packages (`$LOCAL`): they depend on each other as `workspace:*` and have no
 `version` field, and syncpack reports both as errors by default (22 findings

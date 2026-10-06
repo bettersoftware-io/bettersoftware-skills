@@ -26,6 +26,20 @@ describe("every add-on", () => {
     expect([...matrix].sort()).toEqual(["none", ...ADDONS].sort());
   });
 
+  it("is in the job that creates one project with all of them, under a scope that sorts first and one that sorts last", () => {
+    const workflow = readFileSync(join(REPOSITORY, ".github/workflows/ci.yml"), "utf8");
+    const job = workflow.slice(workflow.indexOf("\n  project-with-every-add-on:"));
+    const together = /^\s+ADDONS: (.+)$/m.exec(job)?.[1]?.split(",") ?? [];
+    const scopes = (/^\s+scope: \[(.+)\]$/m.exec(job)?.[1] ?? "").split(",").map((scope) => scope.trim().replaceAll('"', ""));
+
+    expect([...together].sort()).toEqual(ADDONS);
+    expect(job).toContain('--with "$ADDONS"');
+    expect(job).toContain("run: pnpm gate:full");
+    // The `@` names that share a map with the project's own packages (`@playwright`, `@rx-state`, `@types`, `@vitejs`) lie between the two.
+    expect(scopes.some((scope) => scope < "@playwright")).toBe(true);
+    expect(scopes.some((scope) => scope > "@vitest")).toBe(true);
+  });
+
   it("has a row in the README's table that links to its own README", () => {
     const readme = readFileSync(join(REPOSITORY, "README.md"), "utf8");
 

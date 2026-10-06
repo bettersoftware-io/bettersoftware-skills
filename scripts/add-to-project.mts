@@ -33,6 +33,7 @@ import { type Declaration, declarePackages } from "./lib/architecture.mts";
 import { type Json, mergeSettings, parseSettings, refuseRetired, type RetiredCommands, SettingsError } from "./lib/host-settings.mts";
 import {
   assertInside,
+  byName,
   type Handover,
   type InstallOutcome,
   InstallError,
@@ -850,7 +851,7 @@ function withEntry(
     return added;
   }
 
-  return Object.fromEntries(Object.entries(added).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+  return Object.fromEntries(Object.entries(added).sort(byName));
 }
 
 function expandPackagePath(project: string, path: string): string[] {

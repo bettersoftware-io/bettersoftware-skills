@@ -106,10 +106,70 @@ export function rewriteScope(files: FileSet, from: string, to: string): FileSet 
   for (const [path, content] of files) {
     const name = path.slice(path.lastIndexOf("/") + 1);
 
-    rewritten.set(path, TEXT_FILE.test(name) ? Buffer.from(content.toString("utf8").replaceAll(`${from}/`, `${to}/`)) : content);
+    rewritten.set(path, TEXT_FILE.test(name) ? Buffer.from(renameScope(name, content.toString("utf8"), from, to)) : content);
   }
 
   return rewritten;
+}
+
+/**
+ * One text file with the scope replaced. A package.json also gets its
+ * dependencies back in name order: the files here are written in order for
+ * the starter's scope, and another scope sorts elsewhere (`@zeta/shared`
+ * comes after `@playwright/test`, `@app/shared` before it).
+ */
+export function renameScope(fileName: string, text: string, from: string, to: string): string {
+  const renamed = text.replaceAll(`${from}/`, `${to}/`);
+
+  return fileName === "package.json" && renamed !== text ? sortDependencies(renamed) : renamed;
+}
+
+/** The maps of a package.json that hold dependencies. The tools that compare versions want each in name order. */
+const DEPENDENCY_MAPS = ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
+
+/** Name order as package managers write it: by character code, so every `@scope/…` comes before a plain name. */
+export function byName([a]: [string, unknown], [b]: [string, unknown]): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * The text of a package.json with each dependency map in name order. A file
+ * already in order, or one that is not a JSON object, comes back as it was,
+ * byte for byte: only a file that needs it is written again.
+ */
+export function sortDependencies(text: string): string {
+  let manifest: unknown;
+
+  try {
+    manifest = JSON.parse(text);
+  } catch {
+    return text;
+  }
+
+  if (typeof manifest !== "object" || manifest === null || Array.isArray(manifest)) {
+    return text;
+  }
+
+  const sorted = manifest as Record<string, unknown>;
+  let moved = false;
+
+  for (const map of DEPENDENCY_MAPS) {
+    const entries = sorted[map];
+
+    if (typeof entries !== "object" || entries === null || Array.isArray(entries)) {
+      continue;
+    }
+
+    const names = Object.keys(entries);
+    const inOrder = Object.entries(entries).sort(byName);
+
+    if (inOrder.some(([name], index) => name !== names[index])) {
+      sorted[map] = Object.fromEntries(inOrder);
+      moved = true;
+    }
+  }
+
+  return moved ? `${JSON.stringify(sorted, null, 2)}\n` : text;
 }
 
 /**

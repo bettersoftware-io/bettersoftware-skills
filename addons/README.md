@@ -50,7 +50,14 @@ addons/<name>/
   a reason not to. It decides what is selected to begin with when a person is
   offered the list, and what `create-project.mts --with recommended` adds.
 - A `packageJson` key is a path from the project root. `packages/*` means every
-  workspace package.
+  workspace package. A dependency is added in name order.
+- A `package.json` among the add-on's files is written for the scope `@app`,
+  with its dependencies in name order. In a project with another scope the
+  installer puts them in order again after it renames the scope:
+  `@zeta/shared` sorts after `@playwright/test`, and `@app/shared` before
+  it. The creation script does the same for the starter's own packages.
+  `scripts/dependency-order.test.mts` holds it for every add-on under three
+  scopes.
 - `gates` joins commands to the project's own gates, so the agent's stop hook
   and the existing CI job run them. `fast` is for a check that takes seconds
   and needs nothing installed beyond `pnpm install`; it is appended to

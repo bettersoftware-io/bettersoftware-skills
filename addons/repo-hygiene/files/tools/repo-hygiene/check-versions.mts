@@ -27,6 +27,41 @@ export const CONFIG = "tools/repo-hygiene/syncpack.json";
 /** How manypkg starts a line that reports a broken rule. */
 const MANYPKG_ERROR = /^\S*\s*error\s+(.*)$/;
 
+const SAME_RANGE = "Give every package the same range for the dependency, then run `pnpm install`.";
+
+/**
+ * What to do about each kind of finding manypkg has, by the words it uses.
+ * One sentence fits one kind only: "give every package the same range" does
+ * nothing for names that are out of order.
+ */
+const MANYPKG_ADVICE: [RegExp, string][] = [
+  [
+    /dependencies are unsorted/,
+    "Put the names in each dependency map of that package.json in order. No version changes. The order is by character code, so every `@scope/…` name comes before a plain one, and `@types/…` before `@zeta/…`.",
+  ],
+  [/but the most common range in the repo is/, SAME_RANGE],
+  [/without using the workspace: protocol|is not within range of the depended on version/, "Depend on a package of this workspace as `workspace:*`, then run `pnpm install`."],
+  [/has a dependency and a (devDependency|optionalDependency) on/, "Keep the entry under `dependencies` and take the other out."],
+  [/root package\.json contains dependencies/, "Move them to `devDependencies`: the root package is never published, so the difference means nothing there."],
+  [/has a peerDependency on/, "Name it under `devDependencies` too, with a range inside the peer range."],
+  [/does not have a name|is an invalid package name/, "Give that package.json a valid `name`."],
+  [/repository field/, "Set `repository` in that package.json to what the finding says."],
+];
+
+const OTHER_MANYPKG_ADVICE = "This check has no advice written for this finding: manypkg's own sentence says what it wants.";
+
+/** The advice that fits one manypkg finding. */
+export function adviseOn(finding: string): string {
+  return MANYPKG_ADVICE.find(([words]) => words.test(finding))?.[1] ?? OTHER_MANYPKG_ADVICE;
+}
+
+/** manypkg's findings as lines: each kind together, in the order first seen, with its advice under it once. */
+function describeManypkg(findings: string[]): string[] {
+  const kinds = [...new Set(findings.map(adviseOn))];
+
+  return kinds.flatMap((advice) => [...findings.filter((finding) => adviseOn(finding) === advice).map((finding) => `  ${finding}`), `    ${advice}`]);
+}
+
 export interface VersionCheck {
   gate: string;
   /** Why nothing was judged. A result with this set has not passed. */
@@ -119,11 +154,18 @@ export function formatResult({ gate, skipped, manypkg, syncpack, entries, packag
 
   return [
     `FAIL ${gate}`,
-    ...(manypkg.length === 0 ? [] : ["", "manypkg:", ...manypkg.map((line) => `  ${line}`)]),
-    ...(syncpack === "" ? [] : ["", "syncpack:", ...syncpack.split("\n").map((line) => `  ${line}`)]),
-    "",
-    "Give every package the same range for the dependency, then run `pnpm install`.",
-    `A dependency that must differ on purpose gets a version group in ${CONFIG}, with a label that says why.`,
+    ...(manypkg.length === 0 ? [] : ["", "manypkg:", ...describeManypkg(manypkg)]),
+    // syncpack reports one kind of finding: a range that differs.
+    ...(syncpack === ""
+      ? []
+      : [
+          "",
+          "syncpack:",
+          ...syncpack.split("\n").map((line) => `  ${line}`),
+          "",
+          SAME_RANGE,
+          `A dependency that must differ on purpose gets a version group in ${CONFIG}, with a label that says why.`,
+        ]),
   ].join("\n");
 }
 

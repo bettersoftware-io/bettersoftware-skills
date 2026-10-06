@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 
 import { isMainModule } from "../kit/gates/lib/files.mts";
 import { addToProject, KIT, listAddons, type ListedAddon, parseUnit } from "./add-to-project.mts";
-import { listFiles } from "./lib/install.mts";
+import { listFiles, renameScope } from "./lib/install.mts";
 
 const REPOSITORY = dirname(dirname(fileURLToPath(import.meta.url)));
 const STARTER_SCOPE = "@app";
@@ -230,7 +230,8 @@ function writeProject(destination: string, scope: string, projectName: string, s
     }
 
     const original = readFileSync(file, "utf8");
-    const renamed = original.replaceAll(`${STARTER_SCOPE}/`, `${scope}/`);
+    // A package.json comes back with its dependencies in name order for the new scope.
+    const renamed = renameScope(basename(file), original, STARTER_SCOPE, scope);
 
     if (renamed !== original) {
       writeFileSync(file, renamed);

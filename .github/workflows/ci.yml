@@ -134,3 +134,77 @@ jobs:
         if: matrix.addon == 'e2e'
         working-directory: ${{ env.PROJECT }}
         run: pnpm e2e
+
+  project-with-every-add-on:
+    # The matrix above adds each add-on alone. A person takes several, and two
+    # add-ons can be right alone and wrong together (a knip finding once
+    # appeared only with `visual` and without `performance`). So one project
+    # gets all of them, under two scopes: the long one wraps lines and sorts
+    # before `@playwright` and `@types`, and `@zeta` sorts after them. A
+    # package.json whose dependencies are in order for one scope only fails
+    # the version check under the other.
+    name: a project created with every add-on passes its gate (${{ matrix.scope }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scope: ["@ci-organisation-with-a-long-name", "@zeta"]
+    env:
+      ADDONS: coverage,visual,performance,format-lint,ci-security,repo-hygiene,strict-lint,agent-workflow,e2e
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26
+
+      - name: Enable Corepack (provisions the pnpm pinned by the packageManager field)
+        run: node kit/ci/enable-corepack.mts
+
+      - name: Choose where the project goes
+        run: echo "PROJECT=$RUNNER_TEMP/project" >> "$GITHUB_ENV"
+
+      - name: Create a project from the starter, with every add-on
+        env:
+          SCOPE: ${{ matrix.scope }}
+        run: node scripts/create-project.mts "$PROJECT" --scope "$SCOPE" --with "$ADDONS"
+
+      # The stop hook, the hygiene checks and the typed lint ask git which
+      # files the project has. A project is a repository from its first day.
+      - name: Make it a repository
+        working-directory: ${{ env.PROJECT }}
+        run: git init --quiet
+
+      # Not frozen: the add-ons added dependencies the starter's lockfile does not have.
+      - name: Install what the add-ons need
+        working-directory: ${{ env.PROJECT }}
+        run: pnpm install --no-frozen-lockfile
+
+      # What the creation script prints under "Next": each add-on's command
+      # to run once, in the order the add-ons were added.
+      - name: Run what the add-ons ask to be run once
+        working-directory: ${{ env.PROJECT }}
+        env:
+          ADDONS_FOLDER: ${{ github.workspace }}/addons
+        run: |
+          for addon in $(echo "$ADDONS" | tr ',' ' '); do
+            first_run="$(MANIFEST="$ADDONS_FOLDER/$addon/addon.json" node -p "require(process.env.MANIFEST).firstRun ?? ''")"
+            if [ -n "$first_run" ]; then
+              echo "$ $first_run"
+              sh -c "$first_run"
+            fi
+          done
+
+      - name: Its gate, with every add-on in
+        working-directory: ${{ env.PROJECT }}
+        run: pnpm gate:full
+
+      - name: Install the browser the e2e add-on drives
+        working-directory: ${{ env.PROJECT }}
+        run: pnpm --dir packages/e2e exec playwright install --with-deps chromium
+
+      - name: Its end-to-end specs, against a build of the project just created
+        working-directory: ${{ env.PROJECT }}
+        run: pnpm e2e

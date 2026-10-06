@@ -908,5 +908,47 @@
     "find": "./stylelint.base.json",
     "replace": "stylelint-config-standard",
     "test": "pnpm vitest run addons/repo-hygiene/tests/css-rules.test.mts -t \"has a project file that only extends the base\""
+  },
+  {
+    "name": "check-versions: names out of order get the advice for order",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-versions.mts",
+    "find": "    /dependencies are unsorted/,\n",
+    "replace": "    /dependencies are unsortable/,\n",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"gives names out of order the advice for order\""
+  },
+  {
+    "name": "check-versions: the advice for a range is not printed for manypkg alone",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-versions.mts",
+    "find": "    ...(syncpack === \"\"\n      ? []\n      : [",
+    "replace": "    ...(false\n      ? []\n      : [",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"gives names out of order the advice for order\""
+  },
+  {
+    "name": "check-versions: one kind, its advice once",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-versions.mts",
+    "find": "  const kinds = [...new Set(findings.map(adviseOn))];",
+    "replace": "  const kinds = findings.map(adviseOn);",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"puts findings of one kind together\""
+  },
+  {
+    "name": "check-versions: a kind with no advice says so",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-versions.mts",
+    "find": "?.[1] ?? OTHER_MANYPKG_ADVICE;",
+    "replace": "?.[1] ?? SAME_RANGE;",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"has advice of its own for: @app/a did something\""
+  },
+  {
+    "name": "check-versions: the workspace protocol has its own advice",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-versions.mts",
+    "find": "  [/without using the workspace: protocol|is not within range of the depended on version/, ",
+    "replace": "  [/never/, ",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"has advice of its own for: @app/a has a dependency on @app/b\""
+  },
+  {
+    "name": "check-versions: the range advice stays with syncpack's report",
+    "file": "addons/repo-hygiene/files/tools/repo-hygiene/check-versions.mts",
+    "find": "          SAME_RANGE,\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/repo-hygiene/tests/check-versions.test.mts -t \"keeps the advice for a range\""
   }
 ]
