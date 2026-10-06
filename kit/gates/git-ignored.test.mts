@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -7,7 +7,7 @@ import { ESLint, type Linter } from "eslint";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { architectureLint } from "../eslint.config.mts";
-import { gitIgnoredGlobs, isGitIgnored, listGitIgnored, listIgnoredCode, listPackageFolders, listSourceFiles } from "./lib/files.mts";
+import { askGit, gitIgnoredGlobs, isGitIgnored, listGitIgnored, listIgnoredCode, listPackageFolders, listSourceFiles } from "./lib/files.mts";
 import { runGates } from "./run.mts";
 
 // Two rules, and they pull against each other.
@@ -325,10 +325,12 @@ describe.skipIf(!HAS_GIT)("a file in a package that git ignores", () => {
   });
 
   it("does not make a folder beside the packages judged: only what is in one", () => {
-    const root = createRepository({ ...PROJECT, ".gitignore": "/packages-old/\n", "packages-old/domain/src/x.js": SCRIPT });
+    const root = createRepository({ ...PROJECT, ".gitignore": "/packages-old/\n/packages/domain-old/\n", "packages-old/domain/src/x.js": SCRIPT, "packages/domain-old/src/y.js": SCRIPT });
 
     expect(listIgnoredCode(root)).toEqual([]);
     expect(isGitIgnored(root, "packages-old/domain/src/x.js")).toBe(true);
+    // A name that only begins like a package's.
+    expect(isGitIgnored(root, "packages/domain-old/src/y.js")).toBe(true);
   });
 });
 
@@ -394,6 +396,163 @@ describe.skipIf(!HAS_GIT)("the files that are judged, for any tree", () => {
   });
 });
 
+describe.skipIf(!HAS_GIT)("when git cannot say, or its answer cannot be right: every file is judged", () => {
+  const FILES = { "architecture.config.mts": CONFIG, ".gitignore": "scratch/\n", "scratch/x.js": SCRIPT, "kept.js": SCRIPT };
+  const judged = (root: string): string[] => listSourceFiles(root, "").filter((file) => file.endsWith(".js"));
+
+  it("leaves the ignored file out when git answers: the cases below are told from this one", () => {
+    expect(judged(createRepository(FILES))).toEqual(["kept.js"]);
+  });
+
+  it("when git is not installed", () => {
+    const root = createRepository(FILES);
+
+    vi.stubEnv("PATH", createFolder({}));
+
+    expect(listGitIgnored(root)).toBeUndefined();
+    expect(judged(root)).toEqual(["kept.js", "scratch/x.js"]);
+  });
+
+  it("when git does not answer in time", () => {
+    const root = createRepository(FILES);
+
+    vi.stubEnv("PATH", createFakeGit("sleep 5"));
+
+    expect(askGit(root, ["ls-files"], 200)).toBeUndefined();
+  });
+
+  it.each([
+    ["exits with an error after printing a list", "printf 'kept.js\\0'; exit 1"],
+    // A folder that is there: the one the project is in.
+    ["names a path outside the project", "printf '../\\0'"],
+    ["names a path from the root of the disk", "printf '/etc/\\0'"],
+    ["names a path that is not there", "printf 'packages/\\0nothing-here.js\\0'"],
+  ])("when git %s", (_what, script) => {
+    const root = createRepository(FILES);
+
+    vi.stubEnv("PATH", createFakeGit(script));
+
+    expect(listGitIgnored(root)).toBeUndefined();
+    expect(gitIgnoredGlobs(root)).toEqual([]);
+    expect(judged(root)).toEqual(["kept.js", "scratch/x.js"]);
+  });
+
+  it("when the repository is bare, or its .git is broken", () => {
+    const bare = createFolder(FILES);
+    const broken = createRepository(FILES);
+
+    spawnSync("git", ["init", "--quiet", "--bare", ".git"], { cwd: bare });
+    spawnSync("git", ["config", "--file", join(bare, ".git/config"), "core.bare", "true"]);
+    writeFileSync(join(broken, ".git/HEAD"), "not a head\n");
+
+    expect(listGitIgnored(bare)).toBeUndefined();
+    expect(judged(bare)).toEqual(["kept.js", "scratch/x.js"]);
+    expect(listGitIgnored(broken)).toBeUndefined();
+    expect(judged(broken)).toEqual(["kept.js", "scratch/x.js"]);
+  });
+
+  it("is asked about this folder whatever GIT_* says: another repository, another index, settings handed in", () => {
+    const elsewhere = createRepository({ ".gitignore": "*\n" });
+    // Made before any variable is set: `git init` would follow it too.
+    const root = createRepository(FILES);
+    const expected = listGitIgnored(root);
+
+    expect(expected).toEqual(["scratch/"]);
+
+    for (const [name, value] of [
+      ["GIT_DIR", join(elsewhere, ".git")],
+      ["GIT_WORK_TREE", elsewhere],
+      ["GIT_INDEX_FILE", join(elsewhere, "no-such-index")],
+      ["GIT_DIR", "/nowhere"],
+    ] as const) {
+      vi.stubEnv(name, value);
+      expect(listGitIgnored(root), name).toEqual(expected);
+      vi.unstubAllEnvs();
+    }
+
+    vi.stubEnv("GIT_CONFIG_COUNT", "1");
+    vi.stubEnv("GIT_CONFIG_KEY_0", "core.excludesFile");
+    vi.stubEnv("GIT_CONFIG_VALUE_0", join(createFolder({ rules: "kept.js\n" }), "rules"));
+
+    expect(listGitIgnored(root, "any")).toEqual(expected);
+    vi.unstubAllEnvs();
+
+    // And a list of rules named in the person's own settings, which no variable carries.
+    const home = createFolder({ ".gitconfig": "", rules: "kept.js\n" });
+
+    writeFileSync(join(home, ".gitconfig"), `[core]\n\texcludesFile = ${join(home, "rules")}\n`);
+    vi.stubEnv("HOME", home);
+    vi.stubEnv("XDG_CONFIG_HOME", join(home, "none"));
+
+    expect(listGitIgnored(root, "any")).toEqual(expected);
+  });
+
+  it("reads a name with a newline in it as one name", () => {
+    const root = createRepository({ ".gitignore": "*.tmp.ts\n", "we\nird.tmp.ts": SCRIPT, "ird.tmp.tsx": SCRIPT, "kept.ts": SCRIPT });
+
+    expect(listGitIgnored(root)).toEqual(["we\nird.tmp.ts"]);
+    expect(listSourceFiles(root, "")).toEqual(["ird.tmp.tsx", "kept.ts"]);
+  });
+
+  it("judges a package that is a link, ignored or not: git lists a link as a file", async () => {
+    const root = createRepository({ ...PROJECT, ".gitignore": "/packages/domain\n", "elsewhere/domain/src/hidden.js": SCRIPT, "elsewhere/domain/package.json": "{}" });
+
+    rmSync(join(root, "packages/domain"), { recursive: true });
+    symlinkSync("../elsewhere/domain", join(root, "packages/domain"));
+
+    // The link, with no `/` at its end; and the folder around it, which now holds nothing else.
+    expect(listGitIgnored(root)).toContain("packages/domain");
+    expect(isGitIgnored(root, "packages/domain")).toBe(false);
+    expect(gitIgnoredGlobs(root)).toEqual([]);
+    expect(listSourceFiles(root, "packages/domain/src")).toEqual([HIDDEN]);
+    expect(await lint(root).isPathIgnored(join(root, HIDDEN))).toBe(false);
+  });
+
+  it("protects a package whose declared name and name on disk differ by case", () => {
+    const root = createRepository({ "architecture.config.mts": 'export default { packages: { "Packages/Domain": { role: "domain" } } };\n', ".gitignore": "/packages/\n", [HIDDEN]: SCRIPT });
+
+    expect(isGitIgnored(root, HIDDEN)).toBe(false);
+    expect(listSourceFiles(root, "packages")).toEqual([HIDDEN]);
+  });
+
+  it("judges the files of a repository inside the project by the outer rules only: the inner one's are not asked", () => {
+    const root = createRepository({ "architecture.config.mts": CONFIG, "vendor/tool/.gitignore": "x.js\n", "vendor/tool/x.js": SCRIPT });
+
+    spawnSync("git", ["init", "--quiet"], { cwd: join(root, "vendor/tool") });
+    spawnSync("git", ["add", ".gitignore"], { cwd: join(root, "vendor/tool") });
+
+    // The inner repository does ignore it.
+    expect(spawnSync("git", ["check-ignore", "x.js"], { cwd: join(root, "vendor/tool") }).status).toBe(0);
+    expect(listSourceFiles(root, "")).toContain("vendor/tool/x.js");
+  });
+
+  it("answers for a project that is a folder of a larger repository, in paths from the project", () => {
+    const repository = createRepository({ ".gitignore": "scratch/\n", "app/scratch/x.js": SCRIPT, "app/kept.js": SCRIPT, "scratch/y.js": SCRIPT });
+
+    expect(listGitIgnored(join(repository, "app"))).toEqual(["scratch/"]);
+    expect(listSourceFiles(join(repository, "app"), "")).toEqual(["kept.js"]);
+  });
+});
+
+describe("a run that judged nothing", () => {
+  it("fails when the project declares packages and no source file is found in any of them", async () => {
+    const root = createFolder({ "architecture.config.mts": PROJECT["architecture.config.mts"], "packages/domain/package.json": PROJECT["packages/domain/package.json"] });
+    const { findings } = await runGates({ root });
+
+    expect(findings.map(({ message }) => message)).toContain(
+      "The project declares 1 package(s) and no source file was found in any of them, so the gates judged nothing. That is not a pass. Check that the gates run in the project root and that the packages are there: packages/domain.",
+    );
+  });
+
+  it("does not fail for that when one declared package has a source file, or when none is declared", async () => {
+    const withSource = createFolder(PROJECT);
+    const none = createFolder({ "architecture.config.mts": CONFIG });
+
+    expect((await runGates({ root: withSource })).findings.filter(({ message }) => message.includes("judged nothing"))).toEqual([]);
+    expect((await runGates({ root: none })).findings.filter(({ message }) => message.includes("judged nothing"))).toEqual([]);
+  });
+});
+
 describe("a folder that is in no repository", () => {
   it("has nothing git ignores: git cannot say, and every file is judged", async () => {
     const root = createFolder({ "architecture.config.mts": CONFIG, ".gitignore": "scratch.js\n", "scratch.js": SCRIPT, ".remember/.gitignore": "*\n", ".remember/x.js": SCRIPT });
@@ -436,6 +595,15 @@ function listAll(root: string, folder: string): string[] {
 
     return entry.isDirectory() ? (entry.name === ".git" ? [] : listAll(root, path)) : [path];
   });
+}
+
+/** A folder to put first on PATH: its `git` is a shell script that runs `script`. Nothing else is on that PATH but the shell's own tools. */
+function createFakeGit(script: string): string {
+  const bin = createFolder({ git: `#!/bin/sh\n${script}\n` });
+
+  chmodSync(join(bin, "git"), 0o755);
+
+  return `${bin}:/bin:/usr/bin`;
 }
 
 /** A fresh folder holding `files` (path → content), outside every repository. */

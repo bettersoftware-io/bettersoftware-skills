@@ -21,7 +21,7 @@ import {
   portContractsSkipReason,
 } from "./lib/contracts.mts";
 import { checkDependencies } from "./lib/depcruise.mts";
-import { isGitIgnored, isMainModule } from "./lib/files.mts";
+import { isGitIgnored, isMainModule, listSourceFiles } from "./lib/files.mts";
 import { checkIgnoredSource } from "./lib/ignored-source.mts";
 import { checkInstructionPaths, instructionsSkipReason } from "./lib/instructions.mts";
 import { checkLanguage, languageSkipReason } from "./lib/language.mts";
@@ -132,6 +132,7 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
       "playwright-pin": playwrightPinSkipReason(project),
     }),
     findings: [
+      ...checkSomethingWasJudged(project),
       ...checkStructure(project),
       ...checkLanguage(project),
       ...checkDumbUi(project),
@@ -149,6 +150,28 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
       ...checkIgnoredSource(project),
     ],
   };
+}
+
+/**
+ * The floor under every other check. A project that declares packages and in
+ * which no source file is found has been judged by nothing: every gate that
+ * reads files would pass on an empty list. Whatever emptied the list (a walk
+ * that left everything out, a root that is not the project), that is a
+ * failure, not a pass.
+ */
+function checkSomethingWasJudged({ root, config }: Awaited<ReturnType<typeof loadConfig>>): Finding[] {
+  const declared = Object.keys(config.packages);
+
+  if (declared.length === 0 || declared.some((path) => listSourceFiles(root, path).length > 0)) {
+    return [];
+  }
+
+  return [
+    {
+      gate: "structure",
+      message: `The project declares ${declared.length} package(s) and no source file was found in any of them, so the gates judged nothing. That is not a pass. Check that the gates run in the project root and that the packages are there: ${declared.join(", ")}.`,
+    },
+  ];
 }
 
 function dropUndefined(record: Record<string, string | undefined>): Record<string, string> {

@@ -28,20 +28,6 @@
     "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"every file git does not ignore, and every file in a package\""
   },
   {
-    "name": "ignored: an ignored folder that holds the packages is not left out",
-    "file": "kit/gates/lib/files.mts",
-    "find": " || (entry.endsWith(\"/\") && `${path}/`.startsWith(entry)));",
-    "replace": "));",
-    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"is still judged by the gates, and is a finding of its own, with the folder that holds the packages ignored\""
-  },
-  {
-    "name": "ignored: a folder beside the packages is not taken for one",
-    "file": "kit/gates/lib/files.mts",
-    "find": "packages.some((path) => entry.startsWith(`${path}/`) ||",
-    "replace": "packages.some((path) => entry.startsWith(path.split(\"/\")[0] as string) ||",
-    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"does not make a folder beside the packages judged\""
-  },
-  {
     "name": "ignored: a declared package is protected without a workspace file",
     "file": "kit/gates/lib/files.mts",
     "find": "  return [...new Set([...packages.map((path) => path.replace(/^\\.?\\/+/, \"\").replace(/\\/+$/, \"\")), ...discoverWorkspace(root).map(({ path }) => path)])].sort();",
@@ -89,27 +75,6 @@
     "find": "    } else if (CODE_FILE.test(entry) && inPackage(entry)) {",
     "replace": "    } else if (inPackage(entry)) {",
     "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"is not a finding in an installed or generated folder\""
-  },
-  {
-    "name": "ignored: a rule in .git/info/exclude or a global list hides nothing",
-    "file": "kit/gates/lib/files.mts",
-    "find": "const from = rules === \"any\" ? \"--exclude-standard\" : \"--exclude-per-directory=.gitignore\";",
-    "replace": "const from = \"--exclude-standard\";",
-    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"hides nothing when it is in .git/info/exclude\""
-  },
-  {
-    "name": "ignored: a global rule hides nothing",
-    "file": "kit/gates/lib/files.mts",
-    "find": "const from = rules === \"any\" ? \"--exclude-standard\" : \"--exclude-per-directory=.gitignore\";",
-    "replace": "const from = \"--exclude-standard\";",
-    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"hides nothing when it is in the person\""
-  },
-  {
-    "name": "ignored: a folder ignored from outside is not walked",
-    "file": "kit/gates/lib/files.mts",
-    "find": "from, \"--directory\", \"-z\"]",
-    "replace": "from, \"-z\"]",
-    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"is listed whether the root\""
   },
   {
     "name": "ignored: the walker leaves such a file out",
@@ -168,13 +133,6 @@
     "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"does not judge a file git ignores\""
   },
   {
-    "name": "ignored: outside a repository git's failure is no list",
-    "file": "kit/gates/lib/files.mts",
-    "find": "  return listed.status === 0 ? listed.stdout.split(\"\\0\").filter(Boolean) : undefined;",
-    "replace": "  return (listed.stdout ?? \"\").split(\"\\0\").filter(Boolean);",
-    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"has nothing git ignores\""
-  },
-  {
     "name": "stop hook: a file only .git/info/exclude names is in the hash",
     "file": "kit/hooks/before-stop.mts",
     "find": "[\"--cached\", \"--others\", \"--exclude-per-directory=.gitignore\"]",
@@ -182,17 +140,129 @@
     "test": "pnpm vitest run kit/hooks/hooks.test.mts -t \"is judged again after a file changes that only .git/info/exclude names\""
   },
   {
-    "name": "stop hook: a file only a global list names is in the hash",
-    "file": "kit/hooks/before-stop.mts",
-    "find": "[\"--cached\", \"--others\", \"--exclude-per-directory=.gitignore\"]",
-    "replace": "[\"--cached\", \"--others\", \"--exclude-standard\"]",
-    "test": "pnpm vitest run kit/hooks/hooks.test.mts -t \"is judged again after a file changes that only the person\""
-  },
-  {
     "name": "ignored: a file in a package hidden by a rule outside the repository's files is a finding",
     "file": "kit/gates/lib/files.mts",
     "find": "const byAnyRule = listGitIgnored(root, \"any\") ?? [];",
     "replace": "const byAnyRule = entries;",
     "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"is a finding when the rule is in .git/info/exclude\""
+  },
+  {
+    "name": "ignored: only the repository's own .gitignore files leave a file out",
+    "file": "kit/gates/lib/files.mts",
+    "find": "const from = rules === \"any\" ? [\"--exclude-standard\"] : [\"--exclude-per-directory=.gitignore\"];",
+    "replace": "const from = [\"--exclude-standard\"];",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"hides nothing when it is in .git/info/exclude\""
+  },
+  {
+    "name": "ignored: a folder ignored from outside is not walked",
+    "file": "kit/gates/lib/files.mts",
+    "find": "...from, \"--directory\"]);",
+    "replace": "...from]);",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"is listed whether the root\""
+  },
+  {
+    "name": "ignored: an ignored folder that holds the packages is not left out",
+    "file": "kit/gates/lib/files.mts",
+    "find": " || declared.startsWith(`${path}/`);",
+    "replace": ";",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"is still judged by the gates, and is a finding of its own, with the folder that holds the packages ignored\""
+  },
+  {
+    "name": "ignored: a folder beside the packages is not taken for one",
+    "file": "kit/gates/lib/files.mts",
+    "find": "path.startsWith(`${declared}/`) ||",
+    "replace": "path.startsWith(declared) ||",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"does not make a folder beside the packages judged\""
+  },
+  {
+    "name": "unsure: a package that is a link is a package (was open before this)",
+    "file": "kit/gates/lib/files.mts",
+    "find": "        return path === declared || path.startsWith",
+    "replace": "        return path.startsWith",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"judges a package that is a link\""
+  },
+  {
+    "name": "unsure: a declared name that differs by case from the disk (was open before this)",
+    "file": "kit/gates/lib/files.mts",
+    "find": "        const declared = folder.toLowerCase();",
+    "replace": "        const declared = folder;",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"protects a package whose declared name and name on disk differ by case\""
+  },
+  {
+    "name": "unsure: git's exit code is read",
+    "file": "kit/gates/lib/files.mts",
+    "find": "  return asked.error === undefined && asked.status === 0 ?",
+    "replace": "  return asked.error === undefined ?",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"when git exits with an error after printing a list\""
+  },
+  {
+    "name": "unsure: git is given a time limit",
+    "file": "kit/gates/lib/files.mts",
+    "find": "    timeout: timeoutMs,\n",
+    "replace": "",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"when git does not answer in time\""
+  },
+  {
+    "name": "unsure: a path outside the project makes the whole answer untrusted",
+    "file": "kit/gates/lib/files.mts",
+    "find": "listed?.every((entry) => isUnderRoot(entry) && lstatSync",
+    "replace": "listed?.every((entry) => lstatSync",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"when git names a path outside the project\""
+  },
+  {
+    "name": "unsure: a path that is not there does too",
+    "file": "kit/gates/lib/files.mts",
+    "find": "isUnderRoot(entry) && lstatSync(join(root, entry), { throwIfNoEntry: false }) !== undefined) ? listed : undefined;",
+    "replace": "isUnderRoot(entry)) ? listed : undefined;",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"when git names a path that is not there\""
+  },
+  {
+    "name": "unsure: no GIT_* variable reaches git",
+    "file": "kit/gates/lib/files.mts",
+    "find": "filter(([name]) => !name.startsWith(\"GIT_\"))",
+    "replace": "filter(([name]) => name !== \"\")",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"is asked about this folder whatever GIT_\""
+  },
+  {
+    "name": "unsure: a list of rules in the person's settings is set to nothing",
+    "file": "kit/gates/lib/files.mts",
+    "find": "[\"-c\", \"core.excludesFile=\", ...command, \"-z\"]",
+    "replace": "[...command, \"-z\"]",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"is asked about this folder whatever GIT_\""
+  },
+  {
+    "name": "unsure: names are read with -z",
+    "file": "kit/gates/lib/files.mts",
+    "find": "[\"-c\", \"core.excludesFile=\", ...command, \"-z\"]",
+    "replace": "[\"-c\", \"core.excludesFile=\", ...command]",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"reads a name with a newline in it as one name\""
+  },
+  {
+    "name": "floor: a run that judged no file fails",
+    "file": "kit/gates/run.mts",
+    "find": "      ...checkSomethingWasJudged(project),\n",
+    "replace": "",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"fails when the project declares packages and no source file is found\""
+  },
+  {
+    "name": "floor: one package with a file is enough",
+    "file": "kit/gates/run.mts",
+    "find": "declared.some((path) => listSourceFiles(root, path).length > 0)",
+    "replace": "declared.every((path) => listSourceFiles(root, path).length > 99)",
+    "test": "pnpm vitest run kit/gates/git-ignored.test.mts -t \"does not fail for that when one declared package has a source file\""
+  },
+  {
+    "name": "stop hook: an ignored file in a package is in the hash (was open before this)",
+    "file": "kit/hooks/before-stop.mts",
+    "find": "  const judged = [...new Set([...tracked, ...listIgnoredInPackages(root)])];",
+    "replace": "  const judged = tracked;",
+    "test": "pnpm vitest run kit/hooks/hooks.test.mts -t \"is judged again after a file in a package changes that git ignores\""
+  },
+  {
+    "name": "stop hook: a .gitignore that ignores itself is in the hash (was open before this)",
+    "file": "kit/hooks/before-stop.mts",
+    "find": " || IGNORE_FILE.test(entry))].sort()) {",
+    "replace": ")].sort()) {",
+    "test": "pnpm vitest run kit/hooks/hooks.test.mts -t \"is judged again after a .gitignore that ignores itself changes\""
   }
 ]

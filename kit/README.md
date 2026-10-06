@@ -487,6 +487,23 @@ How git is asked:
   `@eslint/compat` 2.1.1 is deprecated in its favour) was weighed. It turns
   the text of the files it is given into patterns, does not find a nested
   file, and cannot be told "not inside a package".
+- **Every way the question can fail means "judge the file".** Git not
+  installed, an error exit (no repository, a bare or broken one), no answer
+  in thirty seconds, an entry that leaves the project or names nothing on
+  disk: each makes the whole answer "unknown", and then nothing is left out.
+  Names are read with `-z`. Git is run with no `GIT_*` variable (one can
+  point it at another repository or index, or hand it settings) and with
+  `core.excludesFile` set to nothing. A package that is a link, and one
+  whose declared name differs from the disk's by case, are still packages. A
+  repository inside the project is judged by the outer rules only.
+- **The stop hook's hash reads what the gates judge.** That is every file
+  git does not ignore, every file in a package that it does (outside the
+  installed and generated folders), the `.env` files, and a `.gitignore`
+  that ignores itself. A file git was told to look away from
+  (`--assume-unchanged`, `--skip-worktree`) is read from disk like any
+  other.
+- **A floor.** A full run in a project that declares packages and finds no
+  source file in any of them fails: it judged nothing.
 - A committed file is never ignored, whatever a pattern says. A new file
   that nothing ignores is judged: untracked is not ignored.
 - Outside a git repository git cannot say, nothing is left out, and every
