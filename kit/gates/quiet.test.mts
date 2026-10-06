@@ -1,17 +1,33 @@
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { LOG_FILE, planStages, QuietError, runQuiet, type RunStage, splitChain, type StageRun } from "./quiet.mts";
+import { isPlainPath } from "./lib/files.mts";
+import {
+  createShellRunner,
+  createStopper,
+  LIMITS,
+  LOG_FILE,
+  planStages,
+  QuietError,
+  type RunnerLimits,
+  runQuiet,
+  type RunStage,
+  scriptRunBy,
+  skipLines,
+  splitChain,
+  type StageRun,
+  type Stopper,
+} from "./quiet.mts";
 
 const RUNNER = join(dirname(fileURLToPath(import.meta.url)), "quiet.mts");
 
 describe("the stages of a gate script", () => {
   it("are the parts of its && chain, in order", () => {
-    expect(planStages({ "gate:fast": "pnpm gates && pnpm lint && pnpm typecheck" }, "gate:fast")).toEqual([
+    expect(commandsOf({ "gate:fast": "pnpm gates && pnpm lint && pnpm typecheck" }, "gate:fast")).toEqual([
       "pnpm gates",
       "pnpm lint",
       "pnpm typecheck",
@@ -21,7 +37,7 @@ describe("the stages of a gate script", () => {
   it("open up a part that runs another chain of the project, so gate:full shows gate:fast's stages", () => {
     const scripts = { "gate:fast": "pnpm gates && pnpm lint", "gate:full": "pnpm gate:fast && pnpm test && pnpm run build", build: "turbo run build" };
 
-    expect(planStages(scripts, "gate:full")).toEqual(["pnpm gates", "pnpm lint", "pnpm test", "pnpm run build"]);
+    expect(commandsOf(scripts, "gate:full")).toEqual(["pnpm gates", "pnpm lint", "pnpm test", "pnpm run build"]);
   });
 
   it("include what an add-on joined to either gate, where the add-on put it", () => {
@@ -30,7 +46,7 @@ describe("the stages of a gate script", () => {
       "gate:full": "pnpm gate:fast && pnpm test && pnpm build && pnpm coverage",
     };
 
-    expect(planStages(scripts, "gate:full")).toEqual([
+    expect(commandsOf(scripts, "gate:full")).toEqual([
       "pnpm gates",
       "pnpm lint",
       "pnpm biome:check",
@@ -42,7 +58,59 @@ describe("the stages of a gate script", () => {
   });
 
   it("keep a script that is not a chain as one stage, under the name a person would type", () => {
-    expect(planStages({ gate: "pnpm test && pnpm lint", test: "vitest run", lint: "eslint ." }, "gate")).toEqual(["pnpm test", "pnpm lint"]);
+    expect(commandsOf({ gate: "pnpm run test && pnpm run lint", test: "vitest run", lint: "eslint ." }, "gate")).toEqual(["pnpm run test", "pnpm run lint"]);
+  });
+
+  // pnpm runs its own command for a name it knows, whatever the project's
+  // scripts say. Measured on pnpm 12.6: root, bin, list, exec, why, store,
+  // env and config all win over a script of that name.
+  it.each([["audit"], ["install"], ["exec"], ["store"], ["root"], ["typecheck"]])(
+    "leave pnpm %s whole, since a bare word may be a command of pnpm and not the script",
+    (name) => {
+      expect(commandsOf({ gate: `pnpm ${name} && pnpm lint`, [name]: "node a.mjs && node b.mjs" }, "gate")).toEqual([`pnpm ${name}`, "pnpm lint"]);
+    },
+  );
+
+  it("open the same script up when it is run by name, which pnpm cannot read as a command of its own", () => {
+    expect(commandsOf({ gate: "pnpm run audit && pnpm lint", audit: "node a.mjs && node b.mjs" }, "gate")).toEqual(["node a.mjs", "node b.mjs", "pnpm lint"]);
+  });
+
+  it.each([
+    ["pnpm run check:all --if-present"],
+    ["pnpm run --if-present check:all"],
+    ["pnpm run check:all -- --fix"],
+    ["pnpm --filter web run check:all"],
+    ["pnpm -r run check:all"],
+    ["pnpm check:all --fix"],
+    ["npm run check:all"],
+    ["yarn check:all"],
+    ["yarn run check:all"],
+  ])("leave %s whole: a flag, an argument or another package manager changes what runs", (command) => {
+    expect(commandsOf({ gate: `${command} && pnpm lint`, "check:all": "node a.mjs && node b.mjs" }, "gate")).toEqual([command, "pnpm lint"]);
+  });
+
+  it("leave a part whole when pnpm would run a pre or post script around it", () => {
+    const chain = { "gate:fast": "node a.mjs && node b.mjs", "gate:full": "pnpm gate:fast && pnpm test" };
+
+    expect(commandsOf({ ...chain, "pregate:fast": "node before.mjs" }, "gate:full")).toEqual(["pnpm run gate:fast", "pnpm test"]);
+    expect(commandsOf({ ...chain, "postgate:fast": "node after.mjs" }, "gate:full")).toEqual(["pnpm run gate:fast", "pnpm test"]);
+  });
+
+  it("hand the whole gate to pnpm when the gate itself has a pre or post script", () => {
+    const scripts = { "gate:full": "node a.mjs && node b.mjs", "postgate:full": "node after.mjs" };
+
+    expect(commandsOf(scripts, "gate:full")).toEqual(["pnpm run gate:full"]);
+  });
+
+  it("say which script each stage is a line of, and say none for a stage pnpm is left to run", () => {
+    const scripts = { "gate:fast": "node a.mjs && pnpm lint", "gate:full": "pnpm gate:fast && node c.mjs", "pregate:x": "true", "gate:x": "a && b" };
+
+    expect(planStages(scripts, "gate:full")).toEqual([
+      { command: "node a.mjs", script: "gate:fast" },
+      { command: "pnpm lint", script: "gate:fast" },
+      { command: "node c.mjs", script: "gate:full" },
+    ]);
+    expect(planStages(scripts, "gate:x")).toEqual([{ command: "pnpm run gate:x" }]);
   });
 
   it("refuse a script the project does not have", () => {
@@ -51,9 +119,9 @@ describe("the stages of a gate script", () => {
   });
 
   it("refuse a chain that runs itself", () => {
-    const scripts = { a: "pnpm b && pnpm lint", b: "pnpm a && pnpm test" };
+    const scripts = { "a:1": "pnpm b:1 && pnpm lint", "b:1": "pnpm a:1 && pnpm test" };
 
-    expect(() => planStages(scripts, "a")).toThrow('the script "a" runs itself: a → b → a');
+    expect(() => planStages(scripts, "a:1")).toThrow('the script "a:1" runs itself: a:1 → b:1 → a:1');
   });
 });
 
@@ -166,6 +234,162 @@ describe("a quiet run", () => {
   });
 });
 
+describe("a line that says a check judged nothing", () => {
+  it("is found when a tool indents it or colours it", () => {
+    const escape = String.fromCharCode(27);
+
+    expect(skipLines(`  SKIP indented — nothing to judge\n${escape}[33mSKIP${escape}[0m coloured — nothing to judge\n`)).toEqual([
+      "SKIP indented — nothing to judge",
+      "SKIP coloured — nothing to judge",
+    ]);
+  });
+});
+
+describe("a run that was told to stop", () => {
+  it("is not a pass when the request comes as the last stage ends", async () => {
+    const written: string[] = [];
+    let ended = false;
+    const status = await runQuiet({
+      root: createProject({ gate: "pnpm lint" }),
+      script: "gate",
+      write: (text) => written.push(text),
+      runStage: () => {
+        ended = true;
+
+        return Promise.resolve(pass(""));
+      },
+      isStopped: () => ended,
+    });
+
+    expect(written.join("")).toContain("STOP  after the last stage. gate was stopped, so this is not a pass.");
+    expect(written.join("")).not.toContain("gate passed");
+    expect(status).toBe(1);
+  });
+});
+
+describe("stopping a real stage", () => {
+  const quick: RunnerLimits = { ...LIMITS, graceMs: 400, abandonMs: 400, drainMs: 300 };
+
+  it("ends a stage that ignores SIGTERM, by killing it after the grace period, and keeps what it printed", async () => {
+    const ignores = "process.on('SIGTERM', () => console.log('told to stop, and going on')); console.log('started'); setInterval(() => {}, 1000);\n";
+    const started = Date.now();
+    const { status, printed } = await stopOnceStarted({ gate: "node ignores.mjs" }, { "ignores.mjs": ignores }, quick);
+
+    expect(printed).toContain("FAIL  node ignores.mjs (stopped by SIGTERM, ");
+    expect(printed).toContain("started\ntold to stop, and going on\n");
+    expect(status).toBe(143);
+    expect(Date.now() - started).toBeLessThan(5000);
+  }, 20_000);
+
+  it("ends, though something the stage started is beyond its reach and holds its output open", async () => {
+    const started = Date.now();
+    const { status, printed } = await stopOnceStarted({ gate: "node parent.mjs" }, { "parent.mjs": PARENT_OF_A_HOLDER, "holder.mjs": HOLDER }, quick);
+
+    expect(printed).toContain("FAIL  node parent.mjs (stopped by SIGTERM");
+    expect(printed).toContain("started\n");
+    expect(status).toBe(143);
+    expect(Date.now() - started).toBeLessThan(5000);
+  }, 20_000);
+
+  it("does not wait for what a stage left running once the stage itself has exited, as pnpm does not", async () => {
+    const leaves = PARENT_OF_A_HOLDER.replace("setInterval(() => {}, 1000);", "process.exit(0);");
+    const root = createProject({ gate: "node parent.mjs" }, { "parent.mjs": leaves, "holder.mjs": HOLDER });
+    const written: string[] = [];
+    const started = Date.now();
+    const status = await runQuiet({ root, script: "gate", write: (text) => written.push(text), runStage: createShellRunner(createStopper(), quick) });
+
+    expect(written.join("")).toContain("ok    node parent.mjs");
+    expect(status).toBe(0);
+    expect(Date.now() - started).toBeLessThan(4000);
+  }, 20_000);
+
+  it("ends at once on a second request, without waiting out the grace period", async () => {
+    const patient: RunnerLimits = { ...LIMITS, graceMs: 60_000, abandonMs: 60_000 };
+    const ignores = "process.on('SIGTERM', () => {}); console.log('started'); setInterval(() => {}, 1000);\n";
+    const started = Date.now();
+    const { status, printed } = await stopOnceStarted({ gate: "node ignores.mjs" }, { "ignores.mjs": ignores }, patient, 2);
+
+    expect(printed).toContain("FAIL  node ignores.mjs (stopped by SIGTERM");
+    expect(status).toBe(143);
+    expect(Date.now() - started).toBeLessThan(5000);
+  }, 20_000);
+
+  it("stops a stage that begins after the request, so none runs unheard", async () => {
+    const stopper = createStopper();
+
+    stopper.request("SIGINT");
+
+    const run = await createShellRunner(stopper, quick)({ command: "node -e \"setInterval(() => {}, 1000)\"", env: {} }, createProject({}), () => undefined);
+
+    expect(run).toEqual({ status: 130, output: "", ended: "stopped by SIGINT" });
+  }, 20_000);
+});
+
+describe("what is kept of a stage's output", () => {
+  const small: RunnerLimits = { ...LIMITS, keptCharacters: 2000 };
+  const noisy = "console.log('SKIP early-check — nothing to judge');\nfor (let line = 0; line < 500; line += 1) console.log('line', line, 'of the output');\n";
+
+  it("is bounded in memory: a failure shows the end, and says where the start is", async () => {
+    const root = createProject({ gate: "node noisy.mjs" }, { "noisy.mjs": `${noisy}process.exitCode = 1;\n` });
+    const written: string[] = [];
+
+    await runQuiet({ root, script: "gate", write: (text) => written.push(text), runStage: createShellRunner(createStopper(), small) });
+
+    expect(written.join("")).toMatch(/\(the first \d+ characters are not shown\. They are in node_modules\/\.cache\/arch\/last-gate\.log\)\n/);
+    expect(written.join("")).toContain("line 499 of the output\n");
+    expect(written.join("")).not.toContain("line 0 of the output\n");
+    expect(readFileSync(join(root, LOG_FILE), "utf8")).toContain("line 0 of the output\n");
+  });
+
+  it("still shows a SKIP line from the part that is no longer kept", async () => {
+    const root = createProject({ gate: "node noisy.mjs" }, { "noisy.mjs": noisy });
+    const written: string[] = [];
+
+    await runQuiet({ root, script: "gate", write: (text) => written.push(text), runStage: createShellRunner(createStopper(), small) });
+
+    expect(written.join("")).toContain("      SKIP early-check — nothing to judge\n");
+  });
+});
+
+describe("the log", () => {
+  it("is not written through a link: the file the link points at is left as it was, and the run goes on", () => {
+    const root = createProject({ gate: "node -e \"console.log('secret-free output')\"" });
+    const outside = join(createProject({}), "important.txt");
+
+    writeFileSync(outside, "must not be overwritten\n");
+    mkdirSync(dirname(join(root, LOG_FILE)), { recursive: true });
+    symlinkSync(outside, join(root, LOG_FILE));
+
+    expect(runCommand(root, "gate").status).toBe(0);
+    expect(readFileSync(outside, "utf8")).toBe("must not be overwritten\n");
+  });
+
+  it("is refused by the check itself, for a link at the file and for a link at a folder above it", () => {
+    const root = createProject({});
+    const outside = createProject({});
+
+    mkdirSync(join(root, "plain", "deep"), { recursive: true });
+    symlinkSync(join(outside, "package.json"), join(root, "plain", "deep", "file.log"));
+    symlinkSync(outside, join(root, "linked"));
+
+    expect(isPlainPath(root, "plain/deep/new.log")).toBe(true);
+    expect(isPlainPath(root, "plain/deep/file.log")).toBe(false);
+    expect(isPlainPath(root, "linked/deep/new.log")).toBe(false);
+    expect(isPlainPath(root, "package.json/under-a-file.log")).toBe(false);
+  });
+
+  it("is not written under a folder that is a link out of the project", () => {
+    const root = createProject({ gate: "node -e 0" });
+    const outside = createProject({});
+
+    mkdirSync(join(root, "node_modules"));
+    symlinkSync(outside, join(root, "node_modules", ".cache"));
+
+    expect(runCommand(root, "gate").status).toBe(0);
+    expect(existsSync(join(outside, "arch"))).toBe(false);
+  });
+});
+
 describe("the quiet gate, run as a command", () => {
   it("runs each stage in a shell in the project root, and prints a line for each", () => {
     const root = createProject({ gate: "node check.mjs one && node check.mjs two" }, { "check.mjs": "console.log('ran', process.argv[2]);\n" });
@@ -259,6 +483,28 @@ describe("the quiet gate, run as a command", () => {
     expect(status).toBe(143);
   }, 30_000);
 
+  it("ends within its grace period when the stage ignores the signal and leaves something holding its output", async () => {
+    const stubborn = PARENT_OF_A_HOLDER.replace("console.log('started');", "process.on('SIGTERM', () => {}); console.log('started');");
+    const root = createProject({ gate: "node parent.mjs" }, { "parent.mjs": stubborn, "holder.mjs": HOLDER });
+    const started = Date.now();
+    const { status, stdout } = await signalOnceStarted(root, ["SIGTERM"]);
+
+    expect(stdout).toContain("FAIL  node parent.mjs (stopped by SIGTERM");
+    expect(stdout).toContain("started\n");
+    expect(status).toBe(143);
+    expect(Date.now() - started).toBeLessThan(LIMITS.graceMs + LIMITS.abandonMs + 3000);
+  }, 30_000);
+
+  it("ends at once when it is signalled a second time", async () => {
+    const root = createProject({ gate: "node stubborn.mjs" }, { "stubborn.mjs": "process.on('SIGTERM', () => {}); console.log('started'); setInterval(() => {}, 1000);\n" });
+    const started = Date.now();
+    const { status, stdout } = await signalOnceStarted(root, ["SIGTERM", "SIGTERM"]);
+
+    expect(stdout).toContain("FAIL  node stubborn.mjs (stopped by SIGTERM");
+    expect(status).toBe(143);
+    expect(Date.now() - started).toBeLessThan(LIMITS.graceMs - 1000);
+  }, 30_000);
+
   it("exits 2 and says why when the script is not in package.json", () => {
     const { status, stderr } = runCommand(createProject({}), "gate:full");
 
@@ -272,6 +518,48 @@ describe("the quiet gate, run as a command", () => {
     expect(stderr).toContain("the quiet gate could not run: usage:");
     expect(status).toBe(2);
   });
+});
+
+describe("which script a command runs", () => {
+  it("is known for pnpm run with a name, and for pnpm with a name that holds a colon", () => {
+    expect(scriptRunBy("pnpm run audit")).toBe("audit");
+    expect(scriptRunBy("pnpm gate:fast")).toBe("gate:fast");
+    expect(scriptRunBy("pnpm  run   lint:types")).toBe("lint:types");
+  });
+
+  it("is not known for a bare word, which pnpm may read as a command of its own", () => {
+    expect(scriptRunBy("pnpm audit")).toBeUndefined();
+    expect(scriptRunBy("pnpm test")).toBeUndefined();
+  });
+});
+
+// What pnpm really runs for each gate below is recorded, then what the quiet
+// plan runs. Every leaf writes its name and the environment pnpm gives a
+// script. The two records must be the same, line for line.
+describe("the quiet plan, run in order, against what pnpm runs", () => {
+  const leaf = (name: string): string => `node record.mjs ${name}`;
+
+  it.each([
+    ["a plain chain", { gate: `${leaf("a")} && ${leaf("b")}` }],
+    ["a chain inside a chain", { "gate:fast": `${leaf("a")} && ${leaf("b")}`, gate: `pnpm gate:fast && ${leaf("c")}` }],
+    ["a chain run by name", { inner: `${leaf("a")} && ${leaf("b")}`, gate: `pnpm run inner && ${leaf("c")}` }],
+    ["a script named after a command of pnpm", { root: `${leaf("a")} && ${leaf("b")}`, gate: `pnpm root && ${leaf("c")}` }],
+    ["that same script run by name", { root: `${leaf("a")} && ${leaf("b")}`, gate: `pnpm run root && ${leaf("c")}` }],
+    ["a chain with a pre and a post script", { "pregate:fast": leaf("before"), "gate:fast": `${leaf("a")} && ${leaf("b")}`, "postgate:fast": leaf("after"), gate: `pnpm gate:fast && ${leaf("c")}` }],
+    ["a gate with a pre and a post script of its own", { pregate: leaf("before"), gate: `${leaf("a")} && ${leaf("b")}`, postgate: leaf("after") }],
+    ["a script run only if it is there", { "check:all": `${leaf("a")} && ${leaf("b")}`, gate: `pnpm run --if-present check:all && pnpm run --if-present check:none && ${leaf("c")}` }],
+    // pnpm 12.6 hands a flag after the name to the script: the last leaf is run with it.
+    ["a script given an argument", { "check:all": `${leaf("a")} && ${leaf("b")}`, gate: `pnpm run check:all --if-present && ${leaf("c")}` }],
+    ["a leaf script, which pnpm names for itself", { lint: leaf("lint"), "gate:fast": `pnpm lint && ${leaf("a")}`, gate: `pnpm gate:fast && pnpm run lint` }],
+  ])("is the same for %s", (_case, scripts) => {
+    const loud = recordRun(scripts, (root) => spawnSync("pnpm", ["run", "gate"], { cwd: root, encoding: "utf8" }));
+    const quiet = recordRun(scripts, (root) => runCommand(root, "gate"));
+
+    expect(loud.status).toBe(0);
+    expect(quiet.status).toBe(0);
+    expect(loud.record.length).toBeGreaterThan(0);
+    expect(quiet.record).toEqual(loud.record);
+  }, 60_000);
 });
 
 describe("the quiet gate and pnpm", () => {
@@ -290,6 +578,104 @@ describe("the quiet gate and pnpm", () => {
   }, 60_000);
 });
 
+/** Starts a process in a session of its own, which a signal to the stage's group does not reach, with the stage's output still open. */
+const PARENT_OF_A_HOLDER = [
+  "import { spawn } from 'node:child_process';",
+  "spawn(process.execPath, ['holder.mjs'], { detached: true, stdio: ['ignore', 'inherit', 'inherit'] }).unref();",
+  "console.log('started');",
+  "setInterval(() => {}, 1000);",
+  "",
+].join("\n");
+
+/** Lives a few seconds, ignoring SIGTERM, so a test that leaves it behind does not leave it for long. */
+const HOLDER = "process.on('SIGTERM', () => {}); setTimeout(() => {}, 8000);\n";
+
+/** Runs the command, and sends it each signal in turn once its stage has printed `started`. */
+async function signalOnceStarted(root: string, signals: NodeJS.Signals[]): Promise<{ status: unknown; stdout: string }> {
+  const child = spawn(process.execPath, [RUNNER, "gate", "--root", root], { stdio: ["ignore", "pipe", "inherit"] });
+  let stdout = "";
+
+  child.stdout.on("data", (chunk: Buffer) => {
+    stdout += chunk.toString("utf8");
+  });
+
+  const watching = setInterval(() => {
+    if (existsSync(join(root, LOG_FILE)) && readFileSync(join(root, LOG_FILE), "utf8").includes("started")) {
+      clearInterval(watching);
+      signals.forEach((signal, index) => setTimeout(() => child.kill(signal), index * 300));
+      // A runner that waits on its stage for ever is ended here, and the test fails on its status.
+      setTimeout(() => child.kill("SIGKILL"), 20_000).unref();
+    }
+  }, 20);
+
+  const status = await new Promise((exited) => child.on("exit", exited));
+
+  clearInterval(watching);
+
+  return { status, stdout };
+}
+
+/** Runs a real gate, and asks it to stop, `times` times, once its stage has printed `started`. */
+async function stopOnceStarted(
+  scripts: Record<string, string>,
+  files: Record<string, string>,
+  limits: RunnerLimits,
+  times = 1,
+): Promise<{ status: number; printed: string }> {
+  const stopper: Stopper = createStopper();
+  const runStage = createShellRunner(stopper, limits);
+  const written: string[] = [];
+  const status = await runQuiet({
+    root: createProject(scripts, files),
+    script: "gate",
+    write: (text) => written.push(text),
+    runStage: (stage, root, onOutput) =>
+      runStage(stage, root, (chunk) => {
+        onOutput(chunk);
+
+        if (chunk.includes("started")) {
+          for (let request = 0; request < times; request += 1) {
+            stopper.request("SIGTERM");
+          }
+        }
+      }),
+    isStopped: () => stopper.signal !== undefined,
+  });
+
+  // What the command does with the answer: a run that was told to stop exits with the signal's code.
+  return { status: stopper.signal === undefined ? status : 143, printed: written.join("") };
+}
+
+/** Appends one line for each time it is run: its name, and what pnpm gives a script's line. */
+const RECORDER = [
+  "import { appendFileSync } from 'node:fs';",
+  "const { env } = process;",
+  "const first = env.PATH.split(':')[0];",
+  "appendFileSync(env.RECORD, [process.argv.slice(2).join(' '), env.npm_lifecycle_event, env.npm_lifecycle_script, env.npm_package_name, env.npm_package_version, env.npm_package_json, env.INIT_CWD, env.PNPM_SCRIPT_SRC_DIR, env.NODE === env.npm_node_execpath, first].join(' | ') + '\\n');",
+  "",
+].join("\n");
+
+function recordRun(scripts: Record<string, string>, run: (root: string) => { status: number | null }): { status: number | null; record: string[] } {
+  const root = createProject(scripts, { "record.mjs": RECORDER });
+  const record = join(root, "record.txt");
+  const before = process.env.RECORD;
+
+  process.env.RECORD = record;
+
+  try {
+    const { status } = run(root);
+
+    // The two runs are in two folders; the folder is taken out so the records can be compared.
+    return { status, record: existsSync(record) ? readFileSync(record, "utf8").split(root).join("<root>").trim().split("\n") : [] };
+  } finally {
+    if (before === undefined) {
+      delete process.env.RECORD;
+    } else {
+      process.env.RECORD = before;
+    }
+  }
+}
+
 function pass(output: string): StageRun {
   return { status: 0, output };
 }
@@ -300,11 +686,15 @@ function fail(status: number, output: string): StageRun {
 
 /** A runner that answers each command from the table, and takes one second by the fake clock. */
 function createStages(table: Record<string, StageRun>, ran: string[] = []): RunStage {
-  return (command) => {
+  return ({ command }) => {
     ran.push(command);
 
     return Promise.resolve(table[command] as StageRun);
   };
+}
+
+function commandsOf(scripts: Record<string, string>, script: string): string[] {
+  return planStages(scripts, script).map(({ command }) => command);
 }
 
 /** Runs a gate whose stages are the table's keys, on a clock that moves one second per stage. */
@@ -315,10 +705,10 @@ async function runWith(table: Record<string, StageRun>, ran: string[] = []): Pro
     root: createProject({ gate: Object.keys(table).join(" && ") }),
     script: "gate",
     write: (text) => written.push(text),
-    runStage: (command, root, onOutput) => {
+    runStage: (stage, root, onOutput) => {
       clock += 1000;
 
-      return createStages(table, ran)(command, root, onOutput);
+      return createStages(table, ran)(stage, root, onOutput);
     },
     now: () => clock,
   });
@@ -330,7 +720,7 @@ async function runWith(table: Record<string, StageRun>, ran: string[] = []): Pro
 function createProject(scripts: Record<string, string>, files: Record<string, string> = {}): string {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "quiet-gate-")));
 
-  writeFileSync(join(root, "package.json"), JSON.stringify({ name: "p", private: true, scripts }));
+  writeFileSync(join(root, "package.json"), JSON.stringify({ name: "p", version: "1.2.3", private: true, scripts }));
 
   for (const [path, content] of Object.entries(files)) {
     mkdirSync(dirname(join(root, path)), { recursive: true });

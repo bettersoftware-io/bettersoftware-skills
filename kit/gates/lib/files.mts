@@ -1,6 +1,6 @@
 // Small file helpers shared by the gates. Node built-ins only.
 
-import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -71,6 +71,30 @@ export function isMainModule(moduleUrl: string): boolean {
   const entry = process.argv[1];
 
   return entry !== undefined && existsSync(entry) && realpathSync(entry) === realpathSync(fileURLToPath(moduleUrl));
+}
+
+/**
+ * True when no part of `path`, a place under `root`, is a symbolic link. A
+ * tool that writes at a fixed place in a tree it did not make asks this first:
+ * a link there would send the write wherever the link points.
+ */
+export function isPlainPath(root: string, path: string): boolean {
+  let current = root;
+
+  for (const part of path.split("/")) {
+    current = join(current, part);
+
+    try {
+      if (lstatSync(current, { throwIfNoEntry: false })?.isSymbolicLink()) {
+        return false;
+      }
+    } catch {
+      // A part that is a file, or cannot be read: nothing can be written under it either.
+      return false;
+    }
+  }
+
+  return true;
 }
 
 export function isTestFile(path: string): boolean {

@@ -443,7 +443,11 @@ of Node.
   file edited by hand inside `node_modules`.
 - A gate that does not finish in nine minutes is reported as "nothing is
   verified", never as a pass. The hook's own timeout in the host's settings is
-  ten minutes.
+  ten minutes, and a hook the host has to kill blocks nothing, so the hook
+  answers by itself whatever the gate does: at nine minutes it tells the
+  runner to stop, twenty seconds later it kills it, and five seconds after
+  that it answers without it. A run that was stopped is never remembered as
+  green, whatever it exited with.
 - It blocks once. If the gate is still red when the agent tries to stop a
   second time, the agent is let through to report the problem, so an
   unfixable finding ends in a message to you and never in a loop.
@@ -484,6 +488,14 @@ gate:full is red.
   project (`pnpm gate:fast`) is replaced by that chain's parts. A command an
   add-on joined to a gate is a stage like any other, and there is still one
   definition of the gate.
+- **It runs what pnpm would run, or it lets pnpm run it.** A part is opened
+  up only when that is certain: `pnpm run <name>` with nothing after it, or
+  `pnpm <name>` where the name holds a colon. `pnpm audit` is pnpm's own
+  command even in a project with an `audit` script, and no command of pnpm
+  has a colon. A part with a flag or an argument, a script with a `pre` or
+  `post` script beside it, and `npm run` or `yarn` are run whole, as written.
+  A stage from an opened script gets the environment pnpm gives that script.
+  A test runs each of these both ways and compares what ran.
 - **A `SKIP` line is kept.** A check that judged nothing says so on a line
   that starts with `SKIP`, and has not passed. Those lines are printed under
   the stage's own line, so quiet never turns "not verified" into silence.
@@ -492,9 +504,16 @@ gate:full is red.
 - **Nothing is lost.** A failing stage's output is printed whole, however
   long. Everything every stage printed is also in
   `node_modules/.cache/arch/last-gate.log`, written as it arrives.
-- **A stage that is stopped is a failure.** When the runner is told to
-  terminate (the stop hook's timeout does this), it stops the stage in hand
-  and prints what that stage had said.
+- **A stage that is stopped is a failure, and the runner never waits on
+  one.** Told to terminate (the stop hook's timeout does this), it sends the
+  stage's process group SIGTERM, five seconds later SIGKILL, and two seconds
+  after that goes on without it. It prints what the stage had said and exits
+  with the signal's code, never 0. A second signal ends it at once.
+- **It trusts the project as far as `pnpm run` does.** The commands come from
+  `package.json` and run in a shell. `--root` runs the gate of the folder it
+  names, as `cd` there and `pnpm gate:full` would.
+- **The log is never written through a symbolic link**, at the file or at any
+  folder above it. The same holds for the stop hook's record.
 
 **Why a separate script, and not a flag or the default.** The loud scripts
 stay as they are: they are what add-ons append to, and what CI and a person
@@ -515,6 +534,22 @@ Known limits:
   (`turbo run test` over six packages) is one stage: when it fails, all of
   its output is printed, the passing packages included.
 - Not run on Windows: a stage is stopped through its process group.
+- A bare `pnpm typecheck` is one stage even when `typecheck` is a chain: a
+  bare word may be a command of pnpm. Write `pnpm run typecheck` in the gate
+  to see its parts.
+- The environment given to a stage was measured on pnpm 12.6: `INIT_CWD`,
+  `PNPM_SCRIPT_SRC_DIR`, `npm_lifecycle_event`, `npm_lifecycle_script`,
+  `npm_package_json`, `npm_package_name`, `npm_package_version`, `NODE`,
+  `npm_node_execpath`, and the project's `node_modules/.bin` first on the
+  PATH. Not set: `npm_execpath` and `npm_config_user_agent`, unless the
+  runner was itself started by pnpm, and pnpm's `script-shell` setting.
+- At most 32 MB of one stage's output is held in memory. Past that a failure
+  shows the end and says the start is in the log. A `SKIP` line is still
+  found anywhere in it.
+- A stage that exits while something it started still holds its output open
+  is waited on for one second, then reported by its exit code.
+- A process that leaves the stage's process group (a daemon in a session of
+  its own) is not stopped with the stage.
 
 ## Tests
 

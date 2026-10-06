@@ -22,37 +22,70 @@
 // replaced by that script's parts. So a command an add-on joined to a gate is
 // a stage like any other, and there is still one definition of the gate.
 //
+// A part is opened up only when its parts are certainly what pnpm would have
+// run. Anything else runs whole, as written, by pnpm itself:
+//
+//   - `pnpm run <name>` with nothing after it, or `pnpm <name>` where the name
+//     holds a colon. `pnpm audit` is pnpm's own command even in a project with
+//     an `audit` script, and no command of pnpm has a colon in its name;
+//   - no flag and no argument (`--if-present`, `--filter`, `-r`, `--`);
+//   - no `pre<name>` or `post<name>` script, which pnpm would run around it;
+//   - `npm run` and `yarn` are never opened up.
+//
+// A stage that comes from an opened script gets what pnpm gives that script:
+// the project's `node_modules/.bin` first on the PATH, and `INIT_CWD`,
+// `PNPM_SCRIPT_SRC_DIR`, `npm_lifecycle_event`, `npm_lifecycle_script`,
+// `npm_package_json`, `npm_package_name`, `npm_package_version`, `NODE` and
+// `npm_node_execpath`.
+//
 // A script that uses the shell for more than `&&` (a pipe, `;`, `||`, a
 // subshell) is not split: it runs as one stage. That is still correct, only
 // less exact about which part failed.
+//
+// Told to stop (SIGINT, SIGTERM), it never waits on the stage: the stage's
+// process group gets SIGTERM, then SIGKILL, and the run ends within seconds
+// with what the stage had printed, whatever the stage does. A second signal
+// ends it at once. A run that was stopped never exits 0.
+//
+// The commands come from package.json and run in a shell, as `pnpm run` runs
+// them: this trusts the project exactly as far as running its gate does.
 //
 // Everything every stage printed is also in
 // `node_modules/.cache/arch/last-gate.log`, written as it arrives, so a run
 // that is killed loses nothing.
 
 import { spawn } from "node:child_process";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeSync } from "node:fs";
+import { closeSync, constants as fileConstants, existsSync, mkdirSync, openSync, readFileSync, writeSync } from "node:fs";
 import { constants } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
 
-import { isMainModule } from "./lib/files.mts";
+import { isMainModule, isPlainPath } from "./lib/files.mts";
 
 /** Inside a folder git always ignores, like the stop hook's record. */
 export const LOG_FILE = "node_modules/.cache/arch/last-gate.log";
 
 export class QuietError extends Error {}
 
+export interface Stage {
+  /** One line for a shell. */
+  command: string;
+  /** What pnpm would add to the environment of this command; empty for a part pnpm itself is left to run. */
+  env: Record<string, string>;
+}
+
 export interface StageRun {
   /** The exit code, or the code a shell gives a command a signal ended: 128 + the signal's number. */
   status: number;
-  /** Everything the stage wrote, to either stream, in the order it arrived. */
+  /** What the stage wrote, to either stream, in the order it arrived. The end of it, when `dropped` is set. */
   output: string;
   /** Set when the stage did not exit by itself: the signal that ended it, or why it could not start. */
   ended?: string;
+  /** How many characters from the start of the output are not in `output`, because it outgrew what is kept in memory. */
+  dropped?: number;
 }
 
 /** Runs one stage. `onOutput` is given each piece as it arrives. Replaced in tests. */
-export type RunStage = (command: string, root: string, onOutput: (chunk: string) => void) => Promise<StageRun>;
+export type RunStage = (stage: Stage, root: string, onOutput: (chunk: string) => void) => Promise<StageRun>;
 
 export interface QuietOptions {
   root: string;
@@ -65,11 +98,17 @@ export interface QuietOptions {
   now?: () => number;
 }
 
+interface Manifest {
+  name?: string;
+  version?: string;
+  scripts?: Record<string, string>;
+}
+
 /**
  * The commands `script` runs, in order: its `&&` chain, with each part that
  * runs another chain of the project replaced by that chain's parts.
  */
-export function planStages(scripts: Record<string, string>, script: string, seen: string[] = []): string[] {
+export function planStages(scripts: Record<string, string>, script: string, seen: string[] = []): { command: string; script?: string }[] {
   const body = scripts[script];
 
   if (body === undefined) {
@@ -80,12 +119,33 @@ export function planStages(scripts: Record<string, string>, script: string, seen
     throw new QuietError(`the script "${script}" runs itself: ${[...seen, script].join(" → ")}`);
   }
 
+  // pnpm runs these around the script. Only pnpm is trusted to do that, so it is given the whole script.
+  if (hasHooks(scripts, script)) {
+    return [{ command: `pnpm run ${script}` }];
+  }
+
   return splitChain(body).flatMap((command) => {
-    const named = /^pnpm\s+(?:run\s+)?([\w:.-]+)$/.exec(command)?.[1];
+    const named = scriptRunBy(command);
 
     // Only a chain is opened up. Any other script is one stage, under the name a person would type.
-    return named !== undefined && splitChain(scripts[named] ?? "").length > 1 ? planStages(scripts, named, [...seen, script]) : [command];
+    return named !== undefined && splitChain(scripts[named] ?? "").length > 1
+      ? planStages(scripts, named, [...seen, script])
+      : [{ command, script }];
   });
+}
+
+/**
+ * The script a command certainly runs, when it is `pnpm run <name>` or
+ * `pnpm <name:with:colon>` and nothing more. `pnpm <word>` may be a command of
+ * pnpm (`audit`, `install`, `exec`, `store`), which wins over a script of that
+ * name; none of its commands has a colon.
+ */
+export function scriptRunBy(command: string): string | undefined {
+  return /^pnpm\s+run\s+([\w:.-]+)$/.exec(command)?.[1] ?? /^pnpm\s+([\w.-]*:[\w:.-]*)$/.exec(command)?.[1];
+}
+
+function hasHooks(scripts: Record<string, string>, script: string): boolean {
+  return scripts[`pre${script}`] !== undefined || scripts[`post${script}`] !== undefined;
 }
 
 /**
@@ -125,22 +185,40 @@ export function splitChain(script: string): string[] {
   return parts.includes("") ? [script.trim()] : parts;
 }
 
-/** Runs the stages of `script` until one fails, and returns the exit code `pnpm <script>` would give. */
-export async function runQuiet({ root, script, write, runStage = runInShell, isStopped, now = Date.now }: QuietOptions): Promise<number> {
-  const manifest = join(root, "package.json");
+/** What pnpm 12 adds to the environment of a script's line, beyond the PATH. Measured, not taken from its documentation. */
+export function scriptEnvironment(root: string, manifest: Manifest, script: string): Record<string, string> {
+  return {
+    INIT_CWD: root,
+    PNPM_SCRIPT_SRC_DIR: root,
+    NODE: process.execPath,
+    npm_node_execpath: process.execPath,
+    npm_lifecycle_event: script,
+    npm_lifecycle_script: manifest.scripts?.[script] ?? "",
+    npm_package_json: join(root, "package.json"),
+    ...(manifest.name === undefined ? {} : { npm_package_name: manifest.name }),
+    ...(manifest.version === undefined ? {} : { npm_package_version: manifest.version }),
+  };
+}
 
-  if (!existsSync(manifest)) {
+/** Runs the stages of `script` until one fails, and returns the exit code `pnpm <script>` would give. */
+export async function runQuiet({ root, script, write, runStage = createShellRunner(), isStopped, now = Date.now }: QuietOptions): Promise<number> {
+  const manifestFile = join(root, "package.json");
+
+  if (!existsSync(manifestFile)) {
     throw new QuietError(`${root} has no package.json`);
   }
 
-  const { scripts = {} } = JSON.parse(readFileSync(manifest, "utf8")) as { scripts?: Record<string, string> };
-  const stages = planStages(scripts, script);
+  const manifest = JSON.parse(readFileSync(manifestFile, "utf8")) as Manifest;
+  const stages = planStages(manifest.scripts ?? {}, script).map(
+    (planned): Stage => ({ command: planned.command, env: planned.script === undefined ? {} : scriptEnvironment(root, manifest, planned.script) }),
+  );
   const log = openLog(root);
   const startedAt = now();
 
   try {
-    for (const [index, command] of stages.entries()) {
-      const notRun = (): string[] => stages.slice(index + 1).map((later) => `      ${later}`);
+    for (const [index, stage] of stages.entries()) {
+      const { command } = stage;
+      const notRun = (): string[] => stages.slice(index + 1).map((later) => `      ${later.command}`);
 
       if (isStopped?.()) {
         write([`STOP  before ${command}`, "not run:", `      ${command}`, ...notRun(), ""].join("\n"));
@@ -149,20 +227,28 @@ export async function runQuiet({ root, script, write, runStage = runInShell, isS
       }
 
       const stageStartedAt = now();
+      const skips = createSkipCollector();
 
       log(`\n$ ${command}\n`);
 
-      const { status, output, ended } = await runStage(command, root, log);
+      const { status, output, ended, dropped } = await runStage(stage, root, (chunk) => {
+        log(chunk);
+        skips.add(chunk);
+      });
       const took = seconds(now() - stageStartedAt);
 
       if (status === 0 && ended === undefined) {
-        write([`ok    ${command} (${took})`, ...skipLines(output).map((line) => `      ${line}`), ""].join("\n"));
+        // From the stream, which saw everything, and from the text, for a runner that gives only that.
+        const skipped = [...new Set([...skips.lines(), ...skipLines(output)])];
+
+        write([`ok    ${command} (${took})`, ...skipped.map((line) => `      ${line}`), ""].join("\n"));
         continue;
       }
 
       const failed = [
         `FAIL  ${command} (${ended ?? `exit ${status}`}, ${took})`,
         "",
+        ...(dropped ? [`(the first ${dropped} characters are not shown. ${log.kept ? `They are in ${LOG_FILE}` : "They were not kept: the log could not be written"})`] : []),
         output.trimEnd() === "" ? "(it printed nothing)" : output.trimEnd(),
         "",
       ];
@@ -174,6 +260,13 @@ export async function runQuiet({ root, script, write, runStage = runInShell, isS
       return status === 0 ? 1 : status;
     }
 
+    // Asked once more: a signal that came as the last stage ended must not leave a pass behind it.
+    if (isStopped?.()) {
+      write(`STOP  after the last stage. ${script} was stopped, so this is not a pass.\n`);
+
+      return 1;
+    }
+
     write(`${script} passed: ${stages.length} stage${stages.length === 1 ? "" : "s"} in ${seconds(now() - startedAt)}.\n`);
 
     return 0;
@@ -182,13 +275,36 @@ export async function runQuiet({ root, script, write, runStage = runInShell, isS
   }
 }
 
+// Colour codes, which a tool told to force colour puts in front of the word.
+const ESCAPE_SEQUENCE = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
+
 /**
  * The lines in which a check says it judged nothing. The kit's gates, the
  * add-ons' checks and the port tests all start such a line with `SKIP`; a task
- * runner may put the package's name in front. Each is given once.
+ * runner may put the package's name in front, and a tool may indent or colour
+ * it. Each is given once.
  */
 export function skipLines(output: string): string[] {
-  return [...new Set(output.split("\n").map((line) => line.trimEnd()).filter((line) => /^(?:\S+: )?SKIP\s/.test(line)))];
+  const lines = output.split("\n").map((line) => line.replace(ESCAPE_SEQUENCE, "").trim());
+
+  return [...new Set(lines.filter((line) => /^(?:\S+: )?SKIP\s/.test(line)))];
+}
+
+/** Finds the `SKIP` lines of an output as it arrives, so none is missed in a part that is no longer kept. */
+function createSkipCollector(): { add: (chunk: string) => void; lines: () => string[] } {
+  const found: string[] = [];
+  let unfinished = "";
+
+  return {
+    add: (chunk) => {
+      const text = unfinished + chunk;
+      const end = text.lastIndexOf("\n");
+
+      found.push(...skipLines(text.slice(0, end + 1)));
+      unfinished = text.slice(end + 1);
+    },
+    lines: () => [...new Set([...found, ...skipLines(unfinished)])],
+  };
 }
 
 function seconds(milliseconds: number): string {
@@ -197,16 +313,25 @@ function seconds(milliseconds: number): string {
 
 interface Log {
   (text: string): void;
+  /** False when the log could not be opened, so what is not printed is not kept anywhere. */
+  kept: boolean;
   close: () => void;
 }
 
-/** Where it cannot be written (a read-only tree) the run goes on without it. */
+/**
+ * Where it cannot be written (a read-only tree) the run goes on without it.
+ * It is never written through a symbolic link: the path is a fixed one in a
+ * tree this did not make, and a link there would send every stage's output,
+ * and a truncation, wherever the link points.
+ */
 function openLog(root: string): Log {
   let file: number | undefined;
 
   try {
-    mkdirSync(dirname(join(root, LOG_FILE)), { recursive: true });
-    file = openSync(join(root, LOG_FILE), "w");
+    if (isPlainPath(root, LOG_FILE)) {
+      mkdirSync(dirname(join(root, LOG_FILE)), { recursive: true });
+      file = openSync(join(root, LOG_FILE), fileConstants.O_WRONLY | fileConstants.O_CREAT | fileConstants.O_TRUNC | fileConstants.O_NOFOLLOW, 0o600);
+    }
   } catch {
     file = undefined;
   }
@@ -217,6 +342,8 @@ function openLog(root: string): Log {
     }
   };
 
+  log.kept = file !== undefined;
+
   log.close = (): void => {
     if (file !== undefined) {
       closeSync(file);
@@ -226,59 +353,169 @@ function openLog(root: string): Log {
   return log;
 }
 
-/** The stage that is running now, so a signal to this process can be passed on to it. */
-let running: { stop: (signal: NodeJS.Signals) => void } | undefined;
+/** How a request to stop reaches the stage that is running. */
+export interface Stopper {
+  /** The signal that asked first; undefined while nobody has. */
+  readonly signal: NodeJS.Signals | undefined;
+  /** Called for each request: `again` is true from the second on. */
+  request: (signal: NodeJS.Signals) => void;
+  onRequest: (listener: (signal: NodeJS.Signals, again: boolean) => void) => () => void;
+}
+
+export function createStopper(): Stopper {
+  const listeners = new Set<(signal: NodeJS.Signals, again: boolean) => void>();
+  let first: NodeJS.Signals | undefined;
+
+  return {
+    get signal() {
+      return first;
+    },
+    request: (signal) => {
+      const again = first !== undefined;
+
+      first ??= signal;
+
+      for (const listener of [...listeners]) {
+        listener(signal, again);
+      }
+    },
+    onRequest: (listener) => {
+      listeners.add(listener);
+
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+}
+
+export interface RunnerLimits {
+  /** After a request to stop: how long the stage has to end on SIGTERM before it gets SIGKILL. */
+  graceMs: number;
+  /** After SIGKILL: how long to wait for it to be gone before going on without it. */
+  abandonMs: number;
+  /** After a stage exits: how long to wait for what it started to close its output. */
+  drainMs: number;
+  /** How much of a stage's output is kept in memory. All of it is in the log. */
+  keptCharacters: number;
+}
+
+export const LIMITS: RunnerLimits = { graceMs: 5000, abandonMs: 2000, drainMs: 1000, keptCharacters: 32 * 1024 * 1024 };
 
 /**
- * Runs `command` as pnpm would run a script's line: in a shell, in the project
- * root, with the project's installed programs on the PATH. Both streams are
- * kept as one text, however long: there is no buffer to overflow.
+ * A runner that runs a stage as pnpm would run a script's line: in a shell, in
+ * the project root, with the project's installed programs on the PATH.
+ *
+ * It never waits without a bound. A stage that exits while something it
+ * started still holds its output open is given `drainMs`, as pnpm would not
+ * wait for that at all. A stage asked to stop is given `graceMs`, then killed,
+ * then left behind after `abandonMs` if it is somehow still there.
  */
-function runInShell(command: string, root: string, onOutput: (chunk: string) => void): Promise<StageRun> {
-  return new Promise((settle) => {
-    const path = [join(root, "node_modules", ".bin"), process.env.PATH ?? ""].join(delimiter);
-    // Its own process group, so that stopping it stops what it started as well.
-    const child = spawn(command, { cwd: root, shell: true, detached: true, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, PATH: path } });
-    let output = "";
-    let stoppedBy: NodeJS.Signals | undefined;
+export function createShellRunner(stopper: Stopper = createStopper(), limits: RunnerLimits = LIMITS): RunStage {
+  return (stage, root, onOutput) =>
+    new Promise((settle) => {
+      const path = [join(root, "node_modules", ".bin"), process.env.PATH ?? ""].join(delimiter);
+      // Its own process group, so that stopping it stops what it started as well.
+      const child = spawn(stage.command, {
+        cwd: root,
+        shell: true,
+        detached: true,
+        stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env, ...stage.env, PATH: path },
+      });
+      const timers: NodeJS.Timeout[] = [];
+      let output = "";
+      let dropped = 0;
+      let stoppedBy = stopper.signal;
+      let exited: { code: number | null; signal: NodeJS.Signals | null } | undefined;
+      let finished = false;
 
-    function keep(chunk: Buffer): void {
-      output += chunk.toString("utf8");
-      onOutput(chunk.toString("utf8"));
-    }
+      function keep(chunk: Buffer): void {
+        const text = chunk.toString("utf8");
 
-    running = {
-      stop: (signal) => {
-        stoppedBy = signal;
+        output += text;
+        onOutput(text);
 
+        if (output.length > limits.keptCharacters) {
+          dropped += output.length - limits.keptCharacters;
+          output = output.slice(-limits.keptCharacters);
+        }
+      }
+
+      function signalGroup(signal: NodeJS.Signals): void {
         try {
           process.kill(-(child.pid as number), signal);
         } catch {
           child.kill(signal);
         }
-      },
-    };
+      }
 
-    child.stdout.on("data", keep);
-    child.stderr.on("data", keep);
+      function finish(startError?: Error): void {
+        if (finished) {
+          return;
+        }
 
-    child.on("error", (error) => {
-      running = undefined;
-      settle({ status: 127, output, ended: `could not start: ${error.message}` });
+        finished = true;
+        timers.forEach(clearTimeout);
+        forget();
+        // Whatever still holds them open must not hold this process open.
+        child.stdout.destroy();
+        child.stderr.destroy();
+        child.unref();
+
+        const by = stoppedBy ?? exited?.signal ?? undefined;
+        const kept = dropped > 0 ? { dropped } : {};
+
+        if (startError !== undefined) {
+          settle({ status: 127, output, ended: `could not start: ${startError.message}`, ...kept });
+        } else if (by !== undefined) {
+          settle({ status: 128 + (constants.signals[by] ?? 0), output, ended: `stopped by ${by}${exited === undefined ? ", and still running when it was left" : ""}`, ...kept });
+        } else {
+          settle({ status: exited?.code ?? 1, output, ...kept });
+        }
+      }
+
+      function stop(signal: NodeJS.Signals, again: boolean): void {
+        stoppedBy ??= signal;
+
+        if (again) {
+          signalGroup("SIGKILL");
+          finish();
+
+          return;
+        }
+
+        signalGroup("SIGTERM");
+        timers.push(
+          setTimeout(() => {
+            signalGroup("SIGKILL");
+            timers.push(setTimeout(finish, limits.abandonMs));
+          }, limits.graceMs),
+        );
+      }
+
+      const forget = stopper.onRequest(stop);
+
+      child.stdout.on("data", keep);
+      child.stderr.on("data", keep);
+      child.on("error", finish);
+      child.on("close", () => {
+        finish();
+      });
+      child.on("exit", (code, signal) => {
+        exited = { code, signal };
+        timers.push(
+          setTimeout(() => {
+            finish();
+          }, limits.drainMs),
+        );
+      });
+
+      // Asked to stop before this stage began.
+      if (stoppedBy !== undefined) {
+        stop(stoppedBy, false);
+      }
     });
-
-    child.on("close", (code, signal) => {
-      running = undefined;
-
-      const by = signal ?? stoppedBy;
-
-      settle(
-        by === undefined
-          ? { status: code ?? 1, output }
-          : { status: 128 + (constants.signals[by] ?? 0), output, ended: `stopped by ${by}` },
-      );
-    });
-  });
 }
 
 interface CommandLine {
@@ -316,32 +553,43 @@ function parseArguments(argv: string[]): CommandLine {
 }
 
 if (isMainModule(import.meta.url)) {
-  let stoppedBy: NodeJS.Signals | undefined;
+  const stopper = createStopper();
+  let status = 2;
 
   // A signal here must not end the process at once: what the running stage
-  // printed so far would be lost. It is passed on to the stage, which then
-  // ends, and the run reports it like any other failure.
+  // printed so far would be lost. It is passed on to the stage, which is
+  // stopped within a bound, and the run reports it like any other failure.
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.on(signal, () => {
-      stoppedBy = signal;
-      running?.stop(signal);
+      stopper.request(signal);
     });
   }
 
   try {
     const { script, root } = parseArguments(process.argv.slice(2));
-    const status = await runQuiet({
+
+    status = await runQuiet({
       root,
       script,
       write: (text) => {
         process.stdout.write(text);
       },
-      isStopped: () => stoppedBy !== undefined,
+      runStage: createShellRunner(stopper),
+      isStopped: () => stopper.signal !== undefined,
     });
 
-    process.exitCode = stoppedBy === undefined ? status : 128 + (constants.signals[stoppedBy] ?? 0);
+    // Whatever the run answered, a run that was told to stop did not pass.
+    if (stopper.signal !== undefined) {
+      status = 128 + (constants.signals[stopper.signal] ?? 0);
+    }
   } catch (error) {
     console.error(error instanceof QuietError ? `the quiet gate could not run: ${error.message}` : error);
-    process.exitCode = 2;
+    status = 2;
   }
+
+  // Exits by itself, once what it printed is written: a stage that was left
+  // behind may still hold something open, and must not keep this alive.
+  process.stdout.write("", () => {
+    process.exit(status);
+  });
 }
