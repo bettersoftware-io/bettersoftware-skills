@@ -69,6 +69,11 @@ the gates read; a package that is not listed there fails.
 - **It is a new package**: list it in `architecture.config.mts` with its role,
   and give it a `typecheck` and a `test` script. One that holds only types
   also says `typesOnly: true`.
+- **It is a new folder of code at the project root** (`scripts/`, say): name
+  it under `codeFolders` in `architecture.config.mts`, and include its files
+  in a `tsconfig.json`. The lint reads the packages, `tools/`, the folders
+  named there and the files at the root; any other root folder it never
+  opens, so code in one is not linted until the folder is named.
 
 Four rules about imports:
 

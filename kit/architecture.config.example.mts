@@ -93,6 +93,11 @@ const config: ArchitectureConfig = {
   // tests is listed here with the reason.
   packagesWithoutTests: {},
 
+  // The lint reads the packages, `tools/`, and the files at the project root.
+  // A root folder that is none of those is never opened by it. Name here any
+  // other root folder that holds code of the project, so that it is linted.
+  codeFolders: [],
+
   // A library that may be imported only from the packages listed.
   vendorOnlyIn: {
     react: ["packages/react-bindings", "packages/client-react"],

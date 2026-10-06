@@ -61,7 +61,7 @@ import { createHash } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import { askGit, isMainModule, isPlainPath, listIgnoredInPackages } from "../gates/lib/files.mts";
+import { isMainModule, isPlainPath } from "../gates/lib/files.mts";
 
 /** Tried in order: the gate CI runs, then the fast one for a project that has no other. */
 const SCRIPTS = ["gate:full", "gate:fast"];
@@ -277,9 +277,6 @@ export function runGate(root: string, script: string, limits: RunLimits = RUN_LI
 /** A file of settings that git usually ignores and that a build or a test may read. */
 const ENVIRONMENT_FILE = /(^|\/)\.env(\.[^/]*)?$/;
 
-/** A file of ignore rules. One in a folder git ignores as a whole is not listed, and decides nothing outside that folder. */
-const IGNORE_FILE = /(^|\/)\.gitignore$/;
-
 /**
  * One hash over everything a gate's verdict is taken to depend on: the path
  * and content of every file git does not ignore, tracked or not; the
@@ -303,28 +300,17 @@ function hashWorkingTree(root: string): string | undefined {
 }
 
 function hashFiles(root: string): string | undefined {
-  // Only the `.gitignore` files in the tree decide what is left out. A rule in
-  // `.git/info/exclude` or a global list is no file here, so a change to it
-  // would not change this hash: it must not be able to hide a file from it.
-  const tracked = listFiles(root, ["--cached", "--others", "--exclude-per-directory=.gitignore"]);
+  const judged = listFiles(root, ["--cached", "--others", "--exclude-standard"]);
   // `--directory` names an ignored folder once and does not walk it, so this never reads node_modules.
-  const ignored = listFiles(root, ["--others", "--ignored", "--exclude-per-directory=.gitignore", "--directory"]);
+  const ignored = listFiles(root, ["--others", "--ignored", "--exclude-standard", "--directory"]);
 
-  if (tracked === undefined || ignored === undefined) {
+  if (judged === undefined || ignored === undefined) {
     return undefined;
   }
 
-  // What the gates judge, they judge whether git ignores it or not inside a
-  // package. So those files are read here too: a data file a module imports
-  // can be ignored and still change what is built.
-  const judged = [...new Set([...tracked, ...listIgnoredInPackages(root)])];
-
   const hash = createHash("sha256").update(`${process.version} ${process.platform} ${process.arch}\0${realpathSync(root)}\0`);
 
-  // Read though git ignores them: an environment file a build may read, and a
-  // `.gitignore` that ignores itself. Such a file still decides what the gates
-  // leave out, so a change to it must change this hash like any other rule's.
-  for (const path of [...judged, ...ignored.filter((entry) => ENVIRONMENT_FILE.test(entry) || IGNORE_FILE.test(entry))].sort()) {
+  for (const path of [...judged, ...ignored.filter((entry) => ENVIRONMENT_FILE.test(entry))].sort()) {
     const file = lstatSync(join(root, path), { throwIfNoEntry: false });
 
     hash.update(`${path}\0`);
@@ -348,9 +334,14 @@ function hashFiles(root: string): string | undefined {
   return hash.digest("hex");
 }
 
-/** Asked as the gates ask: with no `GIT_*` variable and no list of rules from outside the repository. */
 function listFiles(root: string, which: string[]): string[] | undefined {
-  return askGit(root, ["ls-files", ...which]);
+  const listed = spawnSync("git", ["ls-files", ...which, "-z"], {
+    cwd: root,
+    encoding: "utf8",
+    maxBuffer: 256 * 1024 * 1024,
+  });
+
+  return listed.status === 0 ? listed.stdout.split("\0").filter(Boolean) : undefined;
 }
 
 function readLastGreen(root: string): string | undefined {

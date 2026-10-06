@@ -12,6 +12,5 @@
   "app-harness": "a test calls the function that builds the whole application, anywhere but the one harness file",
   "test-ids": "a test id is written as a string literal, in a component, a selector or a query, outside the client's test-ids file",
   "types-only": "a package declared typesOnly exports a runtime value",
-  "playwright-pin": "a package.json asks for Playwright by a range, two packages ask for two versions, or a workflow's container image is another version",
-  "ignored-source": "a package holds a code file that git ignores, outside its installed and generated folders"
+  "playwright-pin": "a package.json asks for Playwright by a range, two packages ask for two versions, or a workflow's container image is another version"
 }

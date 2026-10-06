@@ -1,0 +1,100 @@
+[
+  {
+    "name": "scope: a root folder that is no place of code is not opened",
+    "file": "kit/eslint.config.mts",
+    "find": "        ...foldersOutsideTheCode(config, root),\n",
+    "replace": "",
+    "test": "pnpm vitest run kit/lint-scope.test.mts -t \"is the packages, tools/, the named folders and the files at the root\""
+  },
+  {
+    "name": "scope: the typed lint gets it through the kit's block",
+    "file": "kit/eslint.config.mts",
+    "find": "        ...foldersOutsideTheCode(config, root),\n",
+    "replace": "",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"does not judge a file in a root folder that is no place\""
+  },
+  {
+    "name": "scope: the folder a package is in is code",
+    "file": "kit/eslint.config.mts",
+    "find": "const code = new Set([TOOLING, ...Object.keys(config.packages).map(firstPart), ",
+    "replace": "const code = new Set([TOOLING, ",
+    "test": "pnpm vitest run kit/lint-scope.test.mts -t \"is still linted, in the root .gitignore\""
+  },
+  {
+    "name": "scope: tools/ is code",
+    "file": "kit/eslint.config.mts",
+    "find": "const code = new Set([TOOLING, ...",
+    "replace": "const code = new Set([...",
+    "test": "pnpm vitest run kit/lint-scope.test.mts -t \"is the packages, tools/, the named folders and the files at the root\""
+  },
+  {
+    "name": "scope: a folder the project names is code",
+    "file": "kit/eslint.config.mts",
+    "find": ", ...(config.codeFolders ?? []).map(firstPart)]);",
+    "replace": "]);",
+    "test": "pnpm vitest run kit/lint-scope.test.mts -t \"does not read a new root folder until the project names it\""
+  },
+  {
+    "name": "scope: the typed lint judges a named folder",
+    "file": "kit/eslint.config.mts",
+    "find": ", ...(config.codeFolders ?? []).map(firstPart)]);",
+    "replace": "]);",
+    "test": "pnpm vitest run addons/strict-lint/tests/rules.test.mts -t \"judges a root folder the project names as code\""
+  },
+  {
+    "name": "scope: a named folder is told by its first part",
+    "file": "kit/eslint.config.mts",
+    "find": "  const firstPart = (path: string): string => stripSlashes(path).split(\"/\")[0] as string;",
+    "replace": "  const firstPart = (path: string): string => path;",
+    "test": "pnpm vitest run kit/lint-scope.test.mts -t \"do not include a folder the project names as code, by its first part\""
+  },
+  {
+    "name": "scope: only folders are named, never a file at the root",
+    "file": "kit/eslint.config.mts",
+    "find": "    .filter((entry) => !entry.isFile() && !code.has(entry.name))",
+    "replace": "    .filter((entry) => !code.has(entry.name))",
+    "test": "pnpm vitest run kit/lint-scope.test.mts -t \"are every one that holds no package\""
+  },
+  {
+    "name": "scope: a hidden root folder is left out like any other",
+    "file": "kit/eslint.config.mts",
+    "find": "    .filter((entry) => !entry.isFile() && !code.has(entry.name))",
+    "replace": "    .filter((entry) => !entry.isFile() && !code.has(entry.name) && !entry.name.startsWith(\".\"))",
+    "test": "pnpm vitest run kit/lint-scope.test.mts -t \"are every one that holds no package\""
+  },
+  {
+    "name": "scope: a folder's name is taken literally",
+    "file": "kit/eslint.config.mts",
+    "find": "    .map((entry) => `${entry.name.replace(/[\\\\*?[\\]{}()!+@]/g, \"\\\\$&\")}/**`)",
+    "replace": "    .map((entry) => `${entry.name}/**`)",
+    "test": "pnpm vitest run kit/lint-scope.test.mts -t \"are written so that a name a glob would read as a pattern\""
+  },
+  {
+    "name": "scope: without declared layers nothing is left out",
+    "file": "kit/eslint.config.mts",
+    "find": "  if (config === undefined || !existsSync(root)) {",
+    "replace": "  if (!existsSync(root)) {",
+    "test": "pnpm vitest run kit/lint-scope.test.mts -t \"are none when the project declares no layers\""
+  },
+  {
+    "name": "scope: a root that is not there is no error",
+    "file": "kit/eslint.config.mts",
+    "find": "  if (config === undefined || !existsSync(root)) {",
+    "replace": "  if (config === undefined) {",
+    "test": "pnpm vitest run kit/lint-scope.test.mts -t \"are none for a root that is not there\""
+  },
+  {
+    "name": "scope: git is not asked (the design this replaces: what git ignores is left out)",
+    "file": "kit/eslint.config.mts",
+    "find": "    .filter((entry) => !entry.isFile() && !code.has(entry.name))",
+    "replace": "    .filter((entry) => !entry.isFile() && (!code.has(entry.name) || existsSync(`${root}/.gitignore`)))",
+    "test": "pnpm vitest run kit/lint-scope.test.mts -t \"is still linted, in the root .gitignore\""
+  },
+  {
+    "name": "scope: the list is the same whatever a .gitignore says",
+    "file": "kit/eslint.config.mts",
+    "find": "    .filter((entry) => !entry.isFile() && !code.has(entry.name))",
+    "replace": "    .filter((entry) => !entry.isFile() && (!code.has(entry.name) || existsSync(`${root}/.gitignore`)))",
+    "test": "pnpm vitest run kit/lint-scope.test.mts -t \"gives the lint the same list of folders whatever the .gitignore says\""
+  }
+]

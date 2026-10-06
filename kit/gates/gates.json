@@ -12,6 +12,5 @@
   "app-harness": ["compose", "appHarness"],
   "test-ids": ["testIds"],
   "types-only": ["typesOnly"],
-  "playwright-pin": [],
-  "ignored-source": ["packages"]
+  "playwright-pin": []
 }

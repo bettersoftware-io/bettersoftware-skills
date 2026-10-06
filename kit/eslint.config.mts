@@ -12,7 +12,7 @@
 // project's `architecture.config.mts`, the same declaration the gates read, so
 // a rule follows the role and never a folder name.
 
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 
@@ -34,7 +34,6 @@ import { noRenderFunctions } from "./eslint-rules/no-render-functions.mts";
 import { oneImportPerModule } from "./eslint-rules/one-import-per-module.mts";
 import { pageObjectsOwnTheirComponent } from "./eslint-rules/page-objects-own-their-component.mts";
 import { type ArchitectureConfig, CONFIG_FILES, type PackageDeclaration, type Role } from "./gates/lib/config.mts";
-import { gitIgnoredGlobs } from "./gates/lib/files.mts";
 import { type LintDependency, REACT_HOOKS } from "./lint-dependencies.mts";
 
 export const architecturePlugin: TSESLint.FlatConfig.Plugin = {
@@ -239,6 +238,42 @@ function sourceOf(
  * @param config The project's layers. Read from `architecture.config.mts` in
  *   the current folder when not given.
  */
+/** Always a place of the project's code: the installed kit and add-ons, and the project's own tooling beside them. */
+const TOOLING = "tools";
+
+/**
+ * A pattern for each folder at the project root that the lint does not open.
+ *
+ * The lint is told where the project's code IS: the declared packages (by
+ * the root folder each is in), `tools/`, the folders the project names under
+ * `codeFolders`, and the files at the root itself. Every other root folder
+ * is left out, whatever it is: a plugin's working folder (`.remember/`, with
+ * a timestamp file ending in `.ts`, once failed the typed lint on one
+ * machine), an editor's, a scratch folder.
+ *
+ * That is a list a person can read in one place. It needs no git, and no
+ * line in a `.gitignore` changes it: what git ignores decides nothing here,
+ * so a file in a package cannot be taken out of the lint by ignoring it. A
+ * new root folder of code has to be named, as a new package has to be
+ * declared.
+ *
+ * Without declared layers there is no list to go by, and nothing is left out.
+ */
+export function foldersOutsideTheCode(config: ArchitectureConfig | undefined, root: string): string[] {
+  if (config === undefined || !existsSync(root)) {
+    return [];
+  }
+
+  const firstPart = (path: string): string => stripSlashes(path).split("/")[0] as string;
+  const code = new Set([TOOLING, ...Object.keys(config.packages).map(firstPart), ...(config.codeFolders ?? []).map(firstPart)]);
+
+  return readdirSync(root, { withFileTypes: true })
+    .filter((entry) => !entry.isFile() && !code.has(entry.name))
+    // The name, taken literally: a glob would read `[x]` or `(x)` as a pattern.
+    .map((entry) => `${entry.name.replace(/[\\*?[\]{}()!+@]/g, "\\$&")}/**`)
+    .sort();
+}
+
 export function architectureLint(
   config: ArchitectureConfig | undefined = readDeclaredLayers(),
   /** The folder the lint is run in. Given in a test. */
@@ -261,13 +296,8 @@ export function architectureLint(
         "**/reports/**",
         "**/.turbo/**",
         "**/__screenshots__/**",
-        // What git ignores outside the packages is not the project's either:
-        // nobody else has the file. Git is asked which paths those are, so a
-        // `.gitignore` in any folder counts as git reads it, and outside a
-        // repository this adds nothing. Inside a package nothing is left
-        // out for being ignored. ESLint reads these from the folder it is
-        // run in, which is the project root.
-        ...gitIgnoredGlobs(root),
+        // Every root folder that is not a place the project's code lives.
+        ...foldersOutsideTheCode(config, root),
       ],
     },
     {

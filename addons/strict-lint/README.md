@@ -225,14 +225,16 @@ the tests here and by the local runs above.
   folder) fails with "no tsconfig.json includes this file" until it is added.
   At the project root typescript-eslint's default allows eight files to be
   read with `tsconfig.tooling.json`; a ninth `.mts` file there was not tried.
-- **A file git ignores outside every package is not judged, when the
-  project's kit is from 2026-10-06 or later.** Inside a package it is judged
-  like any other, and the kit's `ignored-source` gate reports it. The run spreads the project's own ESLint config
-  first, and the kit's block there asks git what it ignores
-  ([the kit's README](../../kit/README.md)). With an older kit a file in a
-  folder that ignores itself (`.remember/tmp/x.ts`) fails with "no
-  tsconfig.json includes this file"; update the kit. No entry for such a
-  folder is needed in `tools/strict-lint/eslint.config.mts`.
+- **A root folder that is no place of the project's code is not judged,
+  when the project's kit is from 2026-10-06 or later.** The run spreads the
+  project's own ESLint config first, and the kit's block there opens the
+  packages, `tools/`, the folders named under `codeFolders` in
+  `architecture.config.mts`, and the files at the root
+  ([the kit's README](../../kit/README.md)). A plugin's folder such as
+  `.remember/` needs no entry in `tools/strict-lint/eslint.config.mts`.
+  With an older kit a `.ts` file there fails with "no tsconfig.json includes
+  this file"; update the kit. What git ignores decides nothing: a file in a
+  package that a `.gitignore` names is judged like any other.
 - **The check is run from the project root.** The config takes
   `process.cwd()` as the place `tsconfig.tooling.json` is. An editor's ESLint
   uses the project's `eslint.config.mts`, not this one, so the typed rules do

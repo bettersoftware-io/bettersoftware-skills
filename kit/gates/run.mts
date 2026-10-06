@@ -21,8 +21,7 @@ import {
   portContractsSkipReason,
 } from "./lib/contracts.mts";
 import { checkDependencies } from "./lib/depcruise.mts";
-import { isGitIgnored, isMainModule, listSourceFiles } from "./lib/files.mts";
-import { checkIgnoredSource } from "./lib/ignored-source.mts";
+import { isMainModule } from "./lib/files.mts";
 import { checkInstructionPaths, instructionsSkipReason } from "./lib/instructions.mts";
 import { checkLanguage, languageSkipReason } from "./lib/language.mts";
 import { checkNodeFloor, nodeFloorSkipReason } from "./lib/node-floor.mts";
@@ -55,8 +54,7 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
   if (files) {
     const relativeFiles = files
       .map((file) => relative(project.root, resolve(project.root, file)))
-      // A file git ignores outside every package is judged by no gate, here as in a full run.
-      .filter((file) => !file.startsWith("..") && existsSync(join(project.root, file)) && !isGitIgnored(project.root, file));
+      .filter((file) => !file.startsWith("..") && existsSync(join(project.root, file)));
 
     // Each of these reads the one file and, at most, the declaration: cheap
     // enough to run after every edit. A skip here is one the declaration
@@ -73,7 +71,6 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
         "app-harness",
         "test-ids",
         "types-only",
-        "ignored-source",
       ],
       skipped: dropUndefined({
         "typescript-only": languageSkipReason(project),
@@ -94,7 +91,6 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
         ...checkAppHarness(project, relativeFiles),
         ...checkTestIds(project, relativeFiles),
         ...checkTypesOnly(project, relativeFiles),
-        ...checkIgnoredSource(project, relativeFiles),
       ],
     };
   }
@@ -115,7 +111,6 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
       "test-ids",
       "types-only",
       "playwright-pin",
-      "ignored-source",
     ],
     skipped: dropUndefined({
       "typescript-only": languageSkipReason(project),
@@ -132,7 +127,6 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
       "playwright-pin": playwrightPinSkipReason(project),
     }),
     findings: [
-      ...checkSomethingWasJudged(project),
       ...checkStructure(project),
       ...checkLanguage(project),
       ...checkDumbUi(project),
@@ -147,31 +141,8 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
       ...checkTestIds(project),
       ...checkTypesOnly(project),
       ...checkPlaywrightPin(project),
-      ...checkIgnoredSource(project),
     ],
   };
-}
-
-/**
- * The floor under every other check. A project that declares packages and in
- * which no source file is found has been judged by nothing: every gate that
- * reads files would pass on an empty list. Whatever emptied the list (a walk
- * that left everything out, a root that is not the project), that is a
- * failure, not a pass.
- */
-function checkSomethingWasJudged({ root, config }: Awaited<ReturnType<typeof loadConfig>>): Finding[] {
-  const declared = Object.keys(config.packages);
-
-  if (declared.length === 0 || declared.some((path) => listSourceFiles(root, path).length > 0)) {
-    return [];
-  }
-
-  return [
-    {
-      gate: "structure",
-      message: `The project declares ${declared.length} package(s) and no source file was found in any of them, so the gates judged nothing. That is not a pass. Check that the gates run in the project root and that the packages are there: ${declared.join(", ")}.`,
-    },
-  ];
 }
 
 function dropUndefined(record: Record<string, string | undefined>): Record<string, string> {

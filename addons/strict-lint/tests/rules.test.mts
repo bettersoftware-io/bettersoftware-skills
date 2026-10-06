@@ -71,33 +71,38 @@ describe("what the rules are kept away from", { timeout: REAL_TOOL_TIMEOUT }, ()
     },
   );
 
-  // `.remember/` is a plugin's working folder on one machine. It ignores
-  // itself with a `.gitignore` of its own, and one of its files ends in `.ts`.
-  it.skipIf(!HAS_GIT)("does not judge a file git ignores, by a .gitignore in the file's own folder, and still judges one that is only new", () => {
+  // `.remember/` is a plugin's working folder on one machine, and one of its
+  // files ends in `.ts`. The kit's lint block, which the project's own config
+  // spreads, opens no root folder that is not a place of the project's code.
+  const KIT_CONFIG = `import { architectureLint } from ${JSON.stringify(join(REPOSITORY, "kit/eslint.config.mts"))};\n\nexport default [...architectureLint({ packages: { "packages/app": { role: "domain" } } })];\n`;
+
+  it("does not judge a file in a root folder that is no place of the project's code: a plugin's folder, a scratch folder", () => {
+    const project = createPackage();
+
+    writeFiles(project, { "eslint.config.mts": KIT_CONFIG, ".remember/tmp/last-ndc.ts": "1\n", "scratch/new.ts": "1\n" });
+
+    expect(formatResult(checkTypes(project))).toBe("PASS lint:types — 3 file(s) linted with type information");
+  });
+
+  it("judges a root folder the project names as code: a file there that no tsconfig includes is a finding again", () => {
     const project = createPackage();
 
     writeFiles(project, {
-      // The project's own lint config, as the starter writes it: the kit's block is where git is asked.
-      "eslint.config.mts": `import { architectureLint } from ${JSON.stringify(join(REPOSITORY, "kit/eslint.config.mts"))};\n\nexport default [...architectureLint({ packages: {} })];\n`,
-      ".remember/.gitignore": "*\n",
-      ".remember/tmp/last-ndc.ts": "1\n",
+      "eslint.config.mts": KIT_CONFIG.replace('{ role: "domain" } }', '{ role: "domain" } }, codeFolders: ["scratch"]'),
       "scratch/new.ts": "1\n",
     });
-    spawnSync("git", ["init", "--quiet"], { cwd: project });
 
     expect(checkTypes(project).findings).toEqual([{ file: "scratch/new.ts", line: 0, column: 0, rule: "parse", message: "no tsconfig.json includes this file" }]);
   });
 
-  it("judges that file like any other in a folder that is no repository: nothing is ignored there", () => {
-    const project = createPackage();
+  it.skipIf(!HAS_GIT)("still judges a file in a package that a .gitignore names: what git ignores decides nothing", () => {
+    const project = createPackage({ "src/run.ts": 'import { save } from "./save.ts";\n\nexport function run(): void {\n  save();\n}\n', "src/.gitignore": "run.ts\n" });
 
-    writeFiles(project, {
-      "eslint.config.mts": `import { architectureLint } from ${JSON.stringify(join(REPOSITORY, "kit/eslint.config.mts"))};\n\nexport default [...architectureLint({ packages: {} })];\n`,
-      ".remember/.gitignore": "*\n",
-      ".remember/tmp/last-ndc.ts": "1\n",
-    });
+    writeFiles(project, { "eslint.config.mts": KIT_CONFIG });
+    spawnSync("git", ["init", "--quiet"], { cwd: project });
 
-    expect(checkTypes(project).findings.map(({ file, message }) => `${file} ${message}`)).toEqual([".remember/tmp/last-ndc.ts no tsconfig.json includes this file"]);
+    expect(spawnSync("git", ["check-ignore", "packages/app/src/run.ts"], { cwd: project }).status).toBe(0);
+    expect(checkTypes(project).findings.map((finding) => `${finding.file} ${finding.rule}`)).toEqual(["packages/app/src/run.ts @typescript-eslint/no-floating-promises"]);
   });
 
   it("still judges a package's own folder called tools", () => {
