@@ -89,12 +89,17 @@ on 2026-10-05, on pushes to main and on a pull request
 ## Known limits
 
 - **The `agent-workflow` hook has not run in a live session of either host.**
-  That Claude Code's `ask` and `deny` rules win over a hook's approval, and
-  that the working directory it is sent follows a `cd`, are taken from the
-  documentation. Its reader was compared with five shells on one Mac, each
-  non-interactive: a person's aliases and shell options are not covered. A
-  security review found an escape in an earlier form (a heredoc body, run by
-  bash 3.2); the add-on's README has the account.
+  Its pre-approval of a push, a pull request and a merge ships off. What it
+  relies on is taken from the documentation: that Claude Code's `ask` and
+  `deny` rules win over a hook's approval, the `Edit(/path)` rule form, the
+  permission modes, and that the working directory it is sent follows a `cd`.
+  The merge check has not been run against GitHub. Two security reviews found
+  real escapes in earlier forms (a heredoc body run by bash 3.2; a push sent
+  to `main` by git's own configuration); the add-on's README has the account
+  and the limits that remain.
+- **The stop hook judges the checkout the session stops in.** A session that
+  changed two checkouts is held to one. That `cwd` in the payload follows the
+  agent into a worktree is from the documentation.
 - **The stop hook's nine-minute limit is tested with short limits only**, on
   the same code path.
 - **The quiet gate copies the environment pnpm 12.6 gives a script.** A later
