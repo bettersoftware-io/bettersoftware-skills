@@ -173,5 +173,26 @@
     "find": ", ...listSourceFiles(root, \"\")])].sort();",
     "replace": "])].sort();",
     "test": "pnpm vitest run kit/hooks/hooks.test.mts -t \"reads every file the gates' walker reads, in a tree made from the number 0\""
+  },
+  {
+    "name": "outside: tools/ may be imported",
+    "file": "kit/gates/lib/depcruise.mts",
+    "find": "  return [\"tools/\", ...linked];",
+    "replace": "  return [\"never/\", ...linked];",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"is no import from outside the packages: a test config may use\""
+  },
+  {
+    "name": "outside: tools/ that is a link is where the link points",
+    "file": "kit/gates/lib/depcruise.mts",
+    "find": "  return [\"tools/\", ...linked];",
+    "replace": "  return [\"tools/\"];",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"is none either when tools/arch is a link\""
+  },
+  {
+    "name": "outside: the folder a link points at is allowed only as that folder",
+    "file": "kit/gates/lib/depcruise.mts",
+    "find": ".split(sep).join(\"/\")}/`);",
+    "replace": ".split(sep).join(\"/\").split(\"/\")[0]}/`);",
+    "test": "pnpm vitest run kit/gates/gates.test.mts -t \"is one for another folder beside the project\""
   }
 ]

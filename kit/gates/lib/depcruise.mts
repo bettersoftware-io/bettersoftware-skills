@@ -6,9 +6,9 @@
 // matches a source-path rule, and a rule set run over no files passes.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { Finding, Project, ResolvedConfig, WorkspacePackage } from "./config.mts";
@@ -60,7 +60,24 @@ export function vendorRuleName(vendor: string): string {
   return `${vendor.endsWith("/") ? `${vendor}*` : vendor}-only-in-its-packages`;
 }
 
-export function buildRules(config: ResolvedConfig, workspace: WorkspacePackage[]): Rule[] {
+/**
+ * Where `tools/` really is, as paths from the root, each ending in `/`. In a
+ * project it is a folder. In the kit's own starter `tools/arch` is a link to
+ * the kit, and an import through it lands where the link points.
+ */
+function toolingFolders(root: string | undefined): string[] {
+  if (root === undefined || !existsSync(join(root, "tools"))) {
+    return ["tools/"];
+  }
+
+  const linked = ["tools", ...readdirSync(join(root, "tools")).map((name) => `tools/${name}`)]
+    .filter((path) => lstatSync(join(root, path)).isSymbolicLink())
+    .map((path) => `${relative(realpathSync(root), realpathSync(join(root, path))).split(sep).join("/")}/`);
+
+  return ["tools/", ...linked];
+}
+
+export function buildRules(config: ResolvedConfig, workspace: WorkspacePackage[], root?: string): Rule[] {
   const declared = declaredPackages(config);
   const everyPackage = [...new Set([...declared.map(({ path }) => path), ...workspace.map(({ path }) => path)])];
   const rules: Rule[] = [
@@ -135,7 +152,7 @@ export function buildRules(config: ResolvedConfig, workspace: WorkspacePackage[]
     from: { path: anyOf(everyPackage) },
     to: {
       // `tools/` holds the kit's and the add-ons' helpers for tests and configs, which a package may import today.
-      pathNot: `(${anyOf(everyPackage).slice(0, -1)}/|^tools/|(^|/)node_modules/)`,
+      pathNot: `(${anyOf(everyPackage).slice(0, -1)}/|^(${toolingFolders(root).map(escape).join("|")})|(^|/)node_modules/)`,
       couldNotResolve: false,
       dependencyTypesNot: ["core", "npm", "npm-dev", "npm-optional", "npm-peer", "npm-bundled", "npm-no-pkg", "npm-unknown"],
     },
@@ -261,7 +278,7 @@ export function checkDependencies({ root, config, workspace }: Project): Finding
       JSON.stringify({ compilerOptions: { baseUrl: root, paths, ignoreDeprecations: "6.0" }, files: ["empty.ts"] }),
     );
 
-    const rules = buildRules(config, workspace);
+    const rules = buildRules(config, workspace, root);
     const configFile = join(scratch, ".dependency-cruiser.json");
     writeFileSync(
       configFile,

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -763,6 +763,71 @@ describe("the package manager the root package.json names", () => {
     expect(checkPackageManager({ root }, ["package.json"])).toHaveLength(1);
   });
 });
+
+describe("a package that imports from tools/", () => {
+  const PROJECT: Record<string, string> = {
+    "architecture.config.mts": 'export default { packages: { "packages/domain": { role: "domain" } }, requiredRoles: [] };\n',
+    "pnpm-workspace.yaml": 'packages:\n  - "packages/*"\n',
+    "packages/domain/package.json": '{ "name": "@app/domain", "scripts": { "test": "vitest run", "typecheck": "tsc" } }\n',
+    "packages/domain/src/ports/.keep.ts": "export {};\n",
+    "packages/domain/vitest.config.ts": 'import { helper } from "../../tools/arch/testing/helper.mts";\n\nexport default helper;\n',
+  };
+  const outside = async (root: string): Promise<string[]> => (await runGates({ root })).findings.filter(({ message }) => message.startsWith("no-code-outside-the-packages")).map(({ message }) => message.split(". ")[0] ?? "");
+
+  it("is no import from outside the packages: a test config may use the kit's helpers", async () => {
+    const root = createProjectFolder({ ...PROJECT, "tools/arch/testing/helper.mts": "export const helper = {};\n" });
+
+    linkDependencyCruiser(root);
+
+    expect(await outside(root)).toEqual([]);
+  });
+
+  it("is none either when tools/arch is a link, as in the kit's own starter: the import lands where the link points", async () => {
+    const root = createProjectFolder(PROJECT);
+    const kit = join(dirname(root), "kit");
+
+    mkdirSync(join(kit, "testing"), { recursive: true });
+    writeFileSync(join(kit, "testing/helper.mts"), "export const helper = {};\n");
+    mkdirSync(join(root, "tools"));
+    symlinkSync("../../kit", join(root, "tools/arch"));
+    linkDependencyCruiser(root);
+
+    expect(await outside(root)).toEqual([]);
+  });
+
+  it("is one for another folder beside the project, though tools/arch is a link to a folder there", async () => {
+    const root = createProjectFolder({ ...PROJECT, "packages/domain/vitest.config.ts": 'import { helper } from "../../../other/helper.mts";\n\nexport default helper;\n' });
+
+    for (const beside of ["kit/testing", "other"]) {
+      mkdirSync(join(dirname(root), beside), { recursive: true });
+      writeFileSync(join(dirname(root), beside, "helper.mts"), "export const helper = {};\n");
+    }
+
+    mkdirSync(join(root, "tools"));
+    symlinkSync("../../kit", join(root, "tools/arch"));
+    linkDependencyCruiser(root);
+
+    expect(await outside(root)).toEqual(["no-code-outside-the-packages: imports ../other/helper.mts"]);
+  });
+});
+
+/** A project in a folder of its own, inside a fresh folder, so that something can be put beside it. */
+function createProjectFolder(files: Record<string, string>): string {
+  const root = join(realpathSync(mkdtempSync(join(tmpdir(), "tools-import-"))), "project");
+
+  for (const [path, content] of Object.entries(files)) {
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    writeFileSync(join(root, path), content);
+  }
+
+  return root;
+}
+
+/** The dependency gate runs the project's own dependency-cruiser: this repository's, by a link. */
+function linkDependencyCruiser(root: string): void {
+  mkdirSync(join(root, "node_modules"), { recursive: true });
+  symlinkSync(join(here, "..", "..", "node_modules", "dependency-cruiser"), join(root, "node_modules", "dependency-cruiser"));
+}
 
 describe("the rule for an entry of vendorOnlyIn", () => {
   const config = (vendorOnlyIn: Record<string, string[]>): ResolvedConfig =>
