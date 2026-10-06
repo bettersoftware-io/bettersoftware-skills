@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 
 import { onTestFinished } from "vitest";
 
-import { type E2eConfig, OUT_DIR, SERVER_URL } from "../files/tools/e2e/lib/config.mts";
+import { type E2eConfig, OUT_DIR, SERVER_HOST, SERVER_URL } from "../files/tools/e2e/lib/config.mts";
 
 export const ADDON = join(import.meta.dirname, "..");
 export const REPOSITORY = join(ADDON, "..", "..");
@@ -72,7 +72,7 @@ if (process.env.FAKE_BUILD_EXIT !== undefined) {
 }
 
 mkdirSync(outDir, { recursive: true });
-writeFileSync(join(outDir, "built.json"), JSON.stringify({ serverUrl: process.env.CLIENT_SERVER_URL }));
+writeFileSync(join(outDir, "built.json"), JSON.stringify({ serverUrl: process.env.CLIENT_SERVER_URL, apiUrl: process.env.CLIENT_API_URL }));
 `;
 
 // The test runner: asks every address it was given, writes down what it saw,
@@ -171,7 +171,7 @@ export function createFakeProject(): FakeProject {
       ready: /Local:\s+(http:\/\/[^\s/]+)/,
     },
     modes: {
-      sim: { env: { CLIENT_SERVER_URL: "" } },
+      sim: { env: { CLIENT_SERVER_URL: "", CLIENT_API_URL: "" } },
       fullstack: {
         server: {
           cwd: "packages/server",
@@ -179,7 +179,8 @@ export function createFakeProject(): FakeProject {
           env: { PORT: "0" },
           ready: /listening on (ws:\/\/\S+)/,
         },
-        env: { CLIENT_SERVER_URL: SERVER_URL },
+        // One port, two protocols: the socket's address as printed, and an HTTP address written around the host and port.
+        env: { CLIENT_SERVER_URL: SERVER_URL, CLIENT_API_URL: `http://${SERVER_HOST}/api` },
       },
     },
   };
@@ -205,7 +206,7 @@ export interface Recorded {
 }
 
 export interface RunnerRecord extends Recorded {
-  modes: Record<string, { baseURL: string; serverURL?: string }>;
+  modes: Record<string, { baseURL: string; serverURL?: string; serverHost?: string }>;
   answers: Record<string, string>;
   argv: string[];
   cwd: string;

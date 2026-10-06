@@ -39,7 +39,9 @@ describe("pnpm e2e, from start to end", { timeout: REAL_PROCESS_TIMEOUT }, () =>
     expect(Object.keys(runner.modes)).toEqual(["sim", "fullstack"]);
     expect(runner.answers).toEqual({ sim: "client", fullstack: "client" });
     expect(runner.modes.sim?.serverURL).toBeUndefined();
+    expect(runner.modes.sim?.serverHost).toBeUndefined();
     expect(runner.modes.fullstack?.serverURL).toMatch(/^ws:\/\/127\.0\.0\.1:\d+\/ws$/);
+    expect(runner.modes.fullstack?.serverHost).toMatch(/^127\.0\.0\.1:\d+$/);
     expect(runner.modes.sim?.baseURL).not.toBe(runner.modes.fullstack?.baseURL);
     // The specs run in the tests package, with Playwright's own command.
     expect(runner.cwd).toBe(join(project.root, "packages/e2e"));
@@ -61,9 +63,11 @@ describe("pnpm e2e, from start to end", { timeout: REAL_PROCESS_TIMEOUT }, () =>
     const [server] = Object.entries(readRecord(project.record)).flatMap(([name, { port }]) => (name.startsWith("server-") ? [port] : []));
     const address = `ws://127.0.0.1:${server}/ws`;
 
-    expect(readBuilt(project.root, "sim")).toEqual({ serverUrl: "" });
-    expect(readBuilt(project.root, "fullstack")).toEqual({ serverUrl: address });
+    expect(readBuilt(project.root, "sim")).toEqual({ serverUrl: "", apiUrl: "" });
+    // Two variables from the one address the server printed: one as printed, one written around its host and port.
+    expect(readBuilt(project.root, "fullstack")).toEqual({ serverUrl: address, apiUrl: `http://127.0.0.1:${server}/api` });
     expect(readRunnerRecord(project.record).modes.fullstack?.serverURL).toBe(address);
+    expect(readRunnerRecord(project.record).modes.fullstack?.serverHost).toBe(`127.0.0.1:${server}`);
   });
 
   it("reads an address out of a line a program printed in colour", async () => {

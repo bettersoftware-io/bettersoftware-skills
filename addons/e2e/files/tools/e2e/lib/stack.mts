@@ -9,7 +9,7 @@
 
 import { join } from "node:path";
 
-import { type E2eConfig, E2eError, type Mode, OUT_DIR, SERVER_URL } from "./config.mts";
+import { type E2eConfig, E2eError, type Mode, OUT_DIR, SERVER_HOST, SERVER_URL } from "./config.mts";
 import type { Groups } from "./processes.mts";
 
 /** How long a program is given to say it is ready. */
@@ -19,8 +19,18 @@ const READY_TIMEOUT_MS = 60_000;
 export interface RunningMode {
   /** Where the built client is served. */
   baseURL: string;
-  /** The address of the mode's server. Left out when the mode has none. */
+  /** The address of the mode's server, as it printed it. Left out when the mode has none. */
   serverURL?: string;
+  /** The host and port of the mode's server, as in `localhost:4000`. Left out when the mode has none. */
+  serverHost?: string;
+}
+
+/** The server of a mode, as the build's variables and the tests are told of it. */
+export interface ServerAddress {
+  /** What the `ready` pattern captured. */
+  url: string;
+  /** Its host and port. */
+  host: string;
 }
 
 /** The variable the test runner finds the modes in, as JSON: name → `RunningMode`. */
@@ -42,10 +52,10 @@ export async function startMode(
   const mode = config.modes[name] as Mode;
   const clientFolder = join(root, config.client.cwd);
   const outDir = join(root, config.tests, "node_modules", ".cache", "e2e", name);
-  let serverURL: string | undefined;
+  let server: ServerAddress | undefined;
 
   if (mode.server !== undefined) {
-    const server = await groups.start(
+    const started = await groups.start(
       {
         label: `the server of mode "${name}"`,
         command: mode.server.command,
@@ -56,11 +66,11 @@ export async function startMode(
       readyTimeoutMs,
     );
 
-    serverURL = server.address;
-    say(`[e2e] ${name}: server ready at ${serverURL}`);
+    server = { url: started.address, host: readHost(name, started.address) };
+    say(`[e2e] ${name}: server ready at ${server.url}`);
   }
 
-  const buildEnv = { ...environment, ...resolveEnv(name, mode.env ?? {}, serverURL) };
+  const buildEnv = { ...environment, ...resolveEnv(name, mode.env ?? {}, server) };
   const build = await groups.finish({
     label: `the build of the client for mode "${name}"`,
     command: withOutDir(config.client.build, outDir),
@@ -85,22 +95,42 @@ export async function startMode(
 
   say(`[e2e] ${name}: client built and served at ${served.address}`);
 
-  return { baseURL: served.address, ...(serverURL === undefined ? {} : { serverURL }) };
+  return { baseURL: served.address, ...(server === undefined ? {} : { serverURL: server.url, serverHost: server.host }) };
 }
 
-/** The mode's variables, with the server's address written in where it is asked for. */
-export function resolveEnv(name: string, env: Record<string, string>, serverURL: string | undefined): Record<string, string> {
+/**
+ * The host and port in what a server's `ready` pattern captured: out of an
+ * address (`ws://localhost:4000/ws`), or the capture itself when it is a host
+ * and a port already. Anything else has no host to give, and is refused: a
+ * client variable written around it would point nowhere.
+ */
+export function readHost(name: string, printed: string): string {
+  const address = printed.includes("://") ? printed : `e2e://${printed}`;
+  const host = URL.canParse(address) ? new URL(address).host : "";
+
+  // A port alone parses as a host called by a number.
+  if (host === "" || /^\d+$/.test(host) || (!printed.includes("://") && host !== printed)) {
+    throw new E2eError(
+      `the server of mode "${name}" was ready at "${printed}", which is neither an address (ws://localhost:4000/ws) nor a host and a port (localhost:4000). Change the group of its "ready" pattern to capture one of those`,
+    );
+  }
+
+  return host;
+}
+
+/** The mode's variables, with the server's address, or its host and port, written in where each is asked for. */
+export function resolveEnv(name: string, env: Record<string, string>, server: ServerAddress | undefined): Record<string, string> {
   return Object.fromEntries(
     Object.entries(env).map(([key, value]) => {
-      if (!value.includes(SERVER_URL)) {
+      if (!value.includes(SERVER_URL) && !value.includes(SERVER_HOST)) {
         return [key, value];
       }
 
-      if (serverURL === undefined) {
+      if (server === undefined) {
         throw new E2eError(`the mode "${name}" gives ${key} the server's address, and has no server to take it from`);
       }
 
-      return [key, value.replaceAll(SERVER_URL, serverURL)];
+      return [key, value.replaceAll(SERVER_URL, server.url).replaceAll(SERVER_HOST, server.host)];
     }),
   );
 }

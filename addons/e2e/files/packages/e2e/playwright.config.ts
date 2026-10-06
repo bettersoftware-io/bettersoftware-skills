@@ -1,13 +1,29 @@
 import { defineConfig, devices } from "@playwright/test";
 
-import type { ModeOptions } from "./src/testing/test.ts";
-
 // What `pnpm e2e` started, by mode: where the built client is served and,
-// when the mode has one, the address of its server. The runner
-// (tools/e2e/run.mts) starts them, passes this on, and stops them again.
+// when the mode has one, its server: the address it printed, and its host and
+// port. The runner (tools/e2e/run.mts) starts them, passes this on, and stops
+// them again.
 interface RunningMode {
   baseURL: string;
   serverURL?: string;
+  serverHost?: string;
+}
+
+/**
+ * What every test of a mode is handed about the mode's server. A fixture
+ * reads one by declaring an option of that name (src/testing/test.ts, which
+ * is the project's). Both are empty in a mode that has no server.
+ *
+ * Declared here, not imported from the project's file: this config belongs to
+ * the add-on, and must not stop typechecking because a project's fixtures
+ * read one of the two and not the other.
+ */
+interface HandedToTests {
+  /** The server's host and port, as in `localhost:4000`. */
+  serverHost: string;
+  /** The server's address as it printed it. */
+  serverUrl: string;
 }
 
 const MODES_VARIABLE = "E2E_MODES";
@@ -23,7 +39,7 @@ function readModes(): Record<string, RunningMode> | undefined {
 
 const modes = readModes();
 
-export default defineConfig<ModeOptions>({
+export default defineConfig<HandedToTests>({
   testDir: "src",
   testMatch: "**/*.spec.ts",
   // A spec waits on what the page shows, never on time, and each test opens a
@@ -63,15 +79,18 @@ export default defineConfig<ModeOptions>({
       : // One project for each mode that was started. A mode's specs are in
         // the folder of its name, so a spec runs against the stack it was
         // written for.
-        Object.entries(modes).map(([name, { baseURL, serverURL }]) => {
-          return {
-            name,
-            testDir: `src/${name}`,
-            use: {
-              ...devices["Desktop Chrome"],
-              baseURL,
-              serverUrl: serverURL ?? "",
-            },
-          };
-        }),
+        Object.entries(modes).map(
+          ([name, { baseURL, serverURL, serverHost }]) => {
+            return {
+              name,
+              testDir: `src/${name}`,
+              use: {
+                ...devices["Desktop Chrome"],
+                baseURL,
+                serverHost: serverHost ?? "",
+                serverUrl: serverURL ?? "",
+              },
+            };
+          },
+        ),
 });
