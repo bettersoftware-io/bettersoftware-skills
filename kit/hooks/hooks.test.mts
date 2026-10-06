@@ -122,6 +122,26 @@ describe("before the agent stops", () => {
     expect(reason).toContain("FAIL dumb-ui (1)");
   });
 
+  it("sends back the stage that failed and nothing a stage that passed printed", () => {
+    const reason = judgeStop({
+      cwd: createProject({
+        lint: "node -e \"console.log('4812 files linted')\"",
+        test: "node -e \"console.log('expected 3 to be 4'); process.exit(1)\"",
+        build: "node -e \"console.log('built')\"",
+        typecheck: "node -e 0",
+        "gate:fast": "pnpm lint && pnpm typecheck",
+        "gate:full": "pnpm gate:fast && pnpm test && pnpm build",
+      }),
+    });
+
+    expect(reason).toContain("`gate:full` is red");
+    expect(reason).toContain("ok    pnpm lint");
+    expect(reason).toContain("FAIL  pnpm test (exit 1");
+    expect(reason).toContain("expected 3 to be 4");
+    expect(reason).not.toContain("4812 files linted");
+    expect(reason).toContain("not run:\n      pnpm build");
+  });
+
   it("stays out of a project that has no gate", () => {
     const gate = createCountedGate(red);
     const reason = judgeStop({ cwd: createProject({ test: "vitest" }) }, gate.run);

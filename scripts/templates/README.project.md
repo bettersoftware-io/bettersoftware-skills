@@ -19,6 +19,7 @@ pnpm dev          # http://localhost:5173, on the in-browser simulator
 pnpm dev:fs       # the server and the client together
 pnpm gate:fast    # architecture gates, lint, typecheck
 pnpm gate:full    # gate:fast, then tests and the build: everything CI runs
+pnpm gate:full:quiet   # the same commands and verdict, printing only the stage that failed
 pnpm --filter {{scope}}/domain test   # one package's tests
 ```
 

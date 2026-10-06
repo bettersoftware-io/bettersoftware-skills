@@ -17,6 +17,7 @@ directly by stripping the types, which needs Node 22.18 or later, and
 |---|---|---|
 | `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction, the paths the agent instructions name, the task cache, every package's scripts, the one app harness, test ids, types-only packages | Node; `dependency-cruiser` for the dependency gate |
 | `eslint.config.mts` + `eslint-rules/` | Thirteen AST lint rules of its own (naming, reading order, fixtures, page objects, no real sleeps in tests, one import per module), and the settings of ESLint's rules that go with them: function declarations, blank lines, named object types, no CommonJS, React's hook rules | `eslint`, `typescript-eslint`, `eslint-plugin-react-hooks` |
+| `gates/quiet.mts` | Nothing of its own: it runs a gate script of the project and prints only the stage that failed | Node |
 | `hooks/after-edit.mts` | Runs the per-file gates on the file an agent just wrote | Claude Code or Codex |
 | `hooks/before-stop.mts` | Refuses to let an agent finish while `gate:full` is red, on any tree that has not already passed it | Claude Code or Codex; git |
 
@@ -380,6 +381,10 @@ The stop hook runs the project's `gate:full` script, the one CI runs, so
 "gate:full": "pnpm gate:fast && pnpm test && pnpm build"
 ```
 
+It runs the script through the quiet runner (next section), so a red gate
+sends back the stage that failed. The end of a loud run is whatever was
+printed last, which is often a passing stage.
+
 The full gate takes minutes, so the hook does not run it on a tree that has
 already passed. After a green run it stores a hash in
 `node_modules/.cache/arch/`. While the hash is unchanged the agent finishes at
@@ -409,6 +414,70 @@ of Node.
 It was `gate:fast` until a run with the smallest model stopped there with
 `gate:full` red and reported green
 ([the record](../docs/small-model-2026-10-05.md)).
+
+## A gate that prints failures only
+
+`pnpm gate:full` prints every passing test and every cached task. CI wants
+that. An agent does not: the smallest model ran out of context on it
+([the record](../docs/small-model-2026-10-05.md)).
+
+```json
+"gate:fast:quiet": "node tools/arch/gates/quiet.mts gate:fast",
+"gate:full:quiet": "node tools/arch/gates/quiet.mts gate:full"
+```
+
+```
+ok    pnpm gates (0.6s)
+      SKIP types-only — no package is declared typesOnly, so there was nothing to check
+ok    pnpm lint (9.8s)
+ok    pnpm typecheck (4.1s)
+FAIL  pnpm test (exit 1, 12.3s)
+
+…the whole output of `pnpm test`, and of nothing else…
+
+not run:
+      pnpm build
+      pnpm coverage
+
+gate:full is red.
+```
+
+- **It holds no list of stages.** It reads the script from `package.json` on
+  each run and splits its `&&` chain. A part that runs another chain of the
+  project (`pnpm gate:fast`) is replaced by that chain's parts. A command an
+  add-on joined to a gate is a stage like any other, and there is still one
+  definition of the gate.
+- **A `SKIP` line is kept.** A check that judged nothing says so on a line
+  that starts with `SKIP`, and has not passed. Those lines are printed under
+  the stage's own line, so quiet never turns "not verified" into silence.
+- **The exit code is the failing stage's own**, which is what `pnpm gate:full`
+  exits with. Quiet changes what is printed, never the verdict.
+- **Nothing is lost.** A failing stage's output is printed whole, however
+  long. Everything every stage printed is also in
+  `node_modules/.cache/arch/last-gate.log`, written as it arrives.
+- **A stage that is stopped is a failure.** When the runner is told to
+  terminate (the stop hook's timeout does this), it stops the stage in hand
+  and prints what that stage had said.
+
+**Why a separate script, and not a flag or the default.** The loud scripts
+stay as they are: they are what add-ons append to, and what CI and a person
+run. An environment variable could not make `pnpm gate:full` quiet without
+turning that script into a call to a runner, and then an add-on would have
+nothing to append to. Quiet as the default would hide output from CI, where
+the full log is the record. So quiet is a second way to run the same script,
+and the two consumers each take the one that suits them: the stop hook calls
+the runner itself, in every project, with no script needed; CI keeps
+`pnpm gate:full`.
+
+Known limits:
+
+- A script that uses the shell for more than `&&` (a pipe, `;`, `||`, a
+  subshell) is run as one stage. The verdict is the same; the report cannot
+  say which part failed.
+- A stage is a line of a script. What a task runner runs inside one stage
+  (`turbo run test` over six packages) is one stage: when it fails, all of
+  its output is printed, the passing packages included.
+- Not run on Windows: a stage is stopped through its process group.
 
 ## Tests
 

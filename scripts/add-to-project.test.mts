@@ -86,6 +86,30 @@ describe("adding the kit", () => {
     expect(result.notes.join("\n")).toMatch(/eslint\.config\.mts/);
   });
 
+  it("adds the quiet form of each gate the project has, and of none it does not have", () => {
+    const { repository, project } = createWorld();
+    const manifest = readJson(project, "package.json");
+    delete manifest.scripts["gate:full"];
+    write(project, "package.json", `${JSON.stringify(manifest, null, 2)}\n`);
+
+    const result = addToProject({ project, unit: "kit", repository });
+
+    expect(readJson(project, "package.json").scripts["gate:fast:quiet"]).toBe("node tools/arch/gates/quiet.mts gate:fast");
+    expect(readJson(project, "package.json").scripts["gate:full:quiet"]).toBeUndefined();
+    expect(result.packageChanges).toEqual(["package.json: scripts.gates", "package.json: scripts.gate:fast:quiet"]);
+  });
+
+  it("leaves a quiet script the project wrote itself as it is", () => {
+    const { repository, project } = createWorld();
+    const manifest = readJson(project, "package.json");
+    manifest.scripts["gate:full:quiet"] = "pnpm gate:full > /dev/null";
+    write(project, "package.json", `${JSON.stringify(manifest, null, 2)}\n`);
+
+    addToProject({ project, unit: "kit", repository });
+
+    expect(readJson(project, "package.json").scripts["gate:full:quiet"]).toBe("pnpm gate:full > /dev/null");
+  });
+
   it("leaves the project's own settings alone, and says how to merge the hooks in", () => {
     const { repository, project } = createWorld();
     write(project, ".claude/settings.json", '{ "permissions": {} }\n');

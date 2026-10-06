@@ -10,6 +10,7 @@ pnpm dev          # the React client on the in-browser simulator (no server)
 pnpm dev:fs       # the server and the client together
 pnpm gate:fast    # architecture gates, lint, typecheck: seconds, for while you work
 pnpm gate:full    # gate:fast, then tests and the build: what CI runs
+pnpm gate:full:quiet   # the same commands and verdict, printing only the stage that failed
 pnpm test
 ```
 
@@ -17,6 +18,14 @@ Run `pnpm gate:full` before you say work is finished. A red gate means the
 work is not finished, and `gate:fast` alone does not show that it is: it runs
 no test. The stop hook runs `gate:full` for you whenever a file has changed
 since it last passed.
+
+`pnpm gate:full:quiet` (and `gate:fast:quiet`) runs the same commands in the
+same order and exits with the same code. It prints one line for each stage
+that passed, any `SKIP` line that stage printed, and the whole output of the
+stage that failed. Run the quiet form
+when you are the one reading the output: the loud form prints every passing
+test and every cached task. Skip it when a person asked to see the full
+output; CI runs the loud form.
 
 Some sandboxes do not let a process listen on a port; Codex's default one does
 not. There the tests that open a real port (the files named `*.port.test.ts`)

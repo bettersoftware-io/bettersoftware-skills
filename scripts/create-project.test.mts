@@ -201,7 +201,7 @@ describe("the README of a created project", () => {
     const named = [...readme.matchAll(/^pnpm (?!install|--filter)([\w:-]+)/gm)].map((match) => match[1]);
     const linked = [...readme.matchAll(/\]\(([^)]+)\)/g)].map((match) => match[1] as string);
 
-    expect(named).toEqual(["gate:full", "dev", "dev:fs", "gate:fast", "gate:full"]);
+    expect(named).toEqual(["gate:full", "dev", "dev:fs", "gate:fast", "gate:full", "gate:full:quiet"]);
     expect(named.filter((script) => !scripts.includes(script as string))).toEqual([]);
     expect(linked).toEqual(["AGENTS.md", "tools/arch/README.md"]);
     expect(linked.filter((path) => !existsSync(join(destination, path)))).toEqual([]);

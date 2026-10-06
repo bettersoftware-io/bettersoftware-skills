@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 // Stop hook: the agent may not finish while the project's gate is red.
 //
-// It runs the project's own script, the same command a person or CI runs, so
+// It runs the project's own script, the same commands a person or CI runs, so
 // there is one definition of "green": `gate:full` (what CI runs) when the
 // project has one, `gate:fast` otherwise. A red gate sends the output back as
 // the next instruction.
+//
+// The script is run through `gates/quiet.mts`, which runs the same commands
+// in the same order and prints only the stage that failed. What goes back to
+// the agent is the end of that output, so it is the failure, and not the
+// passing tests that happened to be printed last.
 //
 // The full gate takes minutes, so it is not run on a tree it has already
 // passed. After a green run the hook remembers a hash of every file git does
@@ -111,8 +116,20 @@ export function judgeStop(
   ].join("\n");
 }
 
+/** The quiet runner, in the copy of the kit this hook is in. */
+const QUIET_RUNNER = join(import.meta.dirname, "..", "gates", "quiet.mts");
+/** A failing stage may print a great deal; a full buffer would end the run and read as a failure of its own. */
+const MAX_OUTPUT_BYTES = 256 * 1024 * 1024;
+
 function runGate(root: string, script: string): GateRun {
-  const result = spawnSync("pnpm", ["--silent", "run", script], { cwd: root, encoding: "utf8", timeout: RUN_TIMEOUT_MS });
+  // On a timeout the runner is sent SIGTERM. It stops the stage in hand and
+  // prints what that stage had said so far, so the tail below is never empty.
+  const result = spawnSync(process.execPath, [QUIET_RUNNER, script, "--root", root], {
+    cwd: root,
+    encoding: "utf8",
+    timeout: RUN_TIMEOUT_MS,
+    maxBuffer: MAX_OUTPUT_BYTES,
+  });
 
   return {
     status: result.status ?? 1,

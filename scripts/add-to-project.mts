@@ -235,6 +235,16 @@ function setUpKit(project: string, repository: string): Pick<AddResult, "created
     packageChanges.push("package.json: scripts.gates");
   }
 
+  // The quiet form of a gate the project has. It names the gate and holds no
+  // list of its own, so it never needs editing when the gate changes.
+  for (const gate of ["gate:fast", "gate:full"]) {
+    if (manifest.scripts?.[gate] !== undefined && manifest.scripts[`${gate}:quiet`] === undefined) {
+      manifest.scripts = { ...manifest.scripts, [`${gate}:quiet`]: `node tools/arch/gates/quiet.mts ${gate}` };
+      writeProjectFile(project, "package.json", `${JSON.stringify(manifest, null, 2)}\n`);
+      packageChanges.push(`package.json: scripts.${gate}:quiet`);
+    }
+  }
+
   if (manifest.scripts?.["gate:fast"] === undefined) {
     notes.push('add a "gate:fast" script that runs the gates, lint and typecheck: the stop hook runs it, and so should CI');
   }
