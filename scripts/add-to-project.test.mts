@@ -711,6 +711,77 @@ describe("adding an add-on", () => {
     expect(read(project, ".claude/settings.json")).toBe("{ // the project's comment\n}\n");
     expect(result.settingsChanges).toEqual([]);
     expect(result.notes.join("\n")).toMatch(/\.claude\/settings\.json is not valid JSON.*nothing was merged.*Bash\(gh pr create \*\)/s);
+    expect(result.unmerged).toEqual(result.notes);
+  });
+
+  it.each([
+    ["nothing where the rules go", { permissions: null }, /^\.claude\/settings\.json: permissions is a value in the project and an object is needed there, so 1 entry was not merged: Bash\(gh pr create \*\)\. The project's value was left as it is: correct it by hand, then run this again$/],
+    ["text where the list of rules goes", { permissions: { allow: "Bash(x)" } }, /^\.claude\/settings\.json: permissions\.allow is a value in the project and a list is needed there, so 1 entry was not merged: Bash\(gh pr create \*\)\./],
+    ["an object where the list of hooks goes", { hooks: { PreToolUse: {} } }, /^\.claude\/settings\.json: hooks\.PreToolUse is an object in the project and a list is needed there, so 1 entry was not merged: node tools\/demo\/hook\.mts\./],
+  ])("says what was not merged when the project's settings hold %s, and merges the rest", (_name, settings, line) => {
+    const { repository, project } = createWorldWithKit();
+    withHostSettings(repository);
+    write(project, ".claude/settings.json", `${JSON.stringify(settings)}\n`);
+
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(result.unmerged).toHaveLength(1);
+    expect(result.unmerged[0]).toMatch(line);
+    expect(result.notes).toEqual(result.unmerged);
+    expect(result.settingsChanges).toHaveLength(1);
+    expect(readJson(project, ".claude/settings.json")).toMatchObject(settings);
+  });
+
+  it("has nothing unmerged when every entry went in", () => {
+    const { repository, project } = createWorldWithKit();
+    withHostSettings(repository);
+    write(project, ".claude/settings.json", `${JSON.stringify(createProjectSettings())}\n`);
+
+    expect(addToProject({ project, unit: "demo", repository }).unmerged).toEqual([]);
+    expect(addToProject({ project, unit: "kit", repository }).unmerged).toEqual([]);
+  });
+
+  it("says a file the add-on no longer reads is still there, and writes the starting file that took its place", () => {
+    const { repository, project } = createWorldWithKit();
+    withRetiredFile(repository);
+    addToProject({ project, unit: "demo", repository });
+    rmSync(join(project, "tools/demo.config.json"));
+    write(project, "tools/demo.config.mts", "export const on = true;\n");
+
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(result.created).toEqual(["tools/demo.config.json"]);
+    expect(read(project, "tools/demo.config.json")).toBe('{ "on": false }\n');
+    expect(read(project, "tools/demo.config.mts")).toBe("export const on = true;\n");
+    expect(result.notes).toEqual(["tools/demo.config.mts is no longer read: tools/demo.config.json took its place, and was written as the add-on ships it. Move your choice over."]);
+    expect(result.unmerged).toEqual([]);
+  });
+
+  it("does not write over the file that took its place, and says nothing once the old one is gone", () => {
+    const { repository, project } = createWorldWithKit();
+    withRetiredFile(repository);
+    addToProject({ project, unit: "demo", repository });
+    write(project, "tools/demo.config.json", '{ "on": true }\n');
+    write(project, "tools/demo.config.mts", "export const on = true;\n");
+
+    const result = addToProject({ project, unit: "demo", repository });
+
+    expect(result.created).toEqual([]);
+    expect(read(project, "tools/demo.config.json")).toBe('{ "on": true }\n');
+    expect(result.notes).toEqual(["tools/demo.config.mts is no longer read: tools/demo.config.json took its place. Move your choice over."]);
+
+    rmSync(join(project, "tools/demo.config.mts"));
+
+    expect(addToProject({ project, unit: "demo", repository }).notes).toEqual([]);
+  });
+
+  it("refuses a retired file that is a link out of the project, before anything is written", () => {
+    const { repository, project } = createWorldWithKit();
+    withRetiredFile(repository);
+    symlinkSync(tmpdir(), join(project, "tools/demo.config.mts"));
+
+    expect(() => addToProject({ project, unit: "demo", repository })).toThrow(/outside the project, or reaches it through a link/);
+    expect(existsSync(join(project, "tools/demo/check.mts"))).toBe(false);
   });
 
   it("goes on, and says what is missing, when the host does not let its settings file be written", () => {
@@ -832,6 +903,16 @@ function withStartingFiles(repository: string): void {
   write(repository, "addons/demo/addon.json", JSON.stringify(manifest));
   write(repository, "addons/demo/files/packages/web/tests/scenarios.ts", "// scenarios, as shipped\n");
   write(repository, "addons/demo/files/packages/web/tests/goldens/a.png", "an image, as shipped");
+}
+
+/** Gives the demo add-on a setting file, and the name of the file that held the setting before. */
+function withRetiredFile(repository: string): void {
+  const manifest = readJson(repository, "addons/demo/addon.json");
+
+  manifest.startingFiles = ["tools/demo.config.json"];
+  manifest.retiredFiles = { "tools/demo.config.mts": { replacedBy: "tools/demo.config.json", note: "Move your choice over." } };
+  write(repository, "addons/demo/addon.json", JSON.stringify(manifest));
+  write(repository, "addons/demo/files/tools/demo.config.json", '{ "on": false }\n');
 }
 
 /** Gives the demo add-on a permission rule and a hook to merge into Claude Code's settings. */

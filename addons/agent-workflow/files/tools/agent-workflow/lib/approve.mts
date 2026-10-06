@@ -28,6 +28,10 @@
 // `head` with a count. A variable, a glob, a backtick, a substitution, a
 // heredoc, a redirection to a file, a new line outside quotes, `&&` or `;`:
 // the reader has no token for them, so the command is not approved.
+//
+// A shape is words. What the words would do is asked afterwards, of git and
+// of GitHub, by the hook (`push.mts`, `pull-request.mts`): this file never
+// leaves the text.
 
 export type TokenKind = "bare" | "single" | "double" | "mark";
 
@@ -48,7 +52,7 @@ const MARK = /^(?:2>&1|\|)/;
 const GAP = /^[ \t]+/;
 
 /** One name after `worktree-`: letters and digits, joined by single `.`, `_` or `-`. */
-const WORK_BRANCH = /^worktree-[A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*$/;
+export const WORK_BRANCH = /^worktree-[A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*$/;
 const BASE_BRANCH = /^[A-Za-z0-9]+(?:[._/-][A-Za-z0-9]+)*$/;
 const LONGEST_BRANCH = 100;
 /** Longer than any real title and body together. Past it nothing is read. */
@@ -104,8 +108,19 @@ function readToken(text: string): (Token & { length: number }) | undefined {
   return undefined;
 }
 
+/** One of the three steps, with the parts of it that are checked against the repository afterwards. */
+export type Shape =
+  | { step: "push"; branch: string; says: string }
+  | { step: "create"; head: string; says: string }
+  | { step: "merge"; number: string; commit: string; says: string };
+
 /** What is approved, in words, or undefined when the command is not one of the shapes. */
 export function approvedShape(command: string): string | undefined {
+  return readShape(command)?.says;
+}
+
+/** The step a command is, or undefined when the command is not one of the shapes. */
+export function readShape(command: string): Shape | undefined {
   const tokens = readExact(command);
 
   if (tokens === undefined) {
@@ -143,7 +158,7 @@ function isOutputFilter(tokens: Token[]): boolean {
 }
 
 /** `git push [-u | --set-upstream] origin worktree-<name>`: those words and no other. */
-function pushOfWorkBranch(tokens: Token[]): string | undefined {
+function pushOfWorkBranch(tokens: Token[]): Shape | undefined {
   if (tokens.some((token) => token.kind !== "bare")) {
     return undefined;
   }
@@ -158,7 +173,7 @@ function pushOfWorkBranch(tokens: Token[]): string | undefined {
     words[2 + upstream] === "origin" &&
     branch.length <= LONGEST_BRANCH &&
     WORK_BRANCH.test(branch)
-    ? `a push of the work branch ${branch} to origin`
+    ? { step: "push", branch, says: `a push of the work branch ${branch} to origin` }
     : undefined;
 }
 
@@ -169,12 +184,19 @@ interface Flag {
   value?: (token: Token) => boolean;
 }
 
+const isWorkBranch = (token: Token): boolean => token.kind === "bare" && token.value.length <= LONGEST_BRANCH && WORK_BRANCH.test(token.value);
+/** A whole commit name: forty hexadecimal digits, as `git rev-parse` prints them. */
+const isCommit = (token: Token): boolean => token.kind === "bare" && /^[0-9a-f]{40}$/.test(token.value);
 const isText = (token: Token): boolean => token.kind === "single" || token.kind === "double" || token.kind === "bare";
 
 // Left out on purpose. `--body-file` and `--template` post the content of any
 // file this machine can read. `--repo` aims the call at another repository.
 // `--web` and `--editor` wait for a person. `--reviewer`, `--assignee`,
 // `--label`, `--milestone` and `--project` notify or change other things.
+//
+// `--head` is required. Without it `gh` works out the branch itself, and
+// pushes it when it is not on GitHub yet: a second push, to a remote of its
+// own choosing, that no check here would have seen.
 const CREATE_FLAGS: Record<string, Flag> = {
   "--title": { name: "--title", value: isText },
   "-t": { name: "--title", value: isText },
@@ -182,8 +204,8 @@ const CREATE_FLAGS: Record<string, Flag> = {
   "-b": { name: "--body", value: isText },
   "--base": { name: "--base", value: (token) => token.kind === "bare" && BASE_BRANCH.test(token.value) },
   "-B": { name: "--base", value: (token) => token.kind === "bare" && BASE_BRANCH.test(token.value) },
-  "--head": { name: "--head", value: (token) => token.kind === "bare" && WORK_BRANCH.test(token.value) },
-  "-H": { name: "--head", value: (token) => token.kind === "bare" && WORK_BRANCH.test(token.value) },
+  "--head": { name: "--head", value: isWorkBranch },
+  "-H": { name: "--head", value: isWorkBranch },
   "--draft": { name: "--draft" },
   "-d": { name: "--draft" },
   "--fill": { name: "--fill" },
@@ -194,7 +216,13 @@ const CREATE_FLAGS: Record<string, Flag> = {
 // safety, so each is approved, one at a time. Left out on purpose: `--admin`
 // merges past the branch's protections; `--repo` aims at another repository;
 // `--auto` and `--disable-auto` move the merge to a later time when nobody is
-// looking at what was pushed since; `--body-file` posts any file.
+// looking at what was pushed since; `--body-file` posts any file;
+// `--delete-branch` also changes this checkout (it switches branch and
+// pulls), which runs the repository's own hooks and filters.
+//
+// `--match-head-commit` is required. GitHub then merges that commit or
+// nothing, so what the hook checked is what is merged, whatever is pushed to
+// the branch in between.
 const MERGE_FLAGS: Record<string, Flag> = {
   "--merge": { name: "method" },
   "-m": { name: "method" },
@@ -202,37 +230,38 @@ const MERGE_FLAGS: Record<string, Flag> = {
   "-s": { name: "method" },
   "--rebase": { name: "method" },
   "-r": { name: "method" },
-  "--delete-branch": { name: "--delete-branch" },
-  "-d": { name: "--delete-branch" },
+  "--match-head-commit": { name: "--match-head-commit", value: isCommit },
   "--subject": { name: "--subject", value: isText },
   "-t": { name: "--subject", value: isText },
   "--body": { name: "--body", value: isText },
   "-b": { name: "--body", value: isText },
 };
 
-/** `gh pr create` with flags from the table, each at most once. */
-function pullRequestCreation(tokens: Token[]): string | undefined {
-  return startsWith(tokens, ["gh", "pr", "create"]) && hasOnlyFlags(tokens.slice(3), CREATE_FLAGS) ? "opening a pull request" : undefined;
+/** `gh pr create` with flags from the table, each at most once, `--head` among them. */
+function pullRequestCreation(tokens: Token[]): Shape | undefined {
+  const head = startsWith(tokens, ["gh", "pr", "create"]) ? readFlags(tokens.slice(3), CREATE_FLAGS)?.get("--head") : undefined;
+
+  return head === undefined ? undefined : { step: "create", head, says: "opening a pull request" };
 }
 
-/** `gh pr merge <number>` with flags from the table, each at most once. */
-function pullRequestMerge(tokens: Token[]): string | undefined {
+/** `gh pr merge <number>` with flags from the table, each at most once, `--match-head-commit` among them. */
+function pullRequestMerge(tokens: Token[]): Shape | undefined {
   const number = tokens[3];
+  const commit =
+    startsWith(tokens, ["gh", "pr", "merge"]) && number?.kind === "bare" && /^[1-9]\d*$/.test(number.value)
+      ? readFlags(tokens.slice(4), MERGE_FLAGS)?.get("--match-head-commit")
+      : undefined;
 
-  return startsWith(tokens, ["gh", "pr", "merge"]) &&
-    number?.kind === "bare" &&
-    /^[1-9]\d*$/.test(number.value) &&
-    hasOnlyFlags(tokens.slice(4), MERGE_FLAGS)
-    ? `merging pull request ${number.value}`
-    : undefined;
+  return number === undefined || commit === undefined ? undefined : { step: "merge", number: number.value, commit, says: `merging pull request ${number.value}` };
 }
 
 function startsWith(tokens: Token[], words: string[]): boolean {
   return words.every((word, index) => tokens[index]?.kind === "bare" && tokens[index]?.value === word);
 }
 
-function hasOnlyFlags(tokens: Token[], flags: Record<string, Flag>): boolean {
-  const seen = new Set<string>();
+/** The flags given, by long name, each with its value ("" for a flag that takes none). Undefined when anything is not a flag of the table. */
+function readFlags(tokens: Token[], flags: Record<string, Flag>): Map<string, string> | undefined {
+  const seen = new Map<string, string>();
 
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index] as Token;
@@ -240,10 +269,10 @@ function hasOnlyFlags(tokens: Token[], flags: Record<string, Flag>): boolean {
     const flag = token.kind === "bare" && Object.hasOwn(flags, token.value) ? flags[token.value] : undefined;
 
     if (flag === undefined || seen.has(flag.name)) {
-      return false;
+      return undefined;
     }
 
-    seen.add(flag.name);
+    seen.set(flag.name, "");
 
     if (flag.value !== undefined) {
       index += 1;
@@ -251,10 +280,12 @@ function hasOnlyFlags(tokens: Token[], flags: Record<string, Flag>): boolean {
       const value = tokens[index];
 
       if (value === undefined || !flag.value(value)) {
-        return false;
+        return undefined;
       }
+
+      seen.set(flag.name, value.value);
     }
   }
 
-  return true;
+  return seen;
 }

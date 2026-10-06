@@ -27,9 +27,46 @@ describe("merging an add-on's entries into a host's settings", () => {
     expect(added).toEqual([]);
   });
 
-  it("keeps the project's value where the two are of different kinds", () => {
-    expect(mergeSettings({ permissions: "all" }, { permissions: { allow: ["x"] } })).toEqual({ merged: { permissions: "all" }, added: [] });
-    expect(mergeSettings({ hooks: { Stop: "none" } }, { hooks: { Stop: [createGroup("node a.mts")] } }).added).toEqual([]);
+  it("keeps the project's value where the two are of different kinds, and says what was left out there", () => {
+    expect(mergeSettings({ permissions: "all" }, { permissions: { allow: ["x"] } })).toEqual({
+      merged: { permissions: "all" },
+      added: [],
+      skipped: ["permissions is a value in the project and an object is needed there, so 1 entry was not merged: x"],
+    });
+    expect(mergeSettings({ hooks: { Stop: "none" } }, { hooks: { Stop: [createGroup("node a.mts")] } })).toEqual({
+      merged: { hooks: { Stop: "none" } },
+      added: [],
+      skipped: ["hooks.Stop is a value in the project and a list is needed there, so 1 entry was not merged: node a.mts"],
+    });
+  });
+
+  it.each([
+    ["nothing where an object is needed", { permissions: null }, "permissions is a value in the project and an object is needed there, so 2 entries were not merged: Bash(a); Bash(b)"],
+    ["text where a list is needed", { permissions: { ask: "Bash(x)" } }, "permissions.ask is a value in the project and a list is needed there, so 2 entries were not merged: Bash(a); Bash(b)"],
+    ["an object where a list is needed", { permissions: { ask: {} } }, "permissions.ask is an object in the project and a list is needed there, so 2 entries were not merged: Bash(a); Bash(b)"],
+    ["a list where an object is needed", { permissions: [] }, "permissions is a list in the project and an object is needed there, so 2 entries were not merged: Bash(a); Bash(b)"],
+  ])("names the place and every entry left out when the project has %s", (_name, project, line) => {
+    const { merged, added, skipped } = mergeSettings(project, { permissions: { ask: ["Bash(a)", "Bash(b)"] } });
+
+    expect(merged).toEqual(project);
+    expect(added).toEqual([]);
+    expect(skipped).toEqual([line]);
+  });
+
+  it("names a hook that was left out by its command, and still merges everything beside it", () => {
+    const { merged, added, skipped } = mergeSettings(
+      { hooks: { PreToolUse: {} } },
+      { permissions: { ask: ["Bash(a)"] }, hooks: { PreToolUse: [createGroup("node split.mts", "Bash")] } },
+    );
+
+    expect(merged).toEqual({ hooks: { PreToolUse: {} }, permissions: { ask: ["Bash(a)"] } });
+    expect(added).toEqual(["permissions.ask: Bash(a)"]);
+    expect(skipped).toEqual(["hooks.PreToolUse is an object in the project and a list is needed there, so 1 entry was not merged: node split.mts"]);
+  });
+
+  it("skips nothing where both have a plain value, or both a list, or both an object", () => {
+    expect(mergeSettings({ model: "opus", a: [1], b: { c: 1 } }, { model: "haiku", a: [1], b: { c: 2 } }).skipped).toEqual([]);
+    expect(mergeSettings({ model: ["opus"] }, { model: "haiku" }).skipped).toEqual([]);
   });
 
   it("never removes a rule, a hook or a key the project has", () => {

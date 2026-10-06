@@ -5,7 +5,7 @@
 // be a tool call of its own, so that the permission prompt it raises names
 // what is being approved and nothing else waits behind it.
 
-import { parseShell, type Script, ShellError, type Stage } from "./shell.mts";
+import { DEEPEST_NESTING, LimitError, parseShell, type Script, ShellError, type Stage } from "./shell.mts";
 
 /** `gh <group> <action>` pairs that write. Every other pair reads. */
 const GH_OUTWARD: Record<string, string[]> = {
@@ -35,7 +35,8 @@ export interface Verdict {
 
 /**
  * Judges one command line. Undefined when it cannot be read: then this has no
- * verdict, and the host's own permission rules are the only judge.
+ * verdict, and the host's own permission rules are the only judge. Throws
+ * `LimitError` for a command it will not read: too long, or nested too deep.
  */
 export function judgeCommand(command: string): Verdict | undefined {
   try {
@@ -49,7 +50,12 @@ export function judgeCommand(command: string): Verdict | undefined {
   }
 }
 
-function judgeScript(script: Script): Verdict {
+function judgeScript(script: Script, depth = 0): Verdict {
+  // `bash -c "bash -c '…'"`: each level is read by a reader of its own, so the reader's bound does not count them.
+  if (depth > DEEPEST_NESTING) {
+    throw new LimitError(`the command nests commands more than ${DEEPEST_NESTING} deep`);
+  }
+
   const outward: string[] = [];
   let chained = false;
   let steps = 0;
@@ -70,7 +76,7 @@ function judgeScript(script: Script): Verdict {
       const inline = inlineScript(words);
 
       if (inline !== undefined) {
-        const inner = judgeScript(inline);
+        const inner = judgeScript(inline, depth + 1);
 
         outward.push(...inner.outward);
         chained ||= inner.chained;
@@ -79,7 +85,7 @@ function judgeScript(script: Script): Verdict {
   }
 
   for (const nested of script.nested) {
-    const inner = judgeScript(nested);
+    const inner = judgeScript(nested, depth + 1);
 
     outward.push(...inner.outward);
     chained ||= inner.chained;
@@ -89,6 +95,15 @@ function judgeScript(script: Script): Verdict {
   // only feeds it, is still one step. Two of them, or one beside any other
   // step, is a chain.
   return { outward, chained: chained || (outward.length > 0 && (steps > 1 || outward.length > 1)) };
+}
+
+/**
+ * Whether the text holds a word an outward step is written with. Asked only
+ * about a command that was not read, where the choice is between refusing a
+ * command that may be local and letting a chain through unread.
+ */
+export function mentionsOutward(text: string): boolean {
+  return /(?:^|[^A-Za-z0-9_-])(?:push|gh)(?:$|[^A-Za-z0-9_-])/.test(text);
 }
 
 /** The command's own words: no `VAR=value` in front, no `then`, `time` or `env`. */

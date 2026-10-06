@@ -4,8 +4,11 @@
 
 export const HOOK_SCRIPT = "tools/agent-workflow/hooks/split-outward-commands.mts";
 
-/** The project's one setting: whether the hook may approve. */
-export const CONFIG_FILE = "tools/agent-workflow.config.mts";
+/** The project's setting: what the hook may approve. Data, never code. */
+export const CONFIG_FILE = "tools/agent-workflow.config.json";
+
+/** Where the setting was until it became data. The hook no longer reads it. */
+export const RETIRED_CONFIG_FILE = "tools/agent-workflow.config.mts";
 
 /** Given to the hook only by a host that takes an approval from a hook. The same text is in the hook itself. */
 export const APPROVING_HOST = "--host=claude-code";
@@ -34,6 +37,18 @@ export const ASK_RULES = [
   "Bash(git push *--prune*)",
   "Bash(gh pr merge *--admin*)",
 ];
+
+/**
+ * Always ask before an editing tool changes the hook or its setting. An
+ * `Edit` rule is the one Claude Code reads for every built-in tool that edits
+ * a file; a leading `/` is the project's root. A shell command that writes
+ * the same files (`sed -i`, a redirection, `git checkout`) is not an editing
+ * tool, and no rule here sees it.
+ */
+export const EDIT_ASK_RULES = ["Edit(/tools/agent-workflow/**)", "Edit(/tools/agent-workflow.config.json)"];
+
+/** How long Claude Code gives the hook, in seconds. A merge is checked with two reads of GitHub, ten seconds each at most. */
+export const HOOK_SECONDS = 30;
 
 /** An `allow` rule with a `*` for one of the steps the hook approves by shape: it approves more than the shape. */
 export const WIDE_ALLOW = /^Bash\((?:git push|gh pr create|gh pr merge)\b.*\*.*\)$/;

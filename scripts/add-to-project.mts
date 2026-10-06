@@ -12,6 +12,11 @@
 // config, an add-on's starting files) is never overwritten at all. When the
 // template of one changed, the update says so under "Yours to change": which
 // file, what changed, and what to do. See `lib/templates.mts`.
+//
+// Exit 0: everything went in. Exit 1: refused, and nothing was changed.
+// Exit 3: the unit went in, but entries it needs in a host's settings file
+// did not, because that file is not JSON or holds a value of another kind
+// there. The summary lists them under "Not merged".
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -98,6 +103,8 @@ export interface AddResult {
   created: string[];
   /** What is still to be done by hand. */
   notes: string[];
+  /** Entries a host's settings file needed and did not get, because of what the project's file holds. Each is also a note. */
+  unmerged: string[];
   /** The project's own files whose template this update changed. None was touched. */
   yours: OwnedChange[];
   /** Gates this update of the kit brought, each with the options of the architecture config it reads. */
@@ -137,6 +144,14 @@ interface AddonManifest {
    * `lib/host-settings.mts`.
    */
   hostSettings?: Record<string, Json>;
+  /**
+   * Files an older version of the add-on had the project own and no longer
+   * reads, keyed by path. When one is still in the project, the installer
+   * says so with `note`, and writes the starting file that took its place
+   * (`replacedBy`) if the project does not have it: an update must not leave
+   * a setting silently unread.
+   */
+  retiredFiles?: Record<string, { replacedBy: string; note: string }>;
   /** True for an add-on a new project should take unless it has a reason not to. */
   recommended?: boolean;
 }
@@ -182,6 +197,7 @@ export function addToProject({ project, unit, force = false, scope, repository =
       files: outcome,
       agents: "none",
       settingsChanges: [],
+      unmerged: [],
       // A file the setup has just written from the new template has nothing left to change.
       yours: findOwnedChanges(destination, KIT_TEMPLATES, templatesBefore, outcome.written).filter(({ owned }) => !setup.created.includes(owned)),
       // A project whose kit had no list has nothing to compare with: every gate would read as new.
@@ -217,7 +233,7 @@ export function addToProject({ project, unit, force = false, scope, repository =
   const templates = keepTemplates(files, starting, unit);
   const templatesBefore = readTemplates(destination, templates);
 
-  for (const path of starting.keys()) {
+  for (const path of [...starting.keys(), ...Object.keys(manifest.retiredFiles ?? {})]) {
     assertInside(destination, path);
   }
 
@@ -231,6 +247,24 @@ export function addToProject({ project, unit, force = false, scope, repository =
     }
   }
 
+  const retired: string[] = [];
+
+  for (const [path, { replacedBy, note }] of Object.entries(manifest.retiredFiles ?? {})) {
+    if (!existsSync(join(destination, path))) {
+      continue;
+    }
+
+    const content = starting.get(replacedBy);
+    const written = content !== undefined && !existsSync(join(destination, replacedBy));
+
+    if (written) {
+      writeProjectFile(destination, replacedBy, content);
+      created.push(replacedBy);
+    }
+
+    retired.push(`${path} is no longer read: ${replacedBy} took its place${written ? ", and was written as the add-on ships it" : ""}. ${note}`);
+  }
+
   for (const { path, json } of packagePlan.writes) {
     writeProjectFile(destination, path, `${JSON.stringify(json, null, 2)}\n`);
   }
@@ -241,7 +275,8 @@ export function addToProject({ project, unit, force = false, scope, repository =
     : "none";
 
   const notes = [
-    ...settingsPlan.notes,
+    ...settingsPlan.unmerged,
+    ...retired,
     ...outcome.refused.map(
       (path) => `${path} could not be written: the host this ran under keeps that folder read-only. Outside it, run this script again`,
     ),
@@ -266,6 +301,7 @@ export function addToProject({ project, unit, force = false, scope, repository =
     agents,
     created,
     notes,
+    unmerged: settingsPlan.unmerged,
     yours: findOwnedChanges(destination, templates, templatesBefore, outcome.written),
     newGates: [],
     firstRun: manifest.firstRun,
@@ -275,7 +311,8 @@ export function addToProject({ project, unit, force = false, scope, repository =
 
 interface SettingsPlan {
   writes: { path: string; content: string; added: string[] }[];
-  notes: string[];
+  /** What a settings file needed and did not get, each with what to add by hand. */
+  unmerged: string[];
 }
 
 /**
@@ -285,7 +322,7 @@ interface SettingsPlan {
  * file is never replaced.
  */
 function planHostSettings(project: string, manifest: AddonManifest): SettingsPlan {
-  const plan: SettingsPlan = { writes: [], notes: [] };
+  const plan: SettingsPlan = { writes: [], unmerged: [] };
 
   for (const [path, wanted] of Object.entries(manifest.hostSettings ?? {})) {
     assertInside(project, path);
@@ -294,17 +331,19 @@ function planHostSettings(project: string, manifest: AddonManifest): SettingsPla
 
     try {
       const current = existsSync(file) ? parseSettings(readFileSync(file, "utf8"), path) : {};
-      const { merged, added } = mergeSettings(current, wanted);
+      const { merged, added, skipped } = mergeSettings(current, wanted);
 
       if (added.length > 0) {
         plan.writes.push({ path, content: `${JSON.stringify(merged, null, 2)}\n`, added });
       }
+
+      plan.unmerged.push(...skipped.map((entry) => `${path}: ${entry}. The project's value was left as it is: correct it by hand, then run this again`));
     } catch (error) {
       if (!(error instanceof SettingsError)) {
         throw error;
       }
 
-      plan.notes.push(`${error.message}, so nothing was merged into it. Add by hand: ${JSON.stringify(wanted)}`);
+      plan.unmerged.push(`${error.message}, so nothing was merged into it. Add by hand: ${JSON.stringify(wanted)}`);
     }
   }
 
@@ -700,8 +739,14 @@ function describe(result: AddResult, project: string): string {
     lines.push(`  ${result.agents === "added" ? "added  " : "updated"}  AGENTS.md: the section for ${result.unit}`);
   }
 
-  if (result.notes.length > 0) {
-    lines.push("", "Still to do by hand:", ...result.notes.map((note) => `  - ${note}`));
+  if (result.unmerged.length > 0) {
+    lines.push("", `Not merged: ${result.unmerged.length} place(s) in a host's settings file. The add-on is not whole until they are (exit 3):`, ...result.unmerged.map((entry) => `  - ${entry}`));
+  }
+
+  const notes = result.notes.filter((note) => !result.unmerged.includes(note));
+
+  if (notes.length > 0) {
+    lines.push("", "Still to do by hand:", ...notes.map((note) => `  - ${note}`));
   }
 
   lines.push(...describeYours(result));
@@ -776,7 +821,13 @@ if (isMainModule(import.meta.url)) {
   try {
     const options = parseArguments(argv);
 
-    console.log(describe(addToProject(options), options.project));
+    const result = addToProject(options);
+
+    console.log(describe(result, options.project));
+
+    if (result.unmerged.length > 0) {
+      process.exit(3);
+    }
   } catch (error) {
     console.error(error instanceof InstallError ? error.message : error);
     process.exit(1);
