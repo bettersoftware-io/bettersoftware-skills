@@ -37,8 +37,15 @@ on 2026-10-05, on pushes to main and on a pull request
   too), the pnpm store cache, `e2e.yml` in the Playwright container, and the
   Linux goldens unchanged by the compiler and the CSS tokens. Not run: the
   weekly tag workflow of `agent-workflow`.
-- **No job creates a project with several add-ons at once.** CI adds each one
-  alone. All nine together pass `gate:full` locally.
+- **The job that creates a project with every add-on has not run on GitHub.**
+  It is new (2026-10-06): all nine together, under the long scope and under
+  `@zeta`, with `gate:full` and the e2e specs. The same steps pass locally on
+  macOS.
+- **The starter's `linux-x64` goldens were not redrawn or compared after the
+  visual host changed.** No container could be run where the change was
+  made. The `darwin-arm64` set matched with both knobs at 0, and the host
+  delivers the same state in the same order, so no pixel should move; the
+  `Visual goldens` workflow in a project is what will show it.
 - **Nothing here has run on Linux outside GitHub's CI,** and nothing through
   a real `docker build`. The Dockerfile check was compared with BuildKit's own
   parser, built from source; the `e2e` workflow and its container have not run.
@@ -60,34 +67,6 @@ on 2026-10-05, on pushes to main and on a pull request
   (`ubuntu-24.04`) or to move with the label. Either way, re-run this
   repository's CI once the change lands. The visual tests are the least
   exposed, since they run inside a pinned Playwright container.
-
-## Found by the demo's first update
-
-skills-demo took every change since 2026-10-05 in one update
-([the pull request](https://github.com/bettersoftware-io/skills-demo/pull/9)).
-What that showed in this repository, none fixed yet:
-
-- **The visual host is the add-on's file, and a feature has to edit it.**
-  `tests/visual/host/main.tsx` holds how a scenario becomes app state. The
-  demo's own scenarios needed sixty lines there, so every update of `visual`
-  refuses, needs `--force`, and the lines are put back by hand. It needs a
-  seeding file the project owns.
-- **A project from before templates were kept is told almost nothing by a kit
-  update.** The Node floor, the hash on pnpm, `--max-warnings 0`, the `#/`
-  alias, the workspace settings and the new config options showed only as
-  gate failures, or by comparing with the starter. `SECURITY.md` was not
-  written and nothing said so. A stylelint config still extending the old
-  preset left the token rule off.
-- **`e2e`'s package.json is out of order for a scope that sorts after
-  `@playwright`**, so `repo-hygiene` fails `gate:fast` on a new project.
-  CI's long scope sorts before it and does not show this.
-- **An `e2e` mode's server gives one address.** A server with two protocols
-  on one port needed its host and port taken apart by hand.
-- **Two `vendorOnlyIn` entries can get one rule name** (`hono` and `@hono/`),
-  so a finding may carry the other entry's message.
-- **`lint:types` reads files git ignores.** A local tool's folder failed it.
-- **The fixers have to be run in turn.** The formatter rewraps, which makes
-  new blank-line findings for `eslint --fix`; two rounds settled it.
 
 ## Open decisions
 
@@ -139,9 +118,34 @@ What that showed in this repository, none fixed yet:
   the same code path.
 - **The quiet gate copies the environment pnpm 12.6 gives a script.** A later
   pnpm may set more; the test that compares the two runs would show it.
-- **A kit update tells a project about a changed template once**, and only
-  from the first update after the one that brought the template copies. A
-  project older than that is not told what changed before.
+- **An update says a thing once.** A changed template, a file compared with a
+  template the project never had a copy of, a starting file it lacks, the
+  list of all gates for a project that kept none: each is said by the update
+  that finds it. `add-to-project.mts <project> --compare` shows where the
+  project's own files stand at any time.
+- **A project that did not start from the starter gets long differences on
+  its first kit update**: its `package.json` and its workflow share little
+  with the starter's. Each is cut at thirty lines.
+- **The lint reads only where it is told the code is.** A new folder of code
+  at the project root is not linted until it is named under `codeFolders`
+  in `architecture.config.mts`. Nothing fails to say so; `AGENTS.md` and the
+  kit's README do.
+- **Only ESLint was given that list.** Biome still reads every root folder
+  outside its own exclusions and leaves out what `.gitignore` names; the CSS
+  lint and the doc-link check walk the project and drop what git ignores
+  (`git check-ignore`); knip reads the workspaces its config names. So a
+  stray, unformatted `scratch/x.ts` at the root still fails `biome:check`,
+  and a file in a package that a `.gitignore` names is passed over by
+  Biome, the CSS lint and the doc-link check. ESLint, the typed lint and the
+  gates do judge it. Both were so before 2026-10-06.
+- **The `typescript-only` gate walks the whole project.** A stray `.js` file
+  in a folder such as `.remember/` fails it. A `.ts` file there fails
+  nothing.
+- **The `performance` add-on's static check and the `visual` add-on's server
+  check walk the project by their own closed lists.** Neither was looked at
+  for stray root folders.
+- **`e2e`'s 175 mutants were not all run again.** The 18 that the host and
+  port added or rewrote were, and the 14 application mutants were.
 - **Without `format-lint`, nothing bans an import that climbs two folders.**
   The ban is Biome's; ESLint has no twin of it.
 - **`allowBuilds` names esbuild, which nothing in the starter installs** (Vite
@@ -149,12 +153,12 @@ What that showed in this repository, none fixed yet:
 
 - **A new project's formatting depends on its scope's length.** The starter is
   written with `@app`; a longer scope pushes some import lines past the
-  formatter's width. So `format-lint` asks for its fixer to be run once after
+  formatter's width. So `format-lint` asks for `pnpm fix` to be run once after
   installing (`firstRun`), and the scripts print it under "Next". Until it is
   run, `biome:check` fails on a project with a long scope.
-- **`strict-lint`'s knip settings are held by local runs, not by CI, for
-  combinations of add-ons.** One finding appeared only with `visual` and
-  without `performance`. CI adds each add-on alone.
+- **`strict-lint`'s knip settings are held for each add-on alone and for all
+  nine together, not for the combinations between.** One finding appeared
+  only with `visual` and without `performance`.
 - **A file with no export inside a library package is never reported as
   unused** by `strict-lint`: the package's exports map makes every source file
   an entry.
