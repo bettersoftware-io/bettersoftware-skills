@@ -21,10 +21,16 @@ const config: ArchitectureConfig = {
     "packages/shared": { role: "shared", noNodeBuiltins: true },
     "packages/client-core": { role: "core", noNodeBuiltins: true },
     "packages/react-bindings": { role: "bindings", noNodeBuiltins: true },
+    // `reactCompiler` says the client's build runs the React Compiler, which
+    // is why its source may not use useMemo, useCallback or memo.
+    // `compilerTracked` lists what relies on that: `pnpm check:compiler`
+    // fails when the compiler stops memoizing one of them.
     "packages/client-react": {
       role: "client",
       entry: ["main.tsx", "index.css", "*.d.ts"],
       noNodeBuiltins: true,
+      reactCompiler: true,
+      compilerTracked: [{ file: "src/ui/PriceList.tsx", fn: "PriceRowView" }],
     },
     "packages/server": { role: "server" },
     "packages/integration": { role: "integration" },

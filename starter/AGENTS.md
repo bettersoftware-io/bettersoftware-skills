@@ -8,7 +8,7 @@ The rules below are enforced by checks, not by convention.
 ```bash
 pnpm dev          # the React client on the in-browser simulator (no server)
 pnpm dev:fs       # the server and the client together
-pnpm gate:fast    # architecture gates, lint, typecheck: seconds, for while you work
+pnpm gate:fast    # architecture gates, React checks, lint, typecheck: seconds, for while you work
 pnpm gate:full    # gate:fast, then tests and the build: what CI runs
 pnpm test
 ```
@@ -149,6 +149,36 @@ so the deploy fails with every check green. The `node-floor` gate holds both.
 - No `style={{ … }}` in a component: styling goes in a stylesheet, by class.
 - `packages/react-bindings` uses no `useMemo`, `useCallback` or `memo`. Logic
   that needs one belongs in the core.
+- `packages/client-react` uses none of the three either, for another reason:
+  the React Compiler memoizes at build time. Write the plain value, and a
+  function declaration for a callback.
+
+## The React Compiler
+
+The client's build runs the React Compiler
+(`packages/client-react/vite.config.ts`). It skips a function it cannot
+compile and says nothing, so two checks in `gate:fast` hold it:
+
+- `pnpm check:react-policies` fails when `reactCompiler` in
+  `architecture.config.mts` and the build disagree, and when a package that
+  imports React is not under the lint rules for its role.
+- `pnpm check:compiler` compiles each function listed under `compilerTracked`
+  in `architecture.config.mts` and fails when one is no longer memoized.
+
+What no check decides:
+
+- **A component that reads the view model is not compiled.** Its hooks come
+  out of a value (`const { usePrices } = useViewModel()`), and the compiler
+  skips such a function. Keep that component thin: it reads, and hands plain
+  props to components that take only props. Those are compiled.
+  `packages/client-react/src/ui/PriceList.tsx` shows both.
+- **When to add an entry to `compilerTracked`.** When a component depends on
+  the compiler to keep something stable or cheap: a costly derived value, a
+  callback a child compares. Skip it for a component whose render is cheap
+  anyway.
+- **When the compiler cannot do it** (an identity a library needs to stay the
+  same, in a function the compiler skips): say so and ask. Do not switch the
+  lint rule off to add a `useMemo`.
 
 ## Imports inside a package
 

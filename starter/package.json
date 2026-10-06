@@ -19,7 +19,9 @@
     "test": "turbo run test",
     "lint": "eslint --flag unstable_native_nodejs_ts_config --max-warnings 0 .",
     "gates": "node tools/arch/gates/run.mts",
-    "gate:fast": "pnpm gates && pnpm lint && pnpm typecheck",
+    "check:react-policies": "node tools/arch/check-react-policies.mts",
+    "check:compiler": "node tools/arch/check-compiler.mts",
+    "gate:fast": "pnpm gates && pnpm check:react-policies && pnpm check:compiler && pnpm lint && pnpm typecheck",
     "gate:full": "pnpm gate:fast && pnpm test && pnpm build"
   },
   "devDependencies": {
