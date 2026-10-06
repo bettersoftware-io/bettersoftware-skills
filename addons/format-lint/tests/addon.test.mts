@@ -223,6 +223,7 @@ describe("the starter and the other add-ons", () => {
 
 describe("the scripts named by the tests", () => {
   it("are all the scripts the add-on adds", () => {
-    expect(Object.keys(readScripts()).sort()).toEqual([CHECK, FIX, FORMAT].sort());
+    // `fix` runs both fixers to a fixed point, and has tests of its own (fix.test.mts).
+    expect(Object.keys(readScripts()).sort()).toEqual([CHECK, FIX, FORMAT, "fix"].sort());
   });
 });

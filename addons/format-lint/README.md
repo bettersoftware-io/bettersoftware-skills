@@ -17,6 +17,7 @@ cd <project> && pnpm install && pnpm biome:check
 | Root config | `biome.json` | Only `extends` the base. A starting file: written once, then the project's own. A project adds, changes or switches off rules here |
 | `pnpm biome:check` | `biome ci --error-on-warnings .` | Fails on an unformatted file, unsorted imports, a lint error or a lint warning. Writes nothing. Joins `gate:fast`, and is the `verify` command |
 | `pnpm biome:fix` | `biome check --write .` | Formats, sorts imports, applies the fixes Biome calls safe |
+| `pnpm fix` | `tools/format-lint/fix.mts` | Runs Biome's fixer and `eslint --fix` in turn until neither changes a file. See "One command for both fixers" |
 | `pnpm biome:format` | `biome format --write .` | Formats only |
 | AGENTS section | `AGENTS.md` | When to run the fixer, and what to do when a rule seems wrong |
 
@@ -228,6 +229,44 @@ pass. The add-on alone, by the steps of this repository's CI job: passes.
 
 Not tested: the check on GitHub's runner, and on Windows or Linux at all.
 Biome ships a binary per platform; only the macOS arm64 one ran.
+
+## One command for both fixers
+
+A project has two tools that rewrite files, and each can make work for the
+other. In the demo's update it took two rounds by hand to settle.
+
+Which rules, measured on 2026-10-06 with Biome 2.5.14 and the kit's ESLint
+rules, on one file (`tests/fix.test.mts` holds it):
+
+| What one tool does | What the other then wants |
+|---|---|
+| Biome wraps a long declaration (width 80) | ESLint's `padding-line-between-statements`: a blank line between two declarations that span lines |
+| ESLint's `arrow-body-style` writes `{return x}` on one line; the kit's `one-import-per-module` joins two imports | Biome lays both out again, which can make the first row |
+
+No order settles in one pass. Biome first: Biome, ESLint, Biome. ESLint
+first: ESLint, Biome, ESLint. Both end on the same text, and each tool
+leaves that text alone, so the two configs agree; they only cannot get there
+in one step.
+
+`pnpm fix` runs the two in turn until each has seen the files and left them.
+It runs `eslint` with the arguments of the project's own `lint` script and
+`--fix`; when that script is not a plain `eslint …` call it runs Biome alone
+and says so.
+
+| Exit | Meaning |
+|---|---|
+| 0 | Settled, and neither tool has a finding left |
+| 1 | Settled, and findings are left that no fixer repairs. They are printed |
+| 2 | A tool could not run (not installed; ESLint could not load its config) |
+| 3 | Not settled: the files came back to a state they were in, or each fixer ran five times. The files still changing are named. That is a conflict between the two configs |
+
+`firstRun` is `pnpm fix`, so a new project is told to run it once after
+installing. A test holds the sample at its fixed point with the real tools:
+a change to either config that makes them disagree fails it.
+
+27 tests in `tests/fix.test.mts`; 23 mutants in `tests/mutants.json`, all
+killed (three survived a first run and showed a test that could not see
+them; each was pointed at the test that can, or the test was made literal).
 
 ## Limits
 

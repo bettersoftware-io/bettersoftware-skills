@@ -673,8 +673,14 @@ Limits:
 No rule here is a formatting rule, so there is nothing for
 `eslint-config-prettier` to switch off and the kit does not use it. Two rules
 add blank lines and one rewrites an arrow's body; a formatter keeps both.
-Run the formatter after `eslint --fix`: the fixer writes `{return x}` on one
-line and leaves the layout to it.
+
+Neither order of the two fixers settles in one pass. `eslint --fix` writes
+`{return x}` on one line and leaves the layout to the formatter; the
+formatter wraps a long declaration, and two that now span lines side by side
+need the blank line `padding-line-between-statements` asks for. Measured
+with Biome on one file that has both: three runs either way round, and the
+same text at the end. The `format-lint` add-on's `pnpm fix` runs the two in
+turn until neither changes a file.
 
 ## Hooks
 

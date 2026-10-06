@@ -40,5 +40,166 @@
     "find": "import \"#/index.css\";\nimport { App } from \"#/ui/App.tsx\";",
     "replace": "import { App } from \"#/ui/App.tsx\";\nimport \"#/index.css\";",
     "test": "pnpm vitest run addons/format-lint/tests/addon.test.mts -t \"finds nothing in what the visual add-on\""
+  },
+  {
+    "name": "fix: stops only when every fixer has seen the last change",
+    "file": "addons/format-lint/files/tools/format-lint/fix.mts",
+    "find": "  while (quiet < fixers.length && ",
+    "replace": "  while (quiet < 1 && ",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"does not stop while the other fixer has not seen the last change\""
+  },
+  {
+    "name": "fix: a change starts the count again",
+    "file": "addons/format-lint/files/tools/format-lint/fix.mts",
+    "find": "    quiet = changed.length === 0 ? quiet + 1 : 0;",
+    "replace": "    quiet = changed.length === 0 ? quiet + 1 : quiet;",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"does not stop while the other fixer has not seen the last change\""
+  },
+  {
+    "name": "fix: the fixers take turns",
+    "file": "addons/format-lint/files/tools/format-lint/fix.mts",
+    "find": "    const fixer = fixers[steps.length % fixers.length] as Fixer;",
+    "replace": "    const fixer = fixers[0] as Fixer;",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"stops once each fixer has seen the files and left them\""
+  },
+  {
+    "name": "fix: a state that comes back ends the run",
+    "file": "addons/format-lint/files/tools/format-lint/fix.mts",
+    "find": "    looped = changed.length > 0 && seen.has(digestOf(after));",
+    "replace": "    looped = false;",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"stops as soon as the files are back in a state they were in\""
+  },
+  {
+    "name": "fix: the cap",
+    "file": "addons/format-lint/files/tools/format-lint/fix.mts",
+    "find": "steps.length < maxRounds * fixers.length && !looped",
+    "replace": "steps.length < 1000 && !looped",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"takes the number of rounds it is given\""
+  },
+  {
+    "name": "fix: the cap is five rounds",
+    "file": "addons/format-lint/files/tools/format-lint/fix.mts",
+    "find": "export const MAX_ROUNDS = 5;",
+    "replace": "export const MAX_ROUNDS = 6;",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"gives up after each has run five times\""
+  },
+  {
+    "name": "fix: not settled is exit 3",
+    "file": "addons/format-lint/files/tools/format-lint/fix.mts",
+    "find": "  return !settled ? 3 : remaining.length > 0 ? 1 : 0;",
+    "replace": "  return !settled ? 1 : remaining.length > 0 ? 1 : 0;",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"stops as soon as the files are back in a state they were in\""
+  },
+  {
+    "name": "fix: findings left are exit 1",
+    "file": "addons/format-lint/files/tools/format-lint/fix.mts",
+    "find": "  return !settled ? 3 : remaining.length > 0 ? 1 : 0;",
+    "replace": "  return !settled ? 3 : 0;",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"are printed once the files have settled\""
+  },
+  {
+    "name": "fix: the files still changing are the last runs', not every file that changed",
+    "file": "addons/format-lint/files/tools/format-lint/fix.mts",
+    "find": "steps.slice(-fixers.length).flatMap(({ changed }) => changed)",
+    "replace": "steps.flatMap(({ changed }) => changed)",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"stops as soon as the files are back in a state they were in\""
+  },
+  {
+    "name": "fix: findings are a fixer's last word",
+    "file": "addons/format-lint/files/tools/format-lint/fix.mts",
+    "find": "lastRun.get(name)?.status === 0 ? [] :",
+    "replace": "false ? [] :",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"runs each fixer once on a project with nothing to fix\""
+  },
+  {
+    "name": "fix: changed means differs from the start",
+    "file": "addons/format-lint/files/tools/format-lint/fix.mts",
+    "find": "    changed: differing(start, now),",
+    "replace": "    changed: [...new Set(steps.flatMap((step) => step.changed))].sort(),",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"counts a file as changed by what it holds at the end\""
+  },
+  {
+    "name": "fix: installed folders are not read",
+    "file": "addons/format-lint/files/tools/format-lint/fix.mts",
+    "find": "      return SKIPPED_DIRECTORIES.has(entry.name) ? [] : walk(root, path);",
+    "replace": "      return walk(root, path);",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"sees a file a fixer made, and reads no installed or generated folder\""
+  },
+  {
+    "name": "fix: in a repository git says which files",
+    "file": "addons/format-lint/files/tools/format-lint/fix.mts",
+    "find": "  return listed.status === 0 ? listed.stdout.split(\"\\0\").filter(Boolean) : walk(root, \"\");",
+    "replace": "  return walk(root, \"\");",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"reads the files git lists, new ones included\""
+  },
+  {
+    "name": "fix: eslint runs with the lint script's own arguments",
+    "file": "addons/format-lint/files/tools/format-lint/fix.mts",
+    "find": "command: [ESLINT, ...rest.filter((part) => part !== \"--fix\"), \"--fix\"]",
+    "replace": "command: [ESLINT, \".\", \"--fix\"]",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"runs Biome, then ESLint with the arguments\""
+  },
+  {
+    "name": "fix: a lint script that is more than eslint is not given --fix",
+    "file": "addons/format-lint/files/tools/format-lint/fix.mts",
+    "find": "  if (program !== \"eslint\" || rest.some((part) => /[&|;<>$`]/.test(part))) {",
+    "replace": "  if (program !== \"eslint\") {",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"runs Biome alone, and says why, when the lint script is \\\"eslint . &&\""
+  },
+  {
+    "name": "fix: Biome alone is said",
+    "file": "addons/format-lint/files/tools/format-lint/fix.mts",
+    "find": "    ...(withoutEslint === undefined ? [] : [`fix: biome only",
+    "replace": "    ...(true ? [] : [`fix: biome only",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"says in what it prints that ESLint was not run\""
+  },
+  {
+    "name": "fix: a missing tool is not a pass",
+    "file": "addons/format-lint/files/tools/format-lint/fix.mts",
+    "find": "    if (!existsSync(join(root, program))) {",
+    "replace": "    if (false) {",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"is said, not passed over\""
+  },
+  {
+    "name": "fix: eslint's exit 2 is not a finding",
+    "file": "addons/format-lint/files/tools/format-lint/fix.mts",
+    "find": "    if (name === \"eslint\" && ran.status > 1) {",
+    "replace": "    if (name === \"eslint\" && ran.status > 2) {",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"is told from findings\""
+  },
+  {
+    "name": "fix: the script exits 2 when it could not run",
+    "file": "addons/format-lint/files/tools/format-lint/fix.mts",
+    "find": "    process.exit(2);\n  }\n}",
+    "replace": "    process.exit(0);\n  }\n}",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"stops the script with exit 2\""
+  },
+  {
+    "name": "fix: the add-on asks for it once after installing",
+    "file": "addons/format-lint/addon.json",
+    "find": "\"firstRun\": \"pnpm fix\",",
+    "replace": "\"firstRun\": \"pnpm biome:fix\",",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"adds the script, by plain node\""
+  },
+  {
+    "name": "fix: the agent is told the one command",
+    "file": "addons/format-lint/AGENTS.section.md",
+    "find": "Run `pnpm fix` after you finish editing",
+    "replace": "Run `pnpm biome:fix` after you finish editing",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"says so in the text an agent reads\""
+  },
+  {
+    "name": "fix: the two configs agree on the sample (the kit's blank line between two declarations that span lines)",
+    "file": "kit/eslint.config.mts",
+    "find": "            prev: [\"multiline-const\", \"multiline-let\", \"multiline-var\"],\n            next: [\"multiline-const\", \"multiline-let\", \"multiline-var\"],",
+    "replace": "            prev: [\"multiline-const\", \"multiline-let\", \"multiline-var\"],\n            next: [\"return\"],",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"need more than one pass in either order\""
+  },
+  {
+    "name": "fix: the two configs agree on the sample (Biome's width)",
+    "file": "addons/format-lint/files/tools/format-lint/biome.base.json",
+    "find": "\"lineWidth\": 80,",
+    "replace": "\"lineWidth\": 100,",
+    "test": "pnpm vitest run addons/format-lint/tests/fix.test.mts -t \"hold that text\""
   }
 ]
