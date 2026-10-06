@@ -15,8 +15,8 @@ directly by stripping the types, which needs Node 22.18 or later, and
 
 | Part | What it checks | Needs |
 |---|---|---|
-| `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction, the paths the agent instructions name, the task cache, every package's scripts, where the Node floor is declared, the hash on the package manager, the one app harness, test ids, types-only packages | Node; `dependency-cruiser` for the dependency gate |
-| `eslint.config.mts` + `eslint-rules/` | Thirteen AST lint rules of its own (naming, reading order, fixtures, page objects, no real sleeps in tests, one import per module), and the settings of ESLint's rules that go with them: function declarations, blank lines, named object types, no CommonJS, React's hook rules | `eslint`, `typescript-eslint`, `eslint-plugin-react-hooks` |
+| `gates/run.mts` | Structure, TypeScript only, dumb UI, port contracts, dependency direction, the paths the agent instructions name, the task cache, every package's scripts, where the Node floor is declared, the hash on the package manager, the one app harness, test ids, types-only packages, the one Playwright version | Node; `dependency-cruiser` for the dependency gate |
+| `eslint.config.mts` + `eslint-rules/` | Fourteen AST lint rules of its own (naming, reading order, fixtures, page objects, no browser driver in an end-to-end spec, no real sleeps in tests, one import per module), and the settings of ESLint's rules that go with them: function declarations, blank lines, named object types, no CommonJS, React's hook rules | `eslint`, `typescript-eslint`, `eslint-plugin-react-hooks` |
 | `gates/quiet.mts` | Nothing of its own: it runs a gate script of the project and prints only the stage that failed | Node |
 | `check-react-policies.mts` | Every package that imports React is under the lint rules for its role, and a client's `reactCompiler` matches its build | `eslint` |
 | `check-compiler.mts` | The React Compiler still memoizes each function a client lists as relying on it | `@babel/core` and `babel-plugin-react-compiler` in the client |
@@ -32,23 +32,24 @@ A project declares its layers once, in `architecture.config.mts`
 
 | Gate | Fails when |
 |---|---|
-| `structure` | A workspace package has no declared role; a required role is missing; the domain has no ports folder; a package has a runtime dependency outside its closed list; a client holds source outside its composition root and its UI folder; an integration package holds anything but tests |
+| `structure` | A workspace package has no declared role; a required role is missing; the domain has no ports folder; a package has a runtime dependency outside its closed list; a client holds source outside its composition root and its UI folder; an integration package holds anything but tests; an e2e package holds a file that is neither a spec, a page object nor in a `testing` folder |
 | `typescript-only` | The project holds a `.js`, `.jsx`, `.mjs` or `.cjs` source file that is not listed as an exception |
 | `dumb-ui` | A UI file imports the stream library, touches storage, reads configuration, opens a connection, or sets a timer |
 | `port-contracts` | A port has no contract test; the contract never calls one of the port's methods; the contract imports an implementation; an adapter folder that implements a port does not run that port's contract |
-| `dependencies` | An import points outward; the domain, or a package that asked, uses a Node built-in; the core imports a UI framework; a presenter or a state machine imports an adapter; production code imports test scaffolding; a confined library is imported outside its packages; the UI imports the composition root or an adapter; anything imports an integration package; there is a cycle |
+| `dependencies` | An import points outward; the domain, or a package that asked, uses a Node built-in; the core imports a UI framework; a presenter or a state machine imports an adapter; production code imports test scaffolding; a confined library is imported outside its packages; the UI imports the composition root or an adapter; anything imports an integration package or an e2e package; an e2e package imports any of the application but a client's test ids; there is a cycle |
 | `agent-docs` | `AGENTS.md` or `CLAUDE.md` names a file or folder that does not exist |
 | `task-cache` | A cached task in `turbo.json` has a key that leaves out the packages a package imports; a package's tsconfig extends a file outside the package that is not a global dependency; a package with tests that need a port caches its `test` task |
-| `package-scripts` | A workspace package has no `typecheck` script, or no `test` (or `test:…`) script and no listed reason; a script, the root's or a package's, runs `eslint` without `--max-warnings 0` |
+| `package-scripts` | A workspace package has no `typecheck` script, or no `test` (or `test:…`) script and no listed reason; an e2e package has a `test` script; a script, the root's or a package's, runs `eslint` without `--max-warnings 0` |
 | `node-floor` | A `package.json`, the root's or a package's, has `engines.node`; the root's has no `devEngines.runtime` that names `node` with a version and `"onFail": "error"` |
 | `package-manager` | The root `package.json` has no `packageManager`, or one that is not an exact version followed by `+sha512.` and the hash of that release |
 | `app-harness` | A test calls the function that builds the whole application, anywhere but the one harness file |
 | `test-ids` | A test id is written as a string literal, in a component, a selector or a query, outside the client's test-ids file |
 | `types-only` | A package declared `typesOnly` exports a runtime value |
+| `playwright-pin` | A `package.json` asks for `@playwright/test` or `playwright` as a range; two ask for two versions; another version is installed; a workflow's Playwright image has another version |
 
 ```bash
 node tools/arch/gates/run.mts                 # every gate
-node tools/arch/gates/run.mts --file src/ui/A.tsx   # per-file gates only: all but dependencies, agent-docs, task-cache
+node tools/arch/gates/run.mts --file src/ui/A.tsx   # per-file gates only: all but dependencies, agent-docs, task-cache, playwright-pin
 node tools/arch/gates/run.mts --json          # machine-readable
 ```
 
@@ -83,6 +84,60 @@ Two rules keep that from becoming a way round the layers:
 - nothing may import an integration package (`dependencies`);
 - it holds only tests: files named `*.test.ts`, and helpers in a
   `__testUtils__` folder (`structure`).
+
+### The e2e role: the application, driven from outside
+
+An end-to-end test drives the built application in a real browser, as a user
+would. A package with the role `e2e` holds such tests. It is the opposite of
+`integration`: that one may import every layer, this one imports none.
+
+- **It imports none of the application's source** (`dependencies`), from a
+  spec, a page object or its Playwright config. A test that imports the code
+  it tests is no longer a test of what a user gets. The one exception is a
+  client's test-ids file, so that a page object and a component share each id.
+  An import that names only types is not an edge, so `import type` reaches the
+  types of the wire protocol.
+- **Nothing may import it** (`dependencies`).
+- **It holds three kinds of file** (`structure`): a spec (`*.spec.ts`), a page
+  object (`*.page.ts`), and what both are built on, in a `testing` folder (the
+  fixtures file). The lint rules below follow the kind, so a file of no kind
+  would be under none of them.
+- **It has no `test` script** (`package-scripts`). The task runner would run
+  one with every other package's tests, and the full gate would then need a
+  browser and a port on every machine. The run is a script of the project's
+  root. It still needs `typecheck`.
+
+Two lint rules follow the role:
+
+- `arch/no-browser-driver-in-specs`, on its specs. A spec may not import the
+  driver's package, take a driver fixture (`page`, `context`, `browser`,
+  `request`) or call a method that finds or reads an element (`locator`,
+  `getBy…`, `evaluate`, `waitForSelector`). It takes `test` and `expect` from
+  the fixtures file and calls page objects.
+- `arch/no-real-sleeps-in-tests`, on every file of the package and not only
+  its specs: a `waitForTimeout` in a page object is the same guess.
+
+The `test-ids` gate reads the package like any other, so a test id written as
+a string in a page object fails there.
+
+Skip the role for a Playwright tier that is not a test of the whole
+application: a screenshot tier that renders components in a host of its own
+lives in the client's `tests/` folder and imports what it renders.
+
+### One Playwright version
+
+The npm package brings a browser build, and so does the container image a
+workflow runs in. The `playwright-pin` gate holds them to one:
+
+- every `package.json` that asks for `@playwright/test`, or for the
+  `playwright` library it is built on, the root's included, names an exact
+  version, and all name the same one;
+- the version installed in that package is the one it names;
+- the tag of every `mcr.microsoft.com/playwright:v…` image in
+  `.github/workflows` carries that version.
+
+With no `package.json` that asks for either the gate reports `SKIP`. A project
+with one such package and no workflow passes: the exact version was judged.
 
 ### The paths the agent instructions name
 
@@ -397,6 +452,14 @@ Four cases are reported instead of being read as clean:
   The `dependencies` gate does not report those as skipped.
 - `app-harness` sees a call, `createApp(…)`. The function passed by name to
   something else that calls it is not caught.
+- An e2e package's import of the application is found when it is a value. A
+  type reaches anything, as it does for `vendorOnlyIn`.
+- `arch/no-browser-driver-in-specs` matches a call by its method's name,
+  whatever it is called on, and a fixture by its name. A page object whose
+  method is called `locator`, or a fixture named `page` that is not the
+  driver, is reported.
+- `playwright-pin` reads the image tag as text, in workflows only. An image
+  named in a `Dockerfile` or a compose file is not seen.
 - `test-ids` and `types-only` match text after stripping comments. A test id
   built in a template literal is reported, unless the literal opens with
   `${` (a selector built from a constant); `export declare` is not.
@@ -418,19 +481,21 @@ The block holds three kinds of rule. Each has its reason beside it in
 
 | Kind | Rules | Applies to |
 |---|---|---|
-| The kit's own, in `eslint-rules/` | Thirteen, under the `arch/` name | By kind of file: every source file, tests, page objects, components |
+| The kit's own, in `eslint-rules/` | Fourteen, under the `arch/` name | By kind of file: every source file, tests, page objects, components |
 | ESLint's, with the kit's settings | `func-style`, `arrow-body-style`, `func-names`, `lines-between-class-members`, `padding-line-between-statements`, `max-classes-per-file`; `no-restricted-syntax` (an object type with no name, in six positions; the view model kept whole or called through); `no-restricted-globals` (the CommonJS names) | Every `.ts`, `.tsx` and `.mts` file |
 | | `no-restricted-syntax` on the whole file | Every `.js`, `.mjs`, `.cjs`, `.jsx` and `.cts` file. The exemptions are `javascriptAllowed` in the architecture config |
 | By role | `eslint-plugin-react-hooks` (its `recommended-latest` rules, all as errors); no `style={{…}}` | The `src` of a `client` package |
 | | No `useMemo`, `useCallback`, `memo` or default React import | The `src` of a `bindings` package, tests left out |
 | | The same four, for another reason: the React Compiler memoizes | The `src` of a `client` package that declares `reactCompiler: true`, tests and page objects left out |
+| | `arch/no-browser-driver-in-specs` | The specs in the `src` of an `e2e` package |
+| | `arch/no-real-sleeps-in-tests`, beyond the tests it always reads | Every file in the `src` of an `e2e` package |
 
 ### Rules that follow a role
 
 `architectureLint()` reads `architecture.config.mts` from the folder ESLint is
-run in, the file the gates read, and applies the last two rows to the
+run in, the file the gates read, and applies the rows under "By role" to the
 packages that declare those roles. A config can also be handed over:
-`architectureLint(config)`. Where there is no such file those two rows are not
+`architectureLint(config)`. Where there is no such file those rows are not
 applied, and a JavaScript file has no exemption.
 
 The hook rules are held to a client because a function named `useCase` in any

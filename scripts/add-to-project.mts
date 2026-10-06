@@ -29,6 +29,7 @@ import { fileURLToPath } from "node:url";
 
 import { isMainModule } from "../kit/gates/lib/files.mts";
 import { LINT_DEPENDENCIES } from "../kit/lint-dependencies.mts";
+import { type Declaration, declarePackages } from "./lib/architecture.mts";
 import { type Json, mergeSettings, parseSettings, SettingsError } from "./lib/host-settings.mts";
 import {
   assertInside,
@@ -104,6 +105,8 @@ export interface AddResult {
   packageChanges: string[];
   /** One line per entry merged into a host's settings file. */
   settingsChanges: string[];
+  /** One line per package declared in the architecture config. */
+  declared: string[];
   agents: "added" | "updated" | "unchanged" | "none";
   /** Files written once for the project to own: the kit's set-up files, an add-on's starting files. */
   created: string[];
@@ -167,6 +170,18 @@ interface AddonManifest {
   /** True for an add-on a new project should take unless it has a reason not to. */
   recommended?: boolean;
   /**
+   * Gates the project's copy of the kit must have. An add-on that relies on a
+   * gate, or on a role that came with one, is refused by a project whose kit
+   * is older, with the command that brings the kit up to date.
+   */
+  requiresGates?: string[];
+  /**
+   * The workspace packages the add-on brings, each with its declaration for
+   * `architecture.config.mts`. Added to the `packages` map, never written
+   * over: see `lib/architecture.mts`.
+   */
+  architecture?: { packages?: Record<string, Declaration> };
+  /**
    * Sets of starting files of which a project has exactly one: one update bot
    * or another. An option's files are in `choice/<option>/files/`, and each is
    * a starting file. `options` maps a name to one line that says what it is.
@@ -221,6 +236,7 @@ export function addToProject({ project, unit, force = false, scope, repository =
       agents: "none",
       settingsChanges: [],
       unmerged: [],
+      declared: [],
       // A file the setup has just written from the new template has nothing left to change.
       yours: findOwnedChanges(destination, KIT_TEMPLATES, templatesBefore, outcome.written).filter(({ owned }) => !setup.created.includes(owned)),
       // A project whose kit had no list has nothing to compare with: every gate would read as new.
@@ -258,9 +274,11 @@ function addAddon(destination: string, project: string, asked: string, force: bo
 
   // Everything that can refuse is worked out before anything is written.
   assertInside(destination, "AGENTS.md");
+  assertKitHasGates(destination, project, manifest);
 
   const packagePlan = planPackageChanges(destination, manifest, force);
   const settingsPlan = planHostSettings(destination, manifest);
+  const architecturePlan = planArchitecture(destination, manifest);
   const source = join(addon, "files");
   const files = existsSync(source) ? rewriteScope(readFileSet(source, ""), STARTER_SCOPE, projectScope) : new Map<string, Buffer>();
   const starting = takeStartingFiles(files, manifest.startingFiles ?? []);
@@ -356,8 +374,13 @@ function addAddon(destination: string, project: string, asked: string, force: bo
     ? writeAgentsSection(destination, unit, readFileSync(section, "utf8").replaceAll(`${STARTER_SCOPE}/`, `${projectScope}/`))
     : "none";
 
+  if (architecturePlan.text !== undefined) {
+    writeProjectFile(destination, ARCHITECTURE_CONFIG, architecturePlan.text);
+  }
+
   const notes = [
     ...choiceNotes,
+    ...architecturePlan.notes,
     ...settingsPlan.unmerged,
     ...retired,
     ...outcome.refused.map(
@@ -381,6 +404,7 @@ function addAddon(destination: string, project: string, asked: string, force: bo
     files: outcome,
     packageChanges: packagePlan.changes,
     settingsChanges,
+    declared: architecturePlan.declared,
     agents,
     created,
     notes,
@@ -413,6 +437,56 @@ function chooseOption({ name, choice }: AddonManifest, asked: string | undefined
 
   // An option the add-on no longer offers cannot be kept.
   return asked ?? (installed !== undefined && options.includes(installed) ? installed : choice.default);
+}
+
+const ARCHITECTURE_CONFIG = "architecture.config.mts";
+
+/**
+ * Refuses an add-on the project's kit is too old for. The kit's list of its
+ * gates is the one thing a project's copy says about its own age, so that is
+ * what an add-on names. Checked before anything is written: an add-on whose
+ * role the gates do not know would leave the project unable to run them.
+ */
+function assertKitHasGates(destination: string, project: string, manifest: AddonManifest): void {
+  const wanted = manifest.requiresGates ?? [];
+  const has = readGateList(readIfThere(join(destination, GATE_LIST))) ?? {};
+  const missing = wanted.filter((gate) => !(gate in has));
+
+  if (missing.length > 0) {
+    throw new InstallError(
+      `the add-on "${manifest.name}" needs a newer kit than this project has: tools/arch has no ${missing.map((gate) => `"${gate}"`).join(", ")} gate. Nothing was changed. Bring the kit up to date first: add-to-project.mts ${project} kit`,
+    );
+  }
+}
+
+interface ArchitecturePlan {
+  /** The config's new text. Undefined when there is nothing to write. */
+  text?: string;
+  declared: string[];
+  notes: string[];
+}
+
+/** Works out the entries the architecture config would gain for the packages the add-on brings. */
+function planArchitecture(project: string, manifest: AddonManifest): ArchitecturePlan {
+  const packages = manifest.architecture?.packages ?? {};
+
+  if (Object.keys(packages).length === 0) {
+    return { declared: [], notes: [] };
+  }
+
+  assertInside(project, ARCHITECTURE_CONFIG);
+
+  const file = join(project, ARCHITECTURE_CONFIG);
+  const { text, added, byHand } = declarePackages(existsSync(file) ? readFileSync(file, "utf8") : "", packages);
+
+  return {
+    text,
+    declared: added.map((entry) => `${ARCHITECTURE_CONFIG}: packages gains ${entry.replace(/,$/, "")}`),
+    notes: byHand.map(
+      (entry) =>
+        `add ${entry.replace(/,$/, "")} to the packages of ${ARCHITECTURE_CONFIG}: the file has no \`packages: { … }\` map this script can add to, and the structure gate fails on a package that is not declared`,
+    ),
+  };
 }
 
 interface SettingsPlan {
@@ -848,6 +922,7 @@ export function describe(result: AddResult, project: string): string {
     ...result.created.map((path) => `  created  ${path}`),
     ...result.packageChanges.map((change) => `  changed  ${change}`),
     ...result.settingsChanges.map((change) => `  merged   ${change}`),
+    ...result.declared.map((change) => `  declared ${change}`),
   ];
 
   if (result.agents === "added" || result.agents === "updated") {

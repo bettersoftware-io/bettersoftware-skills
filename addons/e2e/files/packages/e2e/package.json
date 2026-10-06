@@ -1,0 +1,17 @@
+{
+  "name": "@app/e2e",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@app/client-react": "workspace:*",
+    "@app/shared": "workspace:*",
+    "@playwright/test": "1.63.0",
+    "@types/node": "^26.2.0"
+  }
+}

@@ -79,7 +79,22 @@ export function checkPackageScripts({ root, config, workspace }: Project, onlyFi
       });
     }
 
-    const hasTests = Object.keys(scripts).some((script) => /^test(:|$)/.test(script));
+    const testScripts = Object.keys(scripts).filter((script) => /^test(:|$)/.test(script));
+    const hasTests = testScripts.length > 0;
+
+    // An e2e package's run needs a browser and a port. It is started by a
+    // script of the project's root, and is no part of `pnpm test`.
+    if (config.packages[path]?.role === "e2e") {
+      for (const script of testScripts) {
+        findings.push({
+          gate: GATE,
+          file,
+          message: `${name} has a "${script}" script. The task runner would run it with every other package's tests, so the full gate would need a browser and a port, on every machine and in every sandbox. An e2e package is run by a script of the project's root (pnpm e2e), on its own. Remove the script, or give it a name that does not start with "test".`,
+        });
+      }
+
+      continue;
+    }
 
     if (!hasTests && !config.packagesWithoutTests[path]) {
       findings.push({

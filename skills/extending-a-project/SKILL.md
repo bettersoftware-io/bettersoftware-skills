@@ -30,6 +30,7 @@ node <plugin root>/scripts/add-to-project.mts --list
 | `kit` | The architecture gates, lint rules and agent hooks in `tools/arch`. Run it again to update them |
 | `coverage` | A per-file coverage gate, a ranked list of gaps, a mutation check, a published report |
 | `visual` | Screenshot tests of the UI against committed golden images |
+| `e2e` | End-to-end tests: Playwright drives the built client in a real browser, on the simulator and against the real server |
 | `performance` | A static check of animations and transitions, a runtime motion audit, a guide |
 | `agent-workflow` | A hook that keeps each push and pull request step in a call of its own and approves the routine ones by exact shape, a worktree script, a weekly tag, a checked changelog |
 
@@ -59,6 +60,8 @@ node <plugin root>/scripts/add-to-project.mts <project> <unit>
 
 - If it stops and lists files that differ, it has changed nothing. Show the
   list. Pass `--force` only when the user says to: it overwrites their edits.
+- If it says the add-on needs a newer kit, it has changed nothing. Run the
+  script with `kit` first, then again with the add-on.
 - If it prints "Still to do by hand", those steps are the user's to decide
   (which role each package plays, how to merge hook settings). Do them with
   the user, not for them.

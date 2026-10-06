@@ -14,7 +14,7 @@ import type {
   WorkspacePackage,
 } from "./config.mts";
 import { packagesWithRole } from "./config.mts";
-import { isInside, isTestFile, listSourceFiles, matchesName } from "./files.mts";
+import { isInside, isTestFile, isTestScaffolding, listSourceFiles, matchesName } from "./files.mts";
 
 const GATE = "structure";
 
@@ -27,6 +27,7 @@ export function checkStructure({ root, config, workspace }: Project): Finding[] 
     ...checkNpmAllowlists(root, config, workspace),
     ...packagesWithRole(config, "client").flatMap((client) => checkClientLayout(root, client)),
     ...packagesWithRole(config, "integration").flatMap((integration) => checkHoldsOnlyTests(root, integration)),
+    ...packagesWithRole(config, "e2e").flatMap((e2e) => checkHoldsOnlyEndToEndTests(root, e2e)),
   ];
 }
 
@@ -38,6 +39,9 @@ export function checkStructureOfFiles({ root, config }: Project, files: string[]
     ),
     ...packagesWithRole(config, "integration").flatMap((integration) =>
       checkHoldsOnlyTests(root, integration, files.filter((file) => isInside(file, integration.path))),
+    ),
+    ...packagesWithRole(config, "e2e").flatMap((e2e) =>
+      checkHoldsOnlyEndToEndTests(root, e2e, files.filter((file) => isInside(file, e2e.path))),
     ),
   ];
 }
@@ -176,5 +180,25 @@ function checkHoldsOnlyTests(root: string, integration: DeclaredPackage, onlyFil
       file,
       message:
         "An integration package holds only tests: files named *.test.ts, and helpers in a __testUtils__ folder. This package may import every layer, so production code here would escape every dependency rule. Move the code to the package whose layer it belongs to.",
+    }));
+}
+
+/**
+ * An end-to-end package has three kinds of file, and the lint rules follow
+ * the kind: a spec says what happens, a page object knows how the screen is
+ * driven, and a `testing` folder holds what both are built on. A file of no
+ * kind is under none of those rules, so a spec could reach the browser
+ * through it.
+ */
+function checkHoldsOnlyEndToEndTests(root: string, e2e: DeclaredPackage, onlyFiles?: string[]): Finding[] {
+  const source = `${e2e.path}/src`;
+
+  return (onlyFiles ?? listSourceFiles(root, source))
+    .filter((file) => isInside(file, source) && !isTestScaffolding(file))
+    .map((file) => ({
+      gate: GATE,
+      file,
+      message:
+        "An e2e package holds only specs (*.spec.ts), page objects (*.page.ts) and what they are built on, in a testing folder. Each kind has its own lint rules, and this file is of no kind, so none of them reads it. Name it for what it is, or move it into a testing folder.",
     }));
 }

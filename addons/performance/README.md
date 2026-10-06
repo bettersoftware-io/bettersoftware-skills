@@ -186,7 +186,8 @@ This repository's own `pnpm typecheck` leaves out `motion-audit.mts`, because
 the add-on.
 
 The `playwright` version and the image tag in `perf.yml` must stay equal. If
-they drift, the audit in CI exits 2 ("Chromium could not be started"), which
-is loud, so there is no separate check for it. The `visual` add-on pins
-`@playwright/test` to the same version; a project with both should move them
-together.
+they drift, the audit in CI exits 2 ("Chromium could not be started"). The
+kit's `playwright-pin` gate fails first, in `gate:fast`: it holds `playwright`
+to an exact version, to the image tag of every workflow, and to the version
+of `@playwright/test` where the `visual` or the `e2e` add-on brings it. A
+project whose kit is older than that gate has no such check.

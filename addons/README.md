@@ -39,6 +39,8 @@ addons/<name>/
   "startingFiles": ["packages/client-react/tests/visual/scenarios.ts", "packages/client-react/tests/visual/goldens/"],
   "hostSettings": { ".claude/settings.json": { "permissions": { "ask": ["Bash(git push *--force*)"] } } },
   "choice": { "default": "dependabot", "options": { "dependabot": "One line.", "renovate": "One line." } },
+  "requiresGates": ["playwright-pin"],
+  "architecture": { "packages": { "packages/e2e": { "role": "e2e" } } },
   "verify": "pnpm coverage"
 }
 ```
@@ -99,6 +101,20 @@ addons/<name>/
   `format-lint` asks for its fixer, because a package scope of another length
   moves where an import line wraps.
 
+- `requiresGates` names gates the project's copy of the kit must have. An
+  add-on that relies on a gate, or on a role that came with one, is refused by
+  a project whose kit is older: nothing is written, and the message gives the
+  command that brings the kit up to date. The project's
+  `tools/arch/gates/gates.json` is what is read.
+- `architecture.packages` declares the workspace packages the add-on brings
+  in the project's `architecture.config.mts`, each with its role. The file
+  belongs to the project, so an entry is added to its `packages` map and
+  nothing else is touched: a package the project has already declared keeps
+  its declaration, and a second run changes nothing. A file with no
+  `packages: { … }` map the script can add to is left alone, and the script
+  says which line to add by hand. The package itself is a starting file (its
+  `package.json`, its source), so the project owns it from the first day.
+
 ## A choice
 
 ```bash
@@ -145,8 +161,9 @@ it again outside the sandbox.
 
 1. **An add-on only adds.** New files, new scripts, new dev dependencies. It
    never edits a file the project already has, except `AGENTS.md` (its section),
-   `package.json` files and a host's settings file (both through
-   `addon.json`, and both by adding entries only). If something seems to need
+   `package.json` files, a host's settings file and the `packages` map of
+   `architecture.config.mts` (all three through `addon.json`, and all by
+   adding entries only). If something seems to need
    an edit, find the way that does not: a command-line flag, a new config file
    that extends the old one, a workflow file of its own. It removes one kind
    of file: a starting file of an option the project moves away from, and

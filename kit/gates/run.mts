@@ -27,6 +27,7 @@ import { checkLanguage, languageSkipReason } from "./lib/language.mts";
 import { checkNodeFloor, nodeFloorSkipReason } from "./lib/node-floor.mts";
 import { checkPackageManager, packageManagerSkipReason } from "./lib/package-manager.mts";
 import { checkPackageScripts, packageScriptsSkipReason } from "./lib/package-scripts.mts";
+import { checkPlaywrightPin, playwrightPinSkipReason } from "./lib/playwright-pin.mts";
 import { checkStructure, checkStructureOfFiles } from "./lib/structure.mts";
 import { checkTaskCache, taskCacheSkipReason } from "./lib/task-cache.mts";
 import { checkTestIds, testIdsSkipReason } from "./lib/test-ids.mts";
@@ -109,6 +110,7 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
       "app-harness",
       "test-ids",
       "types-only",
+      "playwright-pin",
     ],
     skipped: dropUndefined({
       "typescript-only": languageSkipReason(project),
@@ -122,6 +124,7 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
       "app-harness": appHarnessSkipReason(project),
       "test-ids": testIdsSkipReason(project),
       "types-only": typesOnlySkipReason(project),
+      "playwright-pin": playwrightPinSkipReason(project),
     }),
     findings: [
       ...checkStructure(project),
@@ -137,6 +140,7 @@ export async function runGates({ root = process.cwd(), files, configFile }: Gate
       ...checkAppHarness(project),
       ...checkTestIds(project),
       ...checkTypesOnly(project),
+      ...checkPlaywrightPin(project),
     ],
   };
 }

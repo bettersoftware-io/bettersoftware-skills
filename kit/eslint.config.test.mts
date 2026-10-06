@@ -16,6 +16,7 @@ const LAYERS: ArchitectureConfig = {
     "packages/react-bindings": { role: "bindings" },
     "packages/client-react": { role: "client" },
     "packages/client-web": { role: "client", reactCompiler: true },
+    "packages/e2e": { role: "e2e" },
   },
   javascriptAllowed: { "stylelint.config.mjs": "stylelint's config loader cannot read .mts" },
 };
@@ -124,6 +125,32 @@ describe("where a rule applies", () => {
     const [result] = await plain.lintText("export const add = (a: number, b: number): number => {\n  return a + b;\n};\n", { filePath: DOMAIN });
 
     expect(result?.messages.map(({ ruleId }) => ruleId)).toEqual(["func-style"]);
+  });
+
+  it("scope: only an e2e package's specs are kept from the browser driver", async () => {
+    const source = `import { test } from "@playwright/test";\n\ntest("x", async ({ page }) => {\n  await page.goto("/");\n});\n`;
+
+    expect(await findingsOf(source, "packages/e2e/src/sim/prices.spec.ts", "arch/no-browser-driver-in-specs")).toHaveLength(2);
+    expect(await findingsOf(source, "packages/e2e/src/pages/PriceList.page.ts", "arch/no-browser-driver-in-specs")).toEqual([]);
+    expect(await findingsOf(source, "packages/e2e/src/testing/test.ts", "arch/no-browser-driver-in-specs")).toEqual([]);
+    expect(await findingsOf(source, "packages/client-react/tests/visual/visual.spec.ts", "arch/no-browser-driver-in-specs")).toEqual([]);
+  });
+
+  it("scope: a fixed wait is reported in an e2e package's page objects and fixtures, not only in its specs", async () => {
+    const source = `export async function settle(page: Waiter): Promise<void> {\n  await page.waitForTimeout(500);\n}\n\ninterface Waiter {\n  waitForTimeout: (ms: number) => Promise<void>;\n}\n`;
+
+    expect(await findingsOf(source, "packages/e2e/src/pages/PriceList.page.ts", "arch/no-real-sleeps-in-tests")).toHaveLength(1);
+    expect(await findingsOf(source, "packages/e2e/src/testing/test.ts", "arch/no-real-sleeps-in-tests")).toHaveLength(1);
+    expect(await findingsOf(source, "packages/e2e/src/sim/prices.spec.ts", "arch/no-real-sleeps-in-tests")).toHaveLength(1);
+    expect(await findingsOf(source, "packages/client-react/src/ui/PriceList.page.tsx", "arch/no-real-sleeps-in-tests")).toEqual([]);
+  });
+
+  it("scope: without an e2e package the two blocks are not made", () => {
+    const withoutEndToEnd = { ...LAYERS, packages: Object.fromEntries(Object.entries(LAYERS.packages).filter(([path]) => path !== "packages/e2e")) };
+    const rulesOf = (config: ArchitectureConfig): string[] => architectureLint(config).flatMap(({ rules }) => Object.keys(rules ?? {}));
+
+    expect(rulesOf(LAYERS)).toContain("arch/no-browser-driver-in-specs");
+    expect(rulesOf(withoutEndToEnd)).not.toContain("arch/no-browser-driver-in-specs");
   });
 
   it("severity: every rule is an error, so a plain eslint run fails on it", () => {

@@ -39,6 +39,7 @@ describe("a project that follows the rules", () => {
       "app-harness",
       "test-ids",
       "types-only",
+      "playwright-pin",
     ]);
     expect(result.skipped).toEqual({});
     expect(formatFindings(result)).toContain("all gates passed.");
@@ -199,6 +200,33 @@ describe("a project that breaks the rules", () => {
   it("names production code in an integration package, and leaves its tests alone", () => {
     expect(messages("structure", "packages/checks/src/retryPolicy.ts")).toContain("holds only tests");
     expect(of("structure", "packages/checks/src/priceAgreement.test.ts")).toEqual([]);
+  });
+
+  it("names a file of an e2e package that is neither a spec, a page object nor in a testing folder", () => {
+    expect(messages("structure", "packages/browser-tests/src/helpers.ts")).toContain("holds only specs (*.spec.ts), page objects (*.page.ts)");
+    expect(of("structure", "packages/browser-tests/src/sim/prices.spec.ts")).toEqual([]);
+  });
+
+  it("names an e2e package that imports the application, from a spec and from its config, and leaves the test ids and a type alone", () => {
+    const fromSpec = of("dependencies", "packages/browser-tests/src/sim/prices.spec.ts").map((finding) => finding.message);
+
+    expect(fromSpec).toEqual([expect.stringContaining("browser-tests-imports-test-ids-only: imports packages/client-core/src/index.ts")]);
+    expect(fromSpec.join("\n")).toContain("except the test ids (packages/client-react/src/ui/testids.ts)");
+    expect(messages("dependencies", "packages/browser-tests/playwright.config.ts")).toContain(
+      "browser-tests-imports-test-ids-only: imports packages/client-react/src/app/startApp.ts",
+    );
+  });
+
+  it("names each test script of an e2e package, and asks it for no test script", () => {
+    expect(of("package-scripts", "packages/browser-tests/package.json").map((finding) => finding.message)).toEqual([
+      expect.stringContaining('has a "test" script'),
+      expect.stringContaining('has a "test:headed" script'),
+    ]);
+  });
+
+  it("names a Playwright version that is a range, and compares nothing with it", () => {
+    expect(messages("playwright-pin", "packages/browser-tests/package.json")).toContain('is "^1.63.0". Write the exact version');
+    expect(of("playwright-pin", ".github/workflows/e2e.yml")).toEqual([]);
   });
 
   it("names a package that imports the integration tier", () => {
@@ -399,6 +427,19 @@ describe("the per-file path the editor hook uses", () => {
     );
   });
 
+  it("judges a file in an e2e package", async () => {
+    const result = await runGates({
+      root: broken,
+      files: ["packages/browser-tests/src/helpers.ts", "packages/browser-tests/src/sim/prices.spec.ts", "packages/browser-tests/package.json"],
+    });
+
+    expect(result.findings.map(({ gate, file }) => `${gate} ${file}`)).toEqual([
+      "structure packages/browser-tests/src/helpers.ts",
+      "package-scripts packages/browser-tests/package.json",
+      "package-scripts packages/browser-tests/package.json",
+    ]);
+  });
+
   it("judges a file in an integration package", async () => {
     const result = await runGates({
       root: broken,
@@ -526,6 +567,7 @@ describe("a gate with nothing to judge", () => {
       "app-harness": "no core package defines createApp(…), so there was no application for a test to build",
       "test-ids": "no client package is declared, so there was nothing to check",
       "types-only": "no package is declared typesOnly, so there was nothing to check",
+      "playwright-pin": "no package.json asks for @playwright/test, or for the playwright library, so there was no version to hold",
     });
     expect(report).toContain("SKIP dumb-ui");
     expect(report).toContain("SKIP port-contracts");

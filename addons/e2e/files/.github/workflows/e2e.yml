@@ -1,0 +1,70 @@
+name: End-to-end
+
+# Builds the client, serves the build, and drives it in a real browser: alone
+# on its simulator, and against the real server. A failing spec fails the job.
+# The HTML report, with the trace of each failure, is uploaded when it fails.
+#
+# This is a job of its own, not part of `gate:full`: it needs a browser and a
+# port, which `pnpm install` does not bring and a sandbox may not allow.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# On a pull request a newer push replaces a run that is still going. On main
+# every commit is checked: a cancelled run would leave a commit unverified.
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # pnpm comes from Corepack; without this its first run can stop to ask.
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+jobs:
+  e2e:
+    name: end-to-end (chromium)
+    runs-on: ubuntu-latest
+    # The run takes well under a minute. A server that hangs must not hold a
+    # runner for the six hours a job is allowed.
+    timeout-minutes: 15
+    # The official Playwright image: the browser and the system libraries it
+    # needs are in it, so nothing is downloaded. The tag must be the
+    # @playwright/test version in packages/e2e; the playwright-pin gate (part
+    # of gate:fast) fails when they differ.
+    container: mcr.microsoft.com/playwright:v1.63.0-noble
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26
+
+      # Node 25 and later ship without Corepack. This installs it from a
+      # lockfile, so its version is pinned like every other. After checkout: the
+      # script is in the repository.
+      - name: Enable Corepack (provisions the pnpm pinned by the packageManager field)
+        run: node tools/arch/ci/enable-corepack.mts
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Not piped through anything: a filter on this output can hide the line
+      # that says a spec failed.
+      - name: Build the client, serve it, and run every spec in both modes
+        run: pnpm e2e
+
+      - name: Upload the report (each failure with its trace and screenshot)
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-report
+          path: packages/e2e/reports
+          if-no-files-found: warn
+          retention-days: 7

@@ -13,6 +13,9 @@
 // client           bindings, core, domain, leaf
 // server           domain, shared, leaf
 // integration      every role above. Nothing may import it; it holds only tests
+// e2e              no source of the application: only a client's test ids, and
+//                  types. Nothing may import it; it holds only specs, page
+//                  objects and a testing folder, and is run by a root script
 
 import type { ArchitectureConfig } from "./tools/arch/gates/lib/config.mts";
 
@@ -67,6 +70,11 @@ const config: ArchitectureConfig = {
     // A package of shared types adds `typesOnly: true`: it may then export no
     // runtime value.
     // "packages/core-api": { role: "leaf", typesOnly: true },
+
+    // End-to-end tests that drive the built application in a browser. It
+    // imports none of the packages above, only the client's test ids, and has
+    // no `test` script: a script of the root runs it.
+    // "packages/e2e": { role: "e2e" },
   },
 
   // Folders whose modules implement ports. Each one that implements a port

@@ -60,7 +60,23 @@ export function buildRules(config: ResolvedConfig, workspace: WorkspacePackage[]
     },
   ];
 
-  for (const pkg of declared) {
+  for (const e2e of packagesWithRole(config, "e2e")) {
+    const testIds = packagesWithRole(config, "client").map((client) => `${client.path}/${client.ui}/${client.testIds}`);
+    const own = `${escape(e2e.path)}/`;
+
+    rules.push({
+      name: `${slug(e2e.path)}-imports-test-ids-only`,
+      severity: "error",
+      comment: `An e2e package drives the built application from outside, so it imports none of its source${
+        testIds.length > 0 ? `, except the test ids (${testIds.join(", ")})` : ""
+      }. A test that imports the code it tests stops being a test of what a user gets. Drive the screen through a page object, and import a type with \`import type\`: a type is not an edge.`,
+      // The whole package, its Playwright config included.
+      from: { path: `^${own}` },
+      to: { path: anyOf(everyPackage), pathNot: `^(${[own, ...testIds.map((file) => `${escape(file)}$`)].join("|")})` },
+    });
+  }
+
+  for (const pkg of declared.filter(({ role }) => role !== "e2e")) {
     const allowed = [
       pkg.path,
       ...declared.filter((other) => ROLE_MAY_IMPORT[pkg.role].includes(other.role)).map(({ path }) => path),

@@ -1216,5 +1216,33 @@
     "find": "if (baseline.testsRun === undefined && mutant.uncounted === undefined) {",
     "replace": "if (baseline.testsRun === -1 && mutant.uncounted === undefined) {",
     "test": "pnpm vitest run addons/coverage/tests/mutation-check.test.mts -t \"prints NO TESTS and exits 2\""
+  },
+  {
+    "name": "run: a package whose tests are Playwright's is measured under vitest",
+    "file": "addons/coverage/files/tools/coverage/run.mts",
+    "find": "if (playwrightConfig !== undefined) {",
+    "replace": "if (playwrightConfig === \"never\") {",
+    "test": "pnpm vitest run addons/coverage/tests/run.test.mts -t \"skips a package whose tests are Playwright's\""
+  },
+  {
+    "name": "run: a skipped Playwright package is announced as if it were measured",
+    "file": "addons/coverage/files/tools/coverage/run.mts",
+    "find": "    // Before it is announced: nothing is run in it.\n    const playwrightConfig = findPlaywrightOnly(root, directory);",
+    "replace": "    announce?.(directory);\n    const playwrightConfig = findPlaywrightOnly(root, directory);",
+    "test": "pnpm vitest run addons/coverage/tests/run.test.mts -t \"skips a package whose tests are Playwright's\""
+  },
+  {
+    "name": "workspace: a package with a Playwright config is skipped although it has a test script",
+    "file": "addons/coverage/files/tools/coverage/lib/workspace.mts",
+    "find": "return Object.keys(scripts).some((name) => /^test(:|$)/.test(name)) ? undefined : config;",
+    "replace": "return config;",
+    "test": "pnpm vitest run addons/coverage/tests/run.test.mts -t \"measures a package that has a Playwright config and a test script\""
+  },
+  {
+    "name": "workspace: only a script named exactly test counts as one",
+    "file": "addons/coverage/files/tools/coverage/lib/workspace.mts",
+    "find": "/^test(:|$)/.test(name)",
+    "replace": "/^test$/.test(name)",
+    "test": "pnpm vitest run addons/coverage/tests/run.test.mts -t \"measures a package that has a Playwright config and a test script\""
   }
 ]

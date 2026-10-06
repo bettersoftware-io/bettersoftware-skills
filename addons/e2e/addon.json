@@ -1,0 +1,33 @@
+{
+  "name": "e2e",
+  "summary": "End-to-end tests: Playwright drives the built client in a real browser, on the simulator and against the real server, through page objects.",
+  "recommended": false,
+  "requiresGates": [
+    "playwright-pin"
+  ],
+  "architecture": {
+    "packages": {
+      "packages/e2e": {
+        "role": "e2e"
+      }
+    }
+  },
+  "packageJson": {
+    ".": {
+      "scripts": {
+        "e2e": "node tools/e2e/run.mts",
+        "e2e:install": "pnpm --dir packages/e2e exec playwright install chromium"
+      }
+    }
+  },
+  "gates": {
+    "fast": [],
+    "full": []
+  },
+  "startingFiles": [
+    "tools/e2e.config.mts",
+    "packages/e2e/package.json",
+    "packages/e2e/src/"
+  ],
+  "verify": "pnpm e2e"
+}

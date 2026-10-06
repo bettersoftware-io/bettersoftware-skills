@@ -6,7 +6,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-export type Role = "domain" | "shared" | "core" | "bindings" | "client" | "server" | "leaf" | "integration";
+export type Role = "domain" | "shared" | "core" | "bindings" | "client" | "server" | "leaf" | "integration" | "e2e";
 
 export interface PackageDeclaration {
   role: Role;
@@ -132,6 +132,7 @@ export const ROLES: readonly Role[] = [
   "server",
   "leaf",
   "integration",
+  "e2e",
 ];
 
 /**
@@ -142,6 +143,12 @@ export const ROLES: readonly Role[] = [
  * real server), which no package inside the layers is allowed to do. No role
  * lists it, so nothing can import it, and the structure gate holds it to
  * tests only.
+ *
+ * `e2e` is the other end: it drives the built application from outside, in a
+ * browser, so it imports no layer at all. The one file of the application it
+ * may read is a client's test-ids file, which the dependency gate adds by
+ * name. An import that names only types is not an edge, so the types of the
+ * wire protocol stay within reach.
  */
 export const ROLE_MAY_IMPORT: Record<Role, readonly Role[]> = {
   domain: [],
@@ -152,6 +159,7 @@ export const ROLE_MAY_IMPORT: Record<Role, readonly Role[]> = {
   client: ["bindings", "core", "domain", "leaf"],
   server: ["domain", "shared", "leaf"],
   integration: ["domain", "shared", "core", "bindings", "client", "server", "leaf"],
+  e2e: [],
 };
 
 /** Tried in order. A TypeScript project declares its layers in TypeScript. */

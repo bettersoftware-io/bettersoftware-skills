@@ -29,7 +29,7 @@ jobs:
     name: regenerate goldens (linux-x64)
     runs-on: ubuntu-latest
     # Keep this tag the same as in visual.yml and as the @playwright/test
-    # version in packages/client-react; `pnpm visual:check` fails when they differ.
+    # version in packages/client-react; the playwright-pin gate fails when they differ.
     container: mcr.microsoft.com/playwright:v1.63.0-noble
     env:
       GOLDENS: packages/client-react/tests/visual/goldens/linux-x64

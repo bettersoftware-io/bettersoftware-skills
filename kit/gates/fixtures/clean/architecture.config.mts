@@ -6,6 +6,7 @@ export default {
     "packages/react-bindings": { role: "bindings" },
     "packages/client-react": { role: "client" },
     "packages/integration": { role: "integration" },
+    "packages/e2e": { role: "e2e" },
   },
   adapters: ["packages/domain/src/simulators", "packages/client-core/src/adapters"],
   tasksThatReadNothingUpstream: {

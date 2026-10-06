@@ -21,7 +21,7 @@ cd <project> && pnpm install && pnpm visual
 | `pnpm visual` | root script | Compare. Never writes a golden |
 | `pnpm visual:update` | root script | Redraw this system's goldens |
 | `pnpm visual:jitter` | `tools/visual/jitter.mts` | Capture the same commit N times and report the largest difference: the noise floor |
-| `pnpm visual:check` | `tools/visual/check-pin.mts` + typecheck | Joins `gate:fast` |
+| `pnpm visual:check` | typecheck of `tests/visual/` | Joins `gate:fast` |
 | `pnpm visual:check:server` | `tools/visual/check-server.mts` | Fails a Playwright config that starts its server through pnpm. Joins `gate:fast` |
 | CI | `.github/workflows/visual.yml`, `update-visual-goldens.yml` | Compare on pull requests and on main; redraw the Linux set by hand |
 | Job summary | `tools/visual/summary.mts` | Names the scenarios that failed and what to do |
@@ -36,12 +36,16 @@ system that runs it, and the contract keeps such checks out of `gate:fast` and
 `gate:full`. It runs as `pnpm visual` and in its own workflow.
 
 `pnpm visual:check` joins `gate:fast`. It takes about a second and needs only
-`pnpm install`. It does two things nothing else would:
+`pnpm install`. It typechecks `tests/visual/`: the package's own
+`tsconfig.json` covers `src` only, and an add-on may not edit it.
 
-- It checks that the `@playwright/test` version is exact and equals the image
-  tag in every workflow. A mismatch means CI draws with another browser build.
-- It typechecks `tests/visual/`. The package's own `tsconfig.json` covers `src`
-  only, and an add-on may not edit it.
+The Playwright version is held by the kit's `playwright-pin` gate, which runs
+with the other gates in `gate:fast`. It fails when the `@playwright/test`
+version is a range, when two packages name two versions, and when a workflow's
+image tag is another version: CI would draw with another browser build. The
+check was this add-on's own (`tools/visual/check-pin.mts`) until the `e2e`
+add-on needed the same one; a project that has both has one check. The add-on
+is refused by a project whose kit does not have the gate yet.
 
 `pnpm visual:check:server` joins `gate:fast` too. It reads every
 `playwright*.config.ts` in the project and fails one whose
@@ -133,7 +137,7 @@ with the add-on installed by `add-to-project.mts`:
 |---|---|
 | `pnpm gate:full` before the add-on | passes |
 | `pnpm visual` with the shipped `darwin-arm64` goldens | 5 of 5 pass (4 scenarios, 1 orphan check) |
-| `pnpm gate:full` with the add-on in | passes; `visual:check` reports `PASS playwright-pin` |
+| `pnpm gate:full` with the add-on in | passes; the gates report `PASS playwright-pin` |
 | One colour changed clearly (`#1a8f4c` to `#1a4c8f`) | fails: 3 scenarios, 83 pixels each |
 | Low contrast, +1 on each channel (`#1b904d`) | fails: 82 pixels |
 | One golden deleted | fails with the how-to message; no file is written |
@@ -155,13 +159,14 @@ On GitHub, in [bettersoftware-io/skills-demo](https://github.com/bettersoftware-
 | `Update visual goldens`, five runs on one commit | five artifacts, byte-identical |
 | `Visual goldens` with that set committed | passes |
 
-The add-on's own scripts have 72 tests in `tests/`
-(`pnpm vitest run addons/visual` from this repository's root). The first 46
-were each shown able to fail: 46 mutants, 46 killed. The 26 of
-`check-server.test.mts` have `tests/mutants.json`: 26 of 26 killed. Its first
-run had one survivor, a row that passed for a reason other than the one it
-named; writing a mutant for it showed that pnpm called by a path
-(`node_modules/.bin/pnpm exec vite`) was not caught, and it now is.
+The add-on's own scripts have 65 tests in `tests/`
+(`pnpm vitest run addons/visual` from this repository's root). Each of the
+first 39 was shown able to fail, by one mutant each. The seven tests of the
+pin check moved to the kit with it (`kit/gates/playwright-pin.test.mts`).
+The 26 of `check-server.test.mts` have `tests/mutants.json`: 26 of 26
+killed. Its first run had one survivor, a row that passed for a reason other
+than the one it named; writing a mutant for it showed that pnpm called by a
+path (`node_modules/.bin/pnpm exec vite`) was not caught, and it now is.
 
 ## Limits
 

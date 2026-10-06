@@ -68,6 +68,7 @@ node scripts/add-to-project.mts <project> coverage
 |---|---|
 | [`coverage`](addons/coverage/README.md) | A per-file coverage gate for every package, a ranked list of gaps, a check that proves a test can fail, and a published report that states the commit it was built from |
 | [`visual`](addons/visual/README.md) | Screenshot tests of the UI in seeded states against committed golden images, kept per platform, with the tolerance measured and set in one place |
+| [`e2e`](addons/e2e/README.md) | End-to-end tests: Playwright drives the built client in a real browser, on the simulator and against the real server, through page objects, with the layering held by the kit |
 | [`performance`](addons/performance/README.md) | A static check of animations and transitions, a runtime audit of what Chromium actually composites, and a guide to the traps and their fixes |
 | [`format-lint`](addons/format-lint/README.md) | Biome: a formatter, a general linter and import sorting, as a base the add-on owns and a `biome.json` the project owns |
 | [`ci-security`](addons/ci-security/README.md) | Workflow lint and workflow security lint, Dependency Review on pull requests, `pnpm audit`, an OpenSSF Scorecard report, a Dockerfile check, a security policy to start from, and a Dependabot config (or Renovate's, as `ci-security:renovate`) |
